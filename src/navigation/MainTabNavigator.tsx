@@ -6,6 +6,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Platform, StyleSheet, Animated} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
+import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import {HomeScreen} from '../screens/main/HomeScreen';
 import {LearnScreen} from '../screens/main/LearnScreen';
@@ -45,10 +46,14 @@ function TabIcon({
 }
 
 export function MainTabNavigator() {
+  const insets = useSafeAreaInsets();
   const cardColor = useThemeColor({}, 'card');
   const borderColor = useThemeColor({}, 'border');
   const primaryColor = useThemeColor({}, 'primary');
   const tabIconDefault = useThemeColor({}, 'tabIconDefault');
+
+  // Calculate bottom padding based on device
+  const bottomPadding = Math.max(insets.bottom, 10);
 
   return (
     <Tab.Navigator
@@ -59,14 +64,16 @@ export function MainTabNavigator() {
         tabBarStyle: {
           backgroundColor: cardColor,
           borderTopColor: borderColor,
-          height: Platform.OS === 'ios' ? 88 : 64,
+          borderTopWidth: 1,
+          height: 60 + bottomPadding,
           paddingTop: 8,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+          paddingBottom: bottomPadding,
           ...Shadows.md,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
+          marginBottom: Platform.OS === 'ios' ? 0 : 4,
         },
       }}>
       <Tab.Screen

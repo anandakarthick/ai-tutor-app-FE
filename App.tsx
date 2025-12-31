@@ -3,14 +3,13 @@
  * Main entry point
  */
 
-import React from 'react';
-import {StatusBar, useColorScheme} from 'react-native';
+import React, {useEffect} from 'react';
+import {StatusBar, useColorScheme, View, Platform} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
   DarkTheme,
 } from '@react-navigation/native';
-import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {AppNavigator} from './src/navigation/AppNavigator';
@@ -46,19 +45,18 @@ function App(): React.JSX.Element {
   const isDark = colorScheme === 'dark';
 
   return (
-    <GestureHandlerRootView style={{flex: 1}}>
-      <SafeAreaProvider>
-        <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
-          <StatusBar
-            barStyle={isDark ? 'light-content' : 'dark-content'}
-            backgroundColor={
-              isDark ? Colors.dark.background : Colors.light.background
-            }
-          />
-          <AppNavigator />
-        </NavigationContainer>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={
+            isDark ? Colors.dark.background : Colors.light.background
+          }
+          translucent={false}
+        />
+        <AppNavigator />
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 }
 
