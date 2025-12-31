@@ -2,7 +2,7 @@
  * Register Screen
  */
 
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,9 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Input, Icon} from '../../components/ui';
@@ -30,12 +30,21 @@ export function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const primary = useThemeColor({}, 'primary');
   const border = useThemeColor({}, 'border');
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const handleRegister = async () => {
     setLoading(true);
@@ -55,7 +64,7 @@ export function RegisterScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           {/* Back Button */}
-          <Animated.View entering={FadeInUp.duration(400)}>
+          <Animated.View style={{opacity: fadeAnim}}>
             <TouchableOpacity
               style={styles.backButton}
               onPress={() => navigation.goBack()}>
@@ -64,9 +73,7 @@ export function RegisterScreen() {
           </Animated.View>
 
           {/* Header */}
-          <Animated.View
-            entering={FadeInUp.delay(100).duration(500)}
-            style={styles.header}>
+          <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
             <Text style={[styles.title, {color: text}]}>Create Account</Text>
             <Text style={[styles.subtitle, {color: textSecondary}]}>
               Start your learning journey today
@@ -74,9 +81,7 @@ export function RegisterScreen() {
           </Animated.View>
 
           {/* Form */}
-          <Animated.View
-            entering={FadeInDown.delay(200).duration(500)}
-            style={styles.form}>
+          <Animated.View style={[styles.form, {opacity: fadeAnim}]}>
             <Input
               label="Full Name"
               placeholder="Enter your full name"
@@ -147,9 +152,7 @@ export function RegisterScreen() {
           </Animated.View>
 
           {/* Login Link */}
-          <Animated.View
-            entering={FadeInDown.delay(300).duration(500)}
-            style={styles.loginContainer}>
+          <Animated.View style={[styles.loginContainer, {opacity: fadeAnim}]}>
             <Text style={[styles.loginText, {color: textSecondary}]}>
               Already have an account?{' '}
             </Text>

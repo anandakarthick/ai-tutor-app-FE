@@ -3,7 +3,7 @@
  * AI-powered doubt resolution with chat
  */
 
-import React, {useState, useRef} from 'react';
+import React, {useState, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -13,9 +13,9 @@ import {
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInUp} from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Icon} from '../../components/ui';
@@ -44,6 +44,7 @@ export function DoubtScreen() {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -53,6 +54,14 @@ export function DoubtScreen() {
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const backgroundSecondary = useThemeColor({}, 'backgroundSecondary');
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const handleSend = () => {
     if (!inputText.trim()) {
@@ -128,8 +137,7 @@ export function DoubtScreen() {
       edges={['top']}>
       {/* Header */}
       <Animated.View
-        entering={FadeInUp.duration(400)}
-        style={[styles.header, {borderBottomColor: border}]}>
+        style={[styles.header, {borderBottomColor: border, opacity: fadeAnim}]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>

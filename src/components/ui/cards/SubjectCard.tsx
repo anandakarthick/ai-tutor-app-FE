@@ -3,19 +3,15 @@
  * Display subject with progress
  */
 
-import React from 'react';
+import React, {useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
   useColorScheme,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import {useThemeColor} from '../../../hooks/useThemeColor';
 import {ProgressRing} from '../ProgressRing';
 import {Icon} from '../Icon';
@@ -26,8 +22,6 @@ import {
   Spacing,
   getSubjectColor,
 } from '../../../constants/theme';
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface SubjectCardProps {
   subject: string;
@@ -46,7 +40,7 @@ export function SubjectCard({
   icon,
   onPress,
 }: SubjectCardProps) {
-  const scale = useSharedValue(1);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const colorScheme = useColorScheme() ?? 'light';
 
   const card = useThemeColor({}, 'card');
@@ -55,16 +49,18 @@ export function SubjectCard({
 
   const subjectColor = getSubjectColor(subject, colorScheme);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-  }));
-
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
   };
 
   const getSubjectIcon = (subj: string): string => {
@@ -83,38 +79,35 @@ export function SubjectCard({
   };
 
   return (
-    <AnimatedTouchable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      activeOpacity={0.9}
-      style={[
-        styles.container,
-        {backgroundColor: card},
-        Shadows.md,
-        animatedStyle,
-      ]}>
-      <View
-        style={[
-          styles.iconContainer,
-          {backgroundColor: `${subjectColor}20`},
-        ]}>
-        <Icon
-          name={icon || getSubjectIcon(subject)}
-          size={24}
-          color={subjectColor}
-        />
-      </View>
-      <View style={styles.content}>
-        <Text style={[styles.subject, {color: text}]} numberOfLines={1}>
-          {subject}
-        </Text>
-        <Text style={[styles.chapters, {color: textSecondary}]}>
-          {chaptersCompleted}/{totalChapters} chapters
-        </Text>
-      </View>
-      <ProgressRing progress={progress} size="sm" showLabel={false} />
-    </AnimatedTouchable>
+    <Animated.View style={{transform: [{scale: scaleAnim}]}}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={0.9}
+        style={[styles.container, {backgroundColor: card}, Shadows.md]}>
+        <View
+          style={[
+            styles.iconContainer,
+            {backgroundColor: `${subjectColor}20`},
+          ]}>
+          <Icon
+            name={icon || getSubjectIcon(subject)}
+            size={24}
+            color={subjectColor}
+          />
+        </View>
+        <View style={styles.content}>
+          <Text style={[styles.subject, {color: text}]} numberOfLines={1}>
+            {subject}
+          </Text>
+          <Text style={[styles.chapters, {color: textSecondary}]}>
+            {chaptersCompleted}/{totalChapters} chapters
+          </Text>
+        </View>
+        <ProgressRing progress={progress} size="sm" showLabel={false} />
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

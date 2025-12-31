@@ -3,14 +3,8 @@
  * Linear progress indicator
  */
 
-import React, {useEffect} from 'react';
-import {View, Text, StyleSheet, type ViewStyle} from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import React, {useEffect, useRef} from 'react';
+import {View, Text, StyleSheet, Animated, type ViewStyle} from 'react-native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 
@@ -42,7 +36,7 @@ export function ProgressBar({
   animated = true,
   style,
 }: ProgressBarProps) {
-  const animatedProgress = useSharedValue(0);
+  const animatedProgress = useRef(new Animated.Value(0)).current;
 
   const primary = useThemeColor({}, 'primary');
   const success = useThemeColor({}, 'success');
@@ -68,21 +62,23 @@ export function ProgressBar({
   useEffect(() => {
     const clampedProgress = Math.min(100, Math.max(0, progress));
     if (animated) {
-      animatedProgress.value = withTiming(clampedProgress, {
+      Animated.timing(animatedProgress, {
+        toValue: clampedProgress,
         duration: 600,
-        easing: Easing.out(Easing.cubic),
-      });
+        useNativeDriver: false,
+      }).start();
     } else {
-      animatedProgress.value = clampedProgress;
+      animatedProgress.setValue(clampedProgress);
     }
   }, [progress, animated, animatedProgress]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    width: `${animatedProgress.value}%`,
-  }));
-
   const height = heightMap[size];
   const color = getColor();
+
+  const widthInterpolate = animatedProgress.interpolate({
+    inputRange: [0, 100],
+    outputRange: ['0%', '100%'],
+  });
 
   return (
     <View style={[styles.container, style]}>
@@ -112,8 +108,8 @@ export function ProgressBar({
               height,
               backgroundColor: color,
               borderRadius: height / 2,
+              width: widthInterpolate,
             },
-            animatedStyle,
           ]}
         />
       </View>

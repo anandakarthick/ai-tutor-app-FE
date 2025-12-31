@@ -3,16 +3,16 @@
  * Browse and take quizzes
  */
 
-import React from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Icon, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
@@ -51,6 +51,8 @@ const QUIZZES = [
 ];
 
 export function QuizzesScreen() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -59,11 +61,19 @@ export function QuizzesScreen() {
   const success = useThemeColor({}, 'success');
   const warning = useThemeColor({}, 'warning');
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
       edges={['top']}>
-      <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
+      <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
         <Text style={[styles.title, {color: text}]}>Quizzes</Text>
         <Text style={[styles.subtitle, {color: textSecondary}]}>
           Test your knowledge
@@ -74,9 +84,7 @@ export function QuizzesScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         {/* Stats */}
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(500)}
-          style={styles.statsRow}>
+        <Animated.View style={[styles.statsRow, {opacity: fadeAnim}]}>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="check-circle" size={24} color={success} />
             <Text style={[styles.statValue, {color: text}]}>12</Text>
@@ -101,14 +109,13 @@ export function QuizzesScreen() {
         </Animated.View>
 
         {/* Quiz List */}
-        <Text style={[styles.sectionTitle, {color: text}]}>
-          Available Quizzes
-        </Text>
-        {QUIZZES.map((quiz, index) => (
-          <Animated.View
-            key={quiz.id}
-            entering={FadeInDown.delay(200 + index * 60).duration(400)}>
+        <Animated.View style={{opacity: fadeAnim}}>
+          <Text style={[styles.sectionTitle, {color: text}]}>
+            Available Quizzes
+          </Text>
+          {QUIZZES.map((quiz) => (
             <TouchableOpacity
+              key={quiz.id}
               style={[styles.quizCard, {backgroundColor: card}, Shadows.sm]}>
               <View
                 style={[styles.quizIcon, {backgroundColor: `${primary}15`}]}>
@@ -141,8 +148,8 @@ export function QuizzesScreen() {
               </View>
               <Icon name="chevron-right" size={20} color={textSecondary} />
             </TouchableOpacity>
-          </Animated.View>
-        ))}
+          ))}
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );

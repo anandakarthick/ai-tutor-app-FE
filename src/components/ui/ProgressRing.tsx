@@ -3,19 +3,11 @@
  * Circular progress indicator
  */
 
-import React, {useEffect} from 'react';
-import {View, Text, StyleSheet, type ViewStyle} from 'react-native';
-import Animated, {
-  useAnimatedProps,
-  useSharedValue,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import React, {useEffect, useRef, useState} from 'react';
+import {View, Text, StyleSheet, Animated, type ViewStyle} from 'react-native';
 import Svg, {Circle} from 'react-native-svg';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {FontSizes} from '../../constants/theme';
-
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type ProgressRingSize = 'sm' | 'md' | 'lg' | 'xl';
 type ProgressRingVariant = 'primary' | 'success' | 'warning' | 'error';
@@ -55,7 +47,8 @@ export function ProgressRing({
   animated = true,
   style,
 }: ProgressRingProps) {
-  const animatedProgress = useSharedValue(0);
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const animatedValue = useRef(new Animated.Value(0)).current;
 
   const primary = useThemeColor({}, 'primary');
   const success = useThemeColor({}, 'success');
@@ -85,23 +78,30 @@ export function ProgressRing({
 
   useEffect(() => {
     const clampedProgress = Math.min(100, Math.max(0, progress));
+    
     if (animated) {
-      animatedProgress.value = withTiming(clampedProgress, {
+      animatedValue.setValue(displayProgress);
+      Animated.timing(animatedValue, {
+        toValue: clampedProgress,
         duration: 800,
-        easing: Easing.out(Easing.cubic),
-      });
-    } else {
-      animatedProgress.value = clampedProgress;
-    }
-  }, [progress, animated, animatedProgress]);
+        useNativeDriver: false,
+      }).start();
 
-  const animatedProps = useAnimatedProps(() => ({
-    strokeDashoffset:
-      circumference - (animatedProgress.value / 100) * circumference,
-  }));
+      const listener = animatedValue.addListener(({value}) => {
+        setDisplayProgress(value);
+      });
+
+      return () => {
+        animatedValue.removeListener(listener);
+      };
+    } else {
+      setDisplayProgress(clampedProgress);
+    }
+  }, [progress, animated]);
 
   const color = getColor();
   const center = dimension / 2;
+  const strokeDashoffset = circumference - (displayProgress / 100) * circumference;
 
   return (
     <View
@@ -117,7 +117,7 @@ export function ProgressRing({
           fill="transparent"
         />
         {/* Progress circle */}
-        <AnimatedCircle
+        <Circle
           cx={center}
           cy={center}
           r={radius}
@@ -125,7 +125,7 @@ export function ProgressRing({
           strokeWidth={stroke}
           fill="transparent"
           strokeDasharray={circumference}
-          animatedProps={animatedProps}
+          strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           transform={`rotate(-90 ${center} ${center})`}
         />
@@ -145,7 +145,7 @@ export function ProgressRing({
                     : FontSizes.xl,
               },
             ]}>
-            {Math.round(progress)}%
+            {Math.round(displayProgress)}%
           </Text>
           {label && (
             <Text

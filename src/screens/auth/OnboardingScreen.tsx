@@ -3,16 +3,16 @@
  * Multi-step wizard for student profile setup
  */
 
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp, FadeIn} from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Input, Icon} from '../../components/ui';
@@ -44,6 +44,7 @@ export function OnboardingScreen() {
   const [selectedBoard, setSelectedBoard] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedMedium, setSelectedMedium] = useState('');
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -54,17 +55,26 @@ export function OnboardingScreen() {
 
   const totalSteps = 4;
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [step]);
+
   const handleNext = () => {
     if (step < totalSteps) {
+      fadeAnim.setValue(0);
       setStep(step + 1);
     } else {
       // Complete onboarding - navigate to main app
-      // This would typically save the data and update auth state
     }
   };
 
   const handleBack = () => {
     if (step > 1) {
+      fadeAnim.setValue(0);
       setStep(step - 1);
     }
   };
@@ -144,9 +154,7 @@ export function OnboardingScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}>
         {/* Title */}
-        <Animated.View
-          entering={FadeInUp.duration(400)}
-          style={styles.titleContainer}>
+        <Animated.View style={[styles.titleContainer, {opacity: fadeAnim}]}>
           <Text style={[styles.title, {color: text}]}>{getStepTitle()}</Text>
           <Text style={[styles.subtitle, {color: textSecondary}]}>
             {getStepSubtitle()}
@@ -155,9 +163,7 @@ export function OnboardingScreen() {
 
         {/* Step Content */}
         {step === 1 && (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            style={styles.stepContent}>
+          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
             <Input
               label="Student Name"
               placeholder="Enter your name"
@@ -177,9 +183,7 @@ export function OnboardingScreen() {
         )}
 
         {step === 2 && (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            style={styles.stepContent}>
+          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
             {BOARDS.map(board => (
               <TouchableOpacity
                 key={board.id}
@@ -213,9 +217,7 @@ export function OnboardingScreen() {
         )}
 
         {step === 3 && (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            style={styles.stepContent}>
+          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
             <View style={styles.classGrid}>
               {CLASSES.map(cls => (
                 <TouchableOpacity
@@ -243,9 +245,7 @@ export function OnboardingScreen() {
         )}
 
         {step === 4 && (
-          <Animated.View
-            entering={FadeIn.duration(400)}
-            style={styles.stepContent}>
+          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
             {MEDIUMS.map(medium => (
               <TouchableOpacity
                 key={medium.id}

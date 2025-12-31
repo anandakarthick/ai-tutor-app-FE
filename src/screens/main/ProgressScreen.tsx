@@ -3,10 +3,9 @@
  * View learning progress and analytics
  */
 
-import React from 'react';
-import {View, Text, StyleSheet, ScrollView} from 'react-native';
+import React, {useEffect, useRef} from 'react';
+import {View, Text, StyleSheet, ScrollView, Animated} from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Icon, ProgressRing, ProgressBar, Card, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
@@ -28,6 +27,8 @@ const SUBJECTS = [
 ];
 
 export function ProgressScreen() {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -36,11 +37,19 @@ export function ProgressScreen() {
 
   const maxHours = Math.max(...WEEKLY_STUDY.map(d => d.hours));
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
       edges={['top']}>
-      <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
+      <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
         <Text style={[styles.title, {color: text}]}>Progress</Text>
         <Text style={[styles.subtitle, {color: textSecondary}]}>
           Track your learning journey
@@ -51,7 +60,7 @@ export function ProgressScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         {/* Overall Progress */}
-        <Animated.View entering={FadeInDown.delay(100).duration(500)}>
+        <Animated.View style={{opacity: fadeAnim}}>
           <Card style={styles.overallCard}>
             <View style={styles.overallContent}>
               <View style={styles.overallText}>
@@ -94,9 +103,7 @@ export function ProgressScreen() {
         </Animated.View>
 
         {/* Weekly Chart */}
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          style={styles.section}>
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
           <Text style={[styles.sectionTitle, {color: text}]}>This Week</Text>
           <Card>
             <View style={styles.chartContainer}>
@@ -133,9 +140,7 @@ export function ProgressScreen() {
         </Animated.View>
 
         {/* Subject Progress */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500)}
-          style={styles.section}>
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
           <Text style={[styles.sectionTitle, {color: text}]}>
             Subject Progress
           </Text>

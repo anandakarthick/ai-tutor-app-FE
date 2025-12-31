@@ -11,9 +11,9 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Icon} from '../../components/ui';
@@ -29,6 +29,7 @@ export function VerifyOTPScreen() {
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -37,6 +38,14 @@ export function VerifyOTPScreen() {
   const primary = useThemeColor({}, 'primary');
   const border = useThemeColor({}, 'border');
   const backgroundSecondary = useThemeColor({}, 'backgroundSecondary');
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   useEffect(() => {
     if (resendTimer > 0) {
@@ -87,7 +96,7 @@ export function VerifyOTPScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
         {/* Back Button */}
-        <Animated.View entering={FadeInUp.duration(400)}>
+        <Animated.View style={{opacity: fadeAnim}}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}>
@@ -96,9 +105,7 @@ export function VerifyOTPScreen() {
         </Animated.View>
 
         {/* Header */}
-        <Animated.View
-          entering={FadeInUp.delay(100).duration(500)}
-          style={styles.header}>
+        <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
           <View
             style={[styles.iconContainer, {backgroundColor: `${primary}15`}]}>
             <Icon name="mail" size={32} color={primary} />
@@ -113,9 +120,7 @@ export function VerifyOTPScreen() {
         </Animated.View>
 
         {/* OTP Input */}
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          style={styles.otpContainer}>
+        <Animated.View style={[styles.otpContainer, {opacity: fadeAnim}]}>
           {otp.map((digit, index) => (
             <TextInput
               key={index}
@@ -139,9 +144,7 @@ export function VerifyOTPScreen() {
         </Animated.View>
 
         {/* Resend */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500)}
-          style={styles.resendContainer}>
+        <Animated.View style={[styles.resendContainer, {opacity: fadeAnim}]}>
           {resendTimer > 0 ? (
             <Text style={[styles.resendText, {color: textMuted}]}>
               Resend code in {resendTimer}s
@@ -156,9 +159,7 @@ export function VerifyOTPScreen() {
         </Animated.View>
 
         {/* Verify Button */}
-        <Animated.View
-          entering={FadeInDown.delay(400).duration(500)}
-          style={styles.buttonContainer}>
+        <Animated.View style={[styles.buttonContainer, {opacity: fadeAnim}]}>
           <Button
             title="Verify"
             onPress={handleVerify}

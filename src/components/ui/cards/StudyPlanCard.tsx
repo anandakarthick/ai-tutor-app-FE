@@ -3,19 +3,15 @@
  * Display today's study plan item
  */
 
-import React from 'react';
+import React, {useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
   useColorScheme,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import {useThemeColor} from '../../../hooks/useThemeColor';
 import {
   BorderRadius,
@@ -26,8 +22,6 @@ import {
 } from '../../../constants/theme';
 import {Icon} from '../Icon';
 import {Badge} from '../Badge';
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 interface StudyPlanCardProps {
   topic: string;
@@ -50,7 +44,7 @@ export function StudyPlanCard({
   isCurrent = false,
   onPress,
 }: StudyPlanCardProps) {
-  const scale = useSharedValue(1);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
   const colorScheme = useColorScheme() ?? 'light';
 
   const card = useThemeColor({}, 'card');
@@ -63,93 +57,96 @@ export function StudyPlanCard({
 
   const subjectColor = getSubjectColor(subject, colorScheme);
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-  }));
-
   const handlePressIn = () => {
-    scale.value = withSpring(0.98, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 0.98,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
   };
 
   return (
-    <AnimatedTouchable
-      onPress={onPress}
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      activeOpacity={0.9}
-      style={[
-        styles.container,
-        {backgroundColor: card, borderColor: isCurrent ? primary : border},
-        isCurrent && styles.currentBorder,
-        Shadows.sm,
-        animatedStyle,
-      ]}>
-      <View
+    <Animated.View style={{transform: [{scale: scaleAnim}]}}>
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        activeOpacity={0.9}
         style={[
-          styles.indicator,
-          {
-            backgroundColor: isCompleted ? success : subjectColor,
-            opacity: isCompleted ? 1 : 0.8,
-          },
-        ]}
-      />
-
-      <View style={styles.content}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {scheduledTime && (
-              <Text style={[styles.time, {color: textMuted}]}>
-                {scheduledTime}
-              </Text>
-            )}
-            <Badge label={subject} variant="primary" size="sm" />
-          </View>
-          {isCompleted && (
-            <View style={[styles.completedBadge, {backgroundColor: `${success}20`}]}>
-              <Icon name="check-circle" size={16} color={success} />
-            </View>
-          )}
-          {isCurrent && !isCompleted && (
-            <Badge label="Now" variant="warning" size="sm" />
-          )}
-        </View>
-
-        <Text
+          styles.container,
+          {backgroundColor: card, borderColor: isCurrent ? primary : border},
+          isCurrent && styles.currentBorder,
+          Shadows.sm,
+        ]}>
+        <View
           style={[
-            styles.topic,
-            {color: text},
-            isCompleted && styles.completedText,
+            styles.indicator,
+            {
+              backgroundColor: isCompleted ? success : subjectColor,
+              opacity: isCompleted ? 1 : 0.8,
+            },
           ]}
-          numberOfLines={2}>
-          {topic}
-        </Text>
+        />
 
-        <View style={styles.meta}>
-          <View style={styles.metaItem}>
-            <Icon name="book" size={12} color={textMuted} />
-            <Text style={[styles.metaText, {color: textSecondary}]}>
-              {chapter}
-            </Text>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              {scheduledTime && (
+                <Text style={[styles.time, {color: textMuted}]}>
+                  {scheduledTime}
+                </Text>
+              )}
+              <Badge label={subject} variant="primary" size="sm" />
+            </View>
+            {isCompleted && (
+              <View style={[styles.completedBadge, {backgroundColor: `${success}20`}]}>
+                <Icon name="check-circle" size={16} color={success} />
+              </View>
+            )}
+            {isCurrent && !isCompleted && (
+              <Badge label="Now" variant="warning" size="sm" />
+            )}
           </View>
-          <View style={styles.metaItem}>
-            <Icon name="clock" size={12} color={textMuted} />
-            <Text style={[styles.metaText, {color: textSecondary}]}>
-              {duration} min
-            </Text>
+
+          <Text
+            style={[
+              styles.topic,
+              {color: text},
+              isCompleted && styles.completedText,
+            ]}
+            numberOfLines={2}>
+            {topic}
+          </Text>
+
+          <View style={styles.meta}>
+            <View style={styles.metaItem}>
+              <Icon name="book" size={12} color={textMuted} />
+              <Text style={[styles.metaText, {color: textSecondary}]}>
+                {chapter}
+              </Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Icon name="clock" size={12} color={textMuted} />
+              <Text style={[styles.metaText, {color: textSecondary}]}>
+                {duration} min
+              </Text>
+            </View>
           </View>
         </View>
-      </View>
 
-      {!isCompleted && (
-        <View style={styles.action}>
-          <Icon name="chevron-right" size={16} color={textMuted} />
-        </View>
-      )}
-    </AnimatedTouchable>
+        {!isCompleted && (
+          <View style={styles.action}>
+            <Icon name="chevron-right" size={16} color={textMuted} />
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

@@ -3,17 +3,17 @@
  * Browse subjects and chapters
  */
 
-import React from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Animated,
   useColorScheme,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Icon, ProgressBar} from '../../components/ui';
 import {
@@ -34,16 +34,26 @@ const SUBJECTS = [
 
 export function LearnScreen() {
   const colorScheme = useColorScheme() ?? 'light';
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const card = useThemeColor({}, 'card');
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
       edges={['top']}>
-      <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
+      <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
         <Text style={[styles.title, {color: text}]}>Learn</Text>
         <Text style={[styles.subtitle, {color: textSecondary}]}>
           Select a subject to start learning
@@ -53,12 +63,9 @@ export function LearnScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
-        <View style={styles.subjectsGrid}>
-          {SUBJECTS.map((subject, index) => (
-            <Animated.View
-              key={subject.id}
-              entering={FadeInDown.delay(index * 80).duration(400)}
-              style={styles.subjectCardWrapper}>
+        <Animated.View style={[styles.subjectsGrid, {opacity: fadeAnim}]}>
+          {SUBJECTS.map((subject) => (
+            <View key={subject.id} style={styles.subjectCardWrapper}>
               <TouchableOpacity
                 style={[styles.subjectCard, {backgroundColor: card}, Shadows.md]}
                 activeOpacity={0.8}>
@@ -94,9 +101,9 @@ export function LearnScreen() {
                   />
                 </View>
               </TouchableOpacity>
-            </Animated.View>
+            </View>
           ))}
-        </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );

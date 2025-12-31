@@ -3,14 +3,9 @@
  * Bottom tab navigation for main app screens
  */
 
-import React from 'react';
-import {Platform, StyleSheet} from 'react-native';
+import React, {useEffect, useRef} from 'react';
+import {Platform, StyleSheet, Animated} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 
 import {HomeScreen} from '../screens/main/HomeScreen';
 import {LearnScreen} from '../screens/main/LearnScreen';
@@ -33,21 +28,17 @@ function TabIcon({
   color: string;
   focused: boolean;
 }) {
-  const scale = useSharedValue(1);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  React.useEffect(() => {
-    scale.value = withSpring(focused ? 1.1 : 1, {
-      damping: 15,
-      stiffness: 200,
-    });
-  }, [focused, scale]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-  }));
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: focused ? 1.1 : 1,
+      useNativeDriver: true,
+    }).start();
+  }, [focused]);
 
   return (
-    <Animated.View style={animatedStyle}>
+    <Animated.View style={{transform: [{scale: scaleAnim}]}}>
       <Icon name={name} size={24} color={color} />
     </Animated.View>
   );

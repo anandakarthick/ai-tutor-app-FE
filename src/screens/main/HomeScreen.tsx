@@ -3,16 +3,16 @@
  * Student's main dashboard with overview
  */
 
-import React from 'react';
+import React, {useEffect, useRef} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {
@@ -78,12 +78,21 @@ const SUBJECTS = [
 
 export function HomeScreen() {
   const navigation = useNavigation<any>();
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   return (
     <SafeAreaView
@@ -93,7 +102,7 @@ export function HomeScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         {/* Header */}
-        <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
+        <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
           <View style={styles.headerLeft}>
             <Text style={[styles.greeting, {color: textSecondary}]}>
               Good Morning 👋
@@ -113,9 +122,7 @@ export function HomeScreen() {
         </Animated.View>
 
         {/* Quick Stats */}
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(500)}
-          style={styles.statsContainer}>
+        <Animated.View style={[styles.statsContainer, {opacity: fadeAnim}]}>
           <View style={styles.statsRow}>
             <StatsCard
               title="Streak"
@@ -138,9 +145,7 @@ export function HomeScreen() {
         </Animated.View>
 
         {/* Continue Learning */}
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          style={styles.section}>
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
           <TouchableOpacity
             style={[styles.continueCard, {backgroundColor: primary}]}
             activeOpacity={0.9}>
@@ -161,9 +166,7 @@ export function HomeScreen() {
         </Animated.View>
 
         {/* Today's Plan */}
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500)}
-          style={styles.section}>
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, {color: text}]}>
               Today's Study Plan
@@ -188,9 +191,7 @@ export function HomeScreen() {
         </Animated.View>
 
         {/* Subjects Progress */}
-        <Animated.View
-          entering={FadeInDown.delay(400).duration(500)}
-          style={styles.section}>
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
           <View style={styles.sectionHeader}>
             <Text style={[styles.sectionTitle, {color: text}]}>
               Your Subjects
@@ -212,9 +213,7 @@ export function HomeScreen() {
         </Animated.View>
 
         {/* Quick Actions */}
-        <Animated.View
-          entering={FadeInDown.delay(500).duration(500)}
-          style={styles.section}>
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
           <Text
             style={[styles.sectionTitle, {color: text, marginBottom: Spacing.base}]}>
             Quick Actions

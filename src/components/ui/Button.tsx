@@ -3,26 +3,20 @@
  * Reusable button with multiple variants and states
  */
 
-import React from 'react';
+import React, {useRef} from 'react';
 import {
   TouchableOpacity,
   Text,
   StyleSheet,
   ActivityIndicator,
   View,
+  Animated,
   type TouchableOpacityProps,
   type ViewStyle,
   type TextStyle,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Colors, BorderRadius, FontSizes, Spacing} from '../../constants/theme';
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 export type ButtonVariant =
   | 'primary'
@@ -55,23 +49,25 @@ export function Button({
   style,
   ...props
 }: ButtonProps) {
-  const scale = useSharedValue(1);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const primary = useThemeColor({}, 'primary');
   const error = useThemeColor({}, 'error');
   const text = useThemeColor({}, 'text');
   const border = useThemeColor({}, 'border');
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-  }));
-
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 0.96,
+      useNativeDriver: true,
+    }).start();
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
   };
 
   const getVariantStyles = (): {container: ViewStyle; text: TextStyle} => {
@@ -164,39 +160,40 @@ export function Button({
   const sizeStyles = getSizeStyles();
 
   return (
-    <AnimatedTouchable
-      onPressIn={handlePressIn}
-      onPressOut={handlePressOut}
-      disabled={disabled || loading}
-      activeOpacity={0.8}
-      style={[
-        styles.container,
-        variantStyles.container,
-        sizeStyles.container,
-        fullWidth && styles.fullWidth,
-        animatedStyle,
-        style,
-      ]}
-      {...props}>
-      {loading ? (
-        <ActivityIndicator
-          color={variantStyles.text.color as string}
-          size={size === 'sm' ? 'small' : 'small'}
-        />
-      ) : (
-        <View style={styles.content}>
-          {icon && iconPosition === 'left' && (
-            <View style={styles.iconLeft}>{icon}</View>
-          )}
-          <Text style={[styles.text, variantStyles.text, sizeStyles.text]}>
-            {title}
-          </Text>
-          {icon && iconPosition === 'right' && (
-            <View style={styles.iconRight}>{icon}</View>
-          )}
-        </View>
-      )}
-    </AnimatedTouchable>
+    <Animated.View style={{transform: [{scale: scaleAnim}]}}>
+      <TouchableOpacity
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={disabled || loading}
+        activeOpacity={0.8}
+        style={[
+          styles.container,
+          variantStyles.container,
+          sizeStyles.container,
+          fullWidth && styles.fullWidth,
+          style,
+        ]}
+        {...props}>
+        {loading ? (
+          <ActivityIndicator
+            color={variantStyles.text.color as string}
+            size="small"
+          />
+        ) : (
+          <View style={styles.content}>
+            {icon && iconPosition === 'left' && (
+              <View style={styles.iconLeft}>{icon}</View>
+            )}
+            <Text style={[styles.text, variantStyles.text, sizeStyles.text]}>
+              {title}
+            </Text>
+            {icon && iconPosition === 'right' && (
+              <View style={styles.iconRight}>{icon}</View>
+            )}
+          </View>
+        )}
+      </TouchableOpacity>
+    </Animated.View>
   );
 }
 

@@ -2,7 +2,7 @@
  * Login Screen
  */
 
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,9 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Input, Icon} from '../../components/ui';
@@ -27,6 +27,7 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -35,6 +36,14 @@ export function LoginScreen() {
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
 
   const handleLogin = async () => {
     setLoading(true);
@@ -54,7 +63,7 @@ export function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           {/* Header */}
-          <Animated.View entering={FadeInUp.duration(500)} style={styles.header}>
+          <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
             <View style={[styles.logoContainer, {backgroundColor: primary}]}>
               <Icon name="book-open" size={32} color="#FFF" />
             </View>
@@ -65,9 +74,7 @@ export function LoginScreen() {
           </Animated.View>
 
           {/* Form */}
-          <Animated.View
-            entering={FadeInDown.delay(200).duration(500)}
-            style={styles.form}>
+          <Animated.View style={[styles.form, {opacity: fadeAnim}]}>
             <Input
               label="Email or Phone"
               placeholder="Enter your email or phone"
@@ -105,9 +112,7 @@ export function LoginScreen() {
           </Animated.View>
 
           {/* Divider */}
-          <Animated.View
-            entering={FadeInDown.delay(300).duration(500)}
-            style={styles.dividerContainer}>
+          <Animated.View style={[styles.dividerContainer, {opacity: fadeAnim}]}>
             <View style={[styles.divider, {backgroundColor: border}]} />
             <Text style={[styles.dividerText, {color: textMuted}]}>
               or continue with
@@ -116,9 +121,7 @@ export function LoginScreen() {
           </Animated.View>
 
           {/* Social Login */}
-          <Animated.View
-            entering={FadeInDown.delay(400).duration(500)}
-            style={styles.socialButtons}>
+          <Animated.View style={[styles.socialButtons, {opacity: fadeAnim}]}>
             <TouchableOpacity
               style={[
                 styles.socialButton,
@@ -140,9 +143,7 @@ export function LoginScreen() {
           </Animated.View>
 
           {/* Register Link */}
-          <Animated.View
-            entering={FadeInDown.delay(500).duration(500)}
-            style={styles.registerContainer}>
+          <Animated.View style={[styles.registerContainer, {opacity: fadeAnim}]}>
             <Text style={[styles.registerText, {color: textSecondary}]}>
               Don't have an account?{' '}
             </Text>

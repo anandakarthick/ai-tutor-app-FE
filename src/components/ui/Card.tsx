@@ -3,23 +3,17 @@
  * Flexible card container with variants
  */
 
-import React from 'react';
+import React, {useRef} from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
+  Animated,
   type ViewProps,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {BorderRadius, Shadows, Spacing} from '../../constants/theme';
-
-const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 type CardVariant = 'elevated' | 'outlined' | 'filled';
 
@@ -39,24 +33,26 @@ export function Card({
   style,
   ...props
 }: CardProps) {
-  const scale = useSharedValue(1);
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const backgroundSecondary = useThemeColor({}, 'backgroundSecondary');
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-  }));
-
   const handlePressIn = () => {
     if (onPress) {
-      scale.value = withSpring(0.98, {damping: 15, stiffness: 300});
+      Animated.spring(scaleAnim, {
+        toValue: 0.98,
+        useNativeDriver: true,
+      }).start();
     }
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, {damping: 15, stiffness: 300});
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
   };
 
   const getVariantStyles = (): ViewStyle => {
@@ -92,15 +88,16 @@ export function Card({
 
   if (onPress) {
     return (
-      <AnimatedTouchable
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={disabled}
-        activeOpacity={0.9}
-        style={animatedStyle}>
-        {cardContent}
-      </AnimatedTouchable>
+      <Animated.View style={{transform: [{scale: scaleAnim}]}}>
+        <TouchableOpacity
+          onPress={onPress}
+          onPressIn={handlePressIn}
+          onPressOut={handlePressOut}
+          disabled={disabled}
+          activeOpacity={0.9}>
+          {cardContent}
+        </TouchableOpacity>
+      </Animated.View>
     );
   }
 

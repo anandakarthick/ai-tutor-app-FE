@@ -3,27 +3,20 @@
  * Text input with label, error states, and icons
  */
 
-import React, {useState} from 'react';
+import React, {useState, useRef} from 'react';
 import {
   View,
   TextInput,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-  interpolateColor,
-} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import {Icon} from './Icon';
-
-const AnimatedView = Animated.createAnimatedComponent(View);
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -49,7 +42,7 @@ export function Input({
   ...props
 }: InputProps) {
   const [isFocused, setIsFocused] = useState(false);
-  const focusAnim = useSharedValue(0);
+  const borderAnim = useRef(new Animated.Value(0)).current;
 
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -59,35 +52,44 @@ export function Input({
   const primary = useThemeColor({}, 'primary');
   const errorColor = useThemeColor({}, 'error');
 
-  const animatedContainerStyle = useAnimatedStyle(() => {
-    return {
-      borderColor: error
-        ? errorColor
-        : interpolateColor(focusAnim.value, [0, 1], [border, primary]),
-      borderWidth: withTiming(focusAnim.value === 1 ? 2 : 1.5, {duration: 150}),
-    };
-  });
-
   const handleFocus = (e: any) => {
     setIsFocused(true);
-    focusAnim.value = withTiming(1, {duration: 200});
+    Animated.timing(borderAnim, {
+      toValue: 1,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
     onFocus?.(e);
   };
 
   const handleBlur = (e: any) => {
     setIsFocused(false);
-    focusAnim.value = withTiming(0, {duration: 200});
+    Animated.timing(borderAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
     onBlur?.(e);
   };
+
+  const borderColor = error
+    ? errorColor
+    : borderAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [border, primary],
+      });
 
   return (
     <View style={[styles.container, containerStyle]}>
       {label && <Text style={[styles.label, {color: text}]}>{label}</Text>}
-      <AnimatedView
+      <Animated.View
         style={[
           styles.inputContainer,
-          {backgroundColor: background},
-          animatedContainerStyle,
+          {
+            backgroundColor: background,
+            borderColor: borderColor,
+            borderWidth: isFocused ? 2 : 1.5,
+          },
         ]}>
         {leftIcon && (
           <View style={styles.leftIcon}>
@@ -119,7 +121,7 @@ export function Input({
             <Icon name={rightIcon} size={20} color={textMuted} />
           </TouchableOpacity>
         )}
-      </AnimatedView>
+      </Animated.View>
       {(error || hint) && (
         <Text
           style={[

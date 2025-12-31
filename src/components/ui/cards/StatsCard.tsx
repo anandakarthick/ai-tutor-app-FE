@@ -3,14 +3,8 @@
  * Display quick statistics
  */
 
-import React, {useEffect} from 'react';
-import {View, Text, StyleSheet} from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withDelay,
-} from 'react-native-reanimated';
+import React, {useEffect, useRef} from 'react';
+import {View, Text, StyleSheet, Animated} from 'react-native';
 import {useThemeColor} from '../../../hooks/useThemeColor';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../../constants/theme';
 import {Icon} from '../Icon';
@@ -44,21 +38,24 @@ export function StatsCard({
   const success = useThemeColor({}, 'success');
   const error = useThemeColor({}, 'error');
 
-  const scale = useSharedValue(0.8);
-  const opacity = useSharedValue(0);
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    scale.value = withDelay(
-      delay,
-      withSpring(1, {damping: 12, stiffness: 100}),
-    );
-    opacity.value = withDelay(delay, withSpring(1));
-  }, [delay, opacity, scale]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{scale: scale.value}],
-    opacity: opacity.value,
-  }));
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        delay,
+        useNativeDriver: true,
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        delay,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [delay]);
 
   return (
     <Animated.View
@@ -66,7 +63,7 @@ export function StatsCard({
         styles.container,
         {backgroundColor: card},
         Shadows.md,
-        animatedStyle,
+        {transform: [{scale: scaleAnim}], opacity: opacityAnim},
       ]}>
       <View
         style={[

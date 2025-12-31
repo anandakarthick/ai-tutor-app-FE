@@ -3,7 +3,7 @@
  * Student profile and settings
  */
 
-import React, {useState} from 'react';
+import React, {useState, useEffect, useRef} from 'react';
 import {
   View,
   Text,
@@ -12,9 +12,9 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import Animated, {FadeInDown, FadeInUp} from 'react-native-reanimated';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
@@ -30,6 +30,7 @@ const STUDENT = {
 
 export function ProfileScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -40,6 +41,14 @@ export function ProfileScreen() {
   const border = useThemeColor({}, 'border');
   const error = useThemeColor({}, 'error');
 
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
@@ -48,9 +57,7 @@ export function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
         {/* Profile Header */}
-        <Animated.View
-          entering={FadeInUp.duration(500)}
-          style={styles.profileHeader}>
+        <Animated.View style={[styles.profileHeader, {opacity: fadeAnim}]}>
           <Avatar name={STUDENT.name} size="xl" />
           <Text style={[styles.name, {color: text}]}>{STUDENT.name}</Text>
           <View style={styles.badges}>
@@ -63,9 +70,7 @@ export function ProfileScreen() {
         </Animated.View>
 
         {/* Stats */}
-        <Animated.View
-          entering={FadeInDown.delay(100).duration(500)}
-          style={styles.statsRow}>
+        <Animated.View style={[styles.statsRow, {opacity: fadeAnim}]}>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="flame" size={24} color="#F59E0B" />
             <Text style={[styles.statValue, {color: text}]}>
@@ -94,9 +99,7 @@ export function ProfileScreen() {
         </Animated.View>
 
         {/* Menu Sections */}
-        <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          style={styles.menuSection}>
+        <Animated.View style={[styles.menuSection, {opacity: fadeAnim}]}>
           <Text style={[styles.sectionTitle, {color: textSecondary}]}>
             ACCOUNT
           </Text>
@@ -130,9 +133,7 @@ export function ProfileScreen() {
           </Card>
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(300).duration(500)}
-          style={styles.menuSection}>
+        <Animated.View style={[styles.menuSection, {opacity: fadeAnim}]}>
           <Text style={[styles.sectionTitle, {color: textSecondary}]}>
             PREFERENCES
           </Text>
@@ -164,9 +165,7 @@ export function ProfileScreen() {
           </Card>
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(400).duration(500)}
-          style={styles.menuSection}>
+        <Animated.View style={[styles.menuSection, {opacity: fadeAnim}]}>
           <Text style={[styles.sectionTitle, {color: textSecondary}]}>
             SUPPORT
           </Text>
@@ -191,9 +190,7 @@ export function ProfileScreen() {
           </Card>
         </Animated.View>
 
-        <Animated.View
-          entering={FadeInDown.delay(500).duration(500)}
-          style={styles.menuSection}>
+        <Animated.View style={[styles.menuSection, {opacity: fadeAnim}]}>
           <Card padding="sm">
             <MenuItem
               icon="log-out"
