@@ -9,8 +9,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Platform,
-  PermissionsAndroid,
+  ScrollView,
   Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
@@ -103,119 +102,124 @@ export function LoginScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       {/* Decorative circles */}
       <View style={[styles.circle1, {backgroundColor: `${primary}20`}]} />
       <View style={[styles.circle2, {backgroundColor: `${primary}15`}]} />
       <View style={[styles.circle3, {backgroundColor: `${primary}10`}]} />
 
-      <Animated.View
-        style={[
-          styles.content,
-          {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
-        ]}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.logoContainer, Shadows.glow]}>
-            <View style={[styles.logoInner, {backgroundColor: primary}]}>
-              <Icon name="book-open" size={40} color="#FFF" />
+      <ScrollView 
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled">
+        <Animated.View
+          style={[
+            styles.content,
+            {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
+          ]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={[styles.logoContainer, Shadows.glow]}>
+              <View style={[styles.logoInner, {backgroundColor: primary}]}>
+                <Icon name="book-open" size={40} color="#FFF" />
+              </View>
             </View>
+            <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
+            <Text style={[styles.title, {color: text}]}>Welcome!</Text>
+            <Text style={[styles.subtitle, {color: textSecondary}]}>
+              Enter your mobile number to get started
+            </Text>
           </View>
-          <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
-          <Text style={[styles.title, {color: text}]}>Welcome!</Text>
-          <Text style={[styles.subtitle, {color: textSecondary}]}>
-            Enter your mobile number to get started
-          </Text>
-        </View>
 
-        {/* SIM Card Selection */}
-        {fetchingNumber ? (
-          <View style={[styles.fetchingContainer, {backgroundColor: primaryBg}]}>
-            <Icon name="smartphone" size={24} color={primary} />
-            <Text style={[styles.fetchingText, {color: primary}]}>
-              Detecting SIM cards...
-            </Text>
-          </View>
-        ) : simNumbers.length > 0 ? (
-          <View style={styles.simContainer}>
-            <Text style={[styles.simLabel, {color: textSecondary}]}>
-              Select your mobile number
-            </Text>
-            {simNumbers.map((sim, index) => (
-              <TouchableOpacity
-                key={index}
-                style={[
-                  styles.simCard,
-                  {
-                    backgroundColor: card,
-                    borderColor: selectedSim === index ? primary : border,
-                    borderWidth: selectedSim === index ? 2 : 1,
-                  },
-                  Shadows.sm,
-                ]}
-                onPress={() => handleSimSelect(index)}>
-                <View style={[styles.simIcon, {backgroundColor: primaryBg}]}>
-                  <Icon name="smartphone" size={20} color={primary} />
-                </View>
-                <View style={styles.simInfo}>
-                  <Text style={[styles.simCarrier, {color: textSecondary}]}>
-                    {sim.carrier}
-                  </Text>
-                  <Text style={[styles.simNumber, {color: text}]}>
-                    +91 {sim.number.slice(0, 5)} {sim.number.slice(5)}
-                  </Text>
-                </View>
-                {selectedSim === index && (
-                  <View style={[styles.checkCircle, {backgroundColor: primary}]}>
-                    <Icon name="check" size={14} color="#FFF" />
+          {/* SIM Card Selection */}
+          {fetchingNumber ? (
+            <View style={[styles.fetchingContainer, {backgroundColor: primaryBg}]}>
+              <Icon name="smartphone" size={24} color={primary} />
+              <Text style={[styles.fetchingText, {color: primary}]}>
+                Detecting SIM cards...
+              </Text>
+            </View>
+          ) : simNumbers.length > 0 ? (
+            <View style={styles.simContainer}>
+              <Text style={[styles.simLabel, {color: textSecondary}]}>
+                Select your mobile number
+              </Text>
+              {simNumbers.map((sim, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.simCard,
+                    {
+                      backgroundColor: card,
+                      borderColor: selectedSim === index ? primary : border,
+                      borderWidth: selectedSim === index ? 2 : 1,
+                    },
+                    Shadows.sm,
+                  ]}
+                  onPress={() => handleSimSelect(index)}>
+                  <View style={[styles.simIcon, {backgroundColor: primaryBg}]}>
+                    <Icon name="smartphone" size={20} color={primary} />
                   </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </View>
-        ) : null}
+                  <View style={styles.simInfo}>
+                    <Text style={[styles.simCarrier, {color: textSecondary}]}>
+                      {sim.carrier}
+                    </Text>
+                    <Text style={[styles.simNumber, {color: text}]}>
+                      +91 {sim.number.slice(0, 5)} {sim.number.slice(5)}
+                    </Text>
+                  </View>
+                  {selectedSim === index && (
+                    <View style={[styles.checkCircle, {backgroundColor: primary}]}>
+                      <Icon name="check" size={14} color="#FFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : null}
 
-        {/* Manual Entry */}
-        <View style={styles.manualEntry}>
-          <Text style={[styles.orText, {color: textMuted}]}>
-            Or enter manually
+          {/* Manual Entry */}
+          <View style={styles.manualEntry}>
+            <Text style={[styles.orText, {color: textMuted}]}>
+              Or enter manually
+            </Text>
+            <View style={styles.phoneInputContainer}>
+              <View style={[styles.countryCode, {backgroundColor: primaryBg, borderColor: border}]}>
+                <Text style={[styles.countryCodeText, {color: text}]}>🇮🇳 +91</Text>
+              </View>
+              <View style={styles.phoneInput}>
+                <Input
+                  placeholder="Enter mobile number"
+                  value={phone}
+                  onChangeText={(val) => setPhone(formatPhone(val))}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                  containerStyle={styles.inputContainer}
+                />
+              </View>
+            </View>
+          </View>
+
+          {/* Continue Button */}
+          <View style={styles.buttonContainer}>
+            <Button
+              title="Get OTP 📱"
+              onPress={handleContinue}
+              loading={loading}
+              disabled={phone.length !== 10}
+              fullWidth
+              size="lg"
+            />
+          </View>
+
+          {/* Terms */}
+          <Text style={[styles.terms, {color: textMuted}]}>
+            By continuing, you agree to our{' '}
+            <Text style={{color: primary}}>Terms of Service</Text> and{' '}
+            <Text style={{color: primary}}>Privacy Policy</Text>
           </Text>
-          <View style={styles.phoneInputContainer}>
-            <View style={[styles.countryCode, {backgroundColor: primaryBg, borderColor: border}]}>
-              <Text style={[styles.countryCodeText, {color: text}]}>🇮🇳 +91</Text>
-            </View>
-            <View style={styles.phoneInput}>
-              <Input
-                placeholder="Enter mobile number"
-                value={phone}
-                onChangeText={(val) => setPhone(formatPhone(val))}
-                keyboardType="phone-pad"
-                maxLength={10}
-                containerStyle={styles.inputContainer}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* Continue Button */}
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Get OTP 📱"
-            onPress={handleContinue}
-            loading={loading}
-            disabled={phone.length !== 10}
-            fullWidth
-            size="lg"
-          />
-        </View>
-
-        {/* Terms */}
-        <Text style={[styles.terms, {color: textMuted}]}>
-          By continuing, you agree to our{' '}
-          <Text style={{color: primary}}>Terms of Service</Text> and{' '}
-          <Text style={{color: primary}}>Privacy Policy</Text>
-        </Text>
-      </Animated.View>
+        </Animated.View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -247,6 +251,10 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   content: {
     flex: 1,

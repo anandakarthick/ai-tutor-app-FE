@@ -124,9 +124,9 @@ export function PaymentScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       {/* Back Button */}
-      <Animated.View style={{opacity: fadeAnim}}>
+      <Animated.View style={[styles.backButtonContainer, {opacity: fadeAnim}]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}>
@@ -293,19 +293,19 @@ export function PaymentScreen() {
             Your payment is secured with 256-bit encryption
           </Text>
         </View>
-      </ScrollView>
 
-      {/* Pay Button */}
-      <Animated.View style={[styles.bottomContainer, {opacity: fadeAnim}]}>
-        <Button
-          title={processing ? 'Processing...' : `Pay ₹${price} 🔒`}
-          onPress={handlePayment}
-          loading={processing}
-          disabled={!canPay()}
-          fullWidth
-          size="lg"
-        />
-      </Animated.View>
+        {/* Pay Button */}
+        <View style={styles.buttonContainer}>
+          <Button
+            title={processing ? 'Processing...' : `Pay ₹${price} 🔒`}
+            onPress={handlePayment}
+            loading={processing}
+            disabled={!canPay()}
+            fullWidth
+            size="lg"
+          />
+        </View>
+      </ScrollView>
 
       {/* Success Modal */}
       <Modal visible={showSuccess} transparent animationType="fade">
@@ -339,15 +339,19 @@ export function PaymentScreen() {
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  backButtonContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
   backButton: {
     width: 44,
     height: 44,
     justifyContent: 'center',
-    marginLeft: Spacing.lg,
   },
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: 120,
+    paddingTop: 0,
+    paddingBottom: Spacing.xl,
   },
   header: {
     marginBottom: Spacing.xl,
@@ -453,21 +457,14 @@ const styles = StyleSheet.create({
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
+    marginBottom: Spacing.xl,
   },
   securityText: {
     fontSize: FontSizes.xs,
     fontWeight: '500',
   },
-  bottomContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    backgroundColor: 'rgba(255,251,247,0.95)',
-    borderTopWidth: 1,
-    borderTopColor: '#FED7AA',
+  buttonContainer: {
+    marginBottom: Spacing.md,
   },
   modalOverlay: {
     flex: 1,

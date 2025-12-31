@@ -130,7 +130,7 @@ export function SelectPlanScreen() {
   const getSelectedPlan = () => PLANS.find(p => p.id === selectedPlan);
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}>
@@ -262,29 +262,29 @@ export function SelectPlanScreen() {
             />
           </View>
         </Animated.View>
-      </ScrollView>
 
-      {/* Bottom Button */}
-      <Animated.View style={[styles.bottomContainer, {opacity: fadeAnim}]}>
-        <View style={styles.selectedPlanInfo}>
-          <Text style={[styles.selectedLabel, {color: textMuted}]}>
-            Selected:
-          </Text>
-          <Text style={[styles.selectedName, {color: text}]}>
-            {getSelectedPlan()?.emoji} {getSelectedPlan()?.name}
-          </Text>
-        </View>
-        <Button
-          title={
-            getSelectedPlan()?.price === 0
-              ? 'Start Free Trial 🎉'
-              : `Pay ₹${getSelectedPlan()?.price} 💳`
-          }
-          onPress={handleContinue}
-          fullWidth
-          size="lg"
-        />
-      </Animated.View>
+        {/* Bottom Button */}
+        <Animated.View style={[styles.bottomContainer, {opacity: fadeAnim}]}>
+          <View style={[styles.selectedPlanInfo, {backgroundColor: primaryBg, borderRadius: BorderRadius.lg}]}>
+            <Text style={[styles.selectedLabel, {color: textMuted}]}>
+              Selected:
+            </Text>
+            <Text style={[styles.selectedName, {color: text}]}>
+              {getSelectedPlan()?.emoji} {getSelectedPlan()?.name}
+            </Text>
+          </View>
+          <Button
+            title={
+              getSelectedPlan()?.price === 0
+                ? 'Start Free Trial 🎉'
+                : `Pay ₹${getSelectedPlan()?.price} 💳`
+            }
+            onPress={handleContinue}
+            fullWidth
+            size="lg"
+          />
+        </Animated.View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
   container: {flex: 1},
   scrollContent: {
     padding: Spacing.lg,
-    paddingBottom: 140,
+    paddingBottom: Spacing.xl,
   },
   header: {
     marginBottom: Spacing.xl,
@@ -403,6 +403,7 @@ const styles = StyleSheet.create({
   benefitsContainer: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.xl,
   },
   benefitsTitle: {
     fontSize: FontSizes.base,
@@ -422,15 +423,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   bottomContainer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: Spacing.lg,
-    paddingBottom: Spacing.xl,
-    backgroundColor: 'rgba(255,251,247,0.95)',
-    borderTopWidth: 1,
-    borderTopColor: '#FED7AA',
+    marginTop: Spacing.md,
   },
   selectedPlanInfo: {
     flexDirection: 'row',
@@ -438,6 +431,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.md,
     gap: Spacing.sm,
+    padding: Spacing.md,
   },
   selectedLabel: {
     fontSize: FontSizes.sm,

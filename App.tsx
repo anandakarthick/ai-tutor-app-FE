@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import {StatusBar, useColorScheme} from 'react-native';
+import {StatusBar, useColorScheme, View} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -48,14 +48,14 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor={
+          isDark ? Colors.dark.background : Colors.light.background
+        }
+        translucent={false}
+      />
       <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
-        <StatusBar
-          barStyle={isDark ? 'light-content' : 'dark-content'}
-          backgroundColor={
-            isDark ? Colors.dark.background : Colors.light.background
-          }
-          translucent={false}
-        />
         <AppNavigator />
       </NavigationContainer>
     </SafeAreaProvider>

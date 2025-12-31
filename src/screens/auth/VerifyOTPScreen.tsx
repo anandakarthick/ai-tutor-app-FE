@@ -14,12 +14,13 @@ import {
   Platform,
   Animated,
   Alert,
+  ScrollView,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Icon} from '../../components/ui';
-import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
+import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
 // Default OTP for testing
@@ -165,114 +166,119 @@ export function VerifyOTPScreen() {
   const isOtpComplete = otp.every(digit => digit !== '');
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
-        {/* Back Button */}
-        <Animated.View style={{opacity: fadeAnim}}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}>
-            <Icon name="chevron-left" size={24} color={text} />
-          </TouchableOpacity>
-        </Animated.View>
-
-        {/* Header */}
-        <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
-          <View style={[styles.iconContainer, {backgroundColor: primaryBg}]}>
-            <Icon name="smartphone" size={36} color={primary} />
-          </View>
-          <Text style={[styles.title, {color: text}]}>Verify OTP 🔐</Text>
-          <Text style={[styles.subtitle, {color: textSecondary}]}>
-            Enter the 6-digit code sent to
-          </Text>
-          <Text style={[styles.phone, {color: text}]}>
-            +91 {phone.slice(0, 5)} {phone.slice(5)}
-          </Text>
-        </Animated.View>
-
-        {/* Hint */}
-        <View style={[styles.hintContainer, {backgroundColor: `${success}15`}]}>
-          <Icon name="info" size={16} color={success} />
-          <Text style={[styles.hintText, {color: success}]}>
-            Demo OTP: 242526
-          </Text>
-        </View>
-
-        {/* OTP Input */}
-        <Animated.View
-          style={[
-            styles.otpContainer,
-            {transform: [{translateX: shakeAnim}]},
-          ]}>
-          {otp.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={ref => (inputRefs.current[index] = ref)}
-              style={[
-                styles.otpInput,
-                {
-                  backgroundColor: card,
-                  borderColor: error
-                    ? errorColor
-                    : digit
-                    ? primary
-                    : border,
-                  color: text,
-                },
-              ]}
-              value={digit}
-              onChangeText={value => handleOtpChange(value, index)}
-              onKeyPress={e => handleKeyPress(e, index)}
-              keyboardType="number-pad"
-              maxLength={6}
-              selectTextOnFocus
-            />
-          ))}
-        </Animated.View>
-
-        {/* Error */}
-        {error ? (
-          <Text style={[styles.errorText, {color: errorColor}]}>{error}</Text>
-        ) : null}
-
-        {/* Resend */}
-        <View style={styles.resendContainer}>
-          {resendTimer > 0 ? (
-            <Text style={[styles.resendText, {color: textMuted}]}>
-              Resend OTP in {resendTimer}s
-            </Text>
-          ) : (
-            <TouchableOpacity onPress={handleResend}>
-              <Text style={[styles.resendLink, {color: primary}]}>
-                Resend OTP 📩
-              </Text>
+        <ScrollView 
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          {/* Back Button */}
+          <Animated.View style={{opacity: fadeAnim}}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}>
+              <Icon name="chevron-left" size={24} color={text} />
             </TouchableOpacity>
-          )}
-        </View>
+          </Animated.View>
 
-        {/* Verify Button */}
-        <View style={styles.buttonContainer}>
-          <Button
-            title="Verify & Continue ✅"
-            onPress={handleVerify}
-            loading={loading}
-            disabled={!isOtpComplete}
-            fullWidth
-            size="lg"
-          />
-        </View>
+          {/* Header */}
+          <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
+            <View style={[styles.iconContainer, {backgroundColor: primaryBg}]}>
+              <Icon name="smartphone" size={36} color={primary} />
+            </View>
+            <Text style={[styles.title, {color: text}]}>Verify OTP 🔐</Text>
+            <Text style={[styles.subtitle, {color: textSecondary}]}>
+              Enter the 6-digit code sent to
+            </Text>
+            <Text style={[styles.phone, {color: text}]}>
+              +91 {phone.slice(0, 5)} {phone.slice(5)}
+            </Text>
+          </Animated.View>
 
-        {/* Change Number */}
-        <TouchableOpacity
-          style={styles.changeNumber}
-          onPress={() => navigation.goBack()}>
-          <Text style={[styles.changeNumberText, {color: textSecondary}]}>
-            Wrong number?{' '}
-            <Text style={{color: primary, fontWeight: '600'}}>Change</Text>
-          </Text>
-        </TouchableOpacity>
+          {/* Hint */}
+          <View style={[styles.hintContainer, {backgroundColor: `${success}15`}]}>
+            <Icon name="info" size={16} color={success} />
+            <Text style={[styles.hintText, {color: success}]}>
+              Demo OTP: 242526
+            </Text>
+          </View>
+
+          {/* OTP Input */}
+          <Animated.View
+            style={[
+              styles.otpContainer,
+              {transform: [{translateX: shakeAnim}]},
+            ]}>
+            {otp.map((digit, index) => (
+              <TextInput
+                key={index}
+                ref={ref => (inputRefs.current[index] = ref)}
+                style={[
+                  styles.otpInput,
+                  {
+                    backgroundColor: card,
+                    borderColor: error
+                      ? errorColor
+                      : digit
+                      ? primary
+                      : border,
+                    color: text,
+                  },
+                ]}
+                value={digit}
+                onChangeText={value => handleOtpChange(value, index)}
+                onKeyPress={e => handleKeyPress(e, index)}
+                keyboardType="number-pad"
+                maxLength={6}
+                selectTextOnFocus
+              />
+            ))}
+          </Animated.View>
+
+          {/* Error */}
+          {error ? (
+            <Text style={[styles.errorText, {color: errorColor}]}>{error}</Text>
+          ) : null}
+
+          {/* Resend */}
+          <View style={styles.resendContainer}>
+            {resendTimer > 0 ? (
+              <Text style={[styles.resendText, {color: textMuted}]}>
+                Resend OTP in {resendTimer}s
+              </Text>
+            ) : (
+              <TouchableOpacity onPress={handleResend}>
+                <Text style={[styles.resendLink, {color: primary}]}>
+                  Resend OTP 📩
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Verify Button */}
+          <View style={styles.buttonContainer}>
+            <Button
+              title="Verify & Continue ✅"
+              onPress={handleVerify}
+              loading={loading}
+              disabled={!isOtpComplete}
+              fullWidth
+              size="lg"
+            />
+          </View>
+
+          {/* Change Number */}
+          <TouchableOpacity
+            style={styles.changeNumber}
+            onPress={() => navigation.goBack()}>
+            <Text style={[styles.changeNumberText, {color: textSecondary}]}>
+              Wrong number?{' '}
+              <Text style={{color: primary, fontWeight: '600'}}>Change</Text>
+            </Text>
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -280,7 +286,11 @@ export function VerifyOTPScreen() {
 
 const styles = StyleSheet.create({
   container: {flex: 1},
-  keyboardView: {flex: 1, padding: Spacing.xl},
+  keyboardView: {flex: 1},
+  scrollContent: {
+    flexGrow: 1,
+    padding: Spacing.xl,
+  },
   backButton: {
     width: 44,
     height: 44,

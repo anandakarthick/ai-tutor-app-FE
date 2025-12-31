@@ -15,7 +15,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Icon} from '../../components/ui';
-import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
+import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
 const {width} = Dimensions.get('window');
@@ -58,13 +58,11 @@ export function OnboardingScreen() {
   const [currentStep, setCurrentStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const primary = useThemeColor({}, 'primary');
-  const card = useThemeColor({}, 'card');
 
   const currentData = ONBOARDING_STEPS[currentStep];
 
@@ -123,7 +121,7 @@ export function OnboardingScreen() {
   const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       {/* Skip Button */}
       {!isLastStep && (
         <View style={styles.skipContainer}>
@@ -236,7 +234,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.sm,
-    marginBottom: Spacing['2xl'],
+    marginBottom: Spacing.xl,
   },
   dot: {
     height: 8,
@@ -244,6 +242,6 @@ const styles = StyleSheet.create({
   },
   bottomContainer: {
     paddingHorizontal: Spacing.xl,
-    paddingBottom: Spacing['2xl'],
+    paddingBottom: Spacing.lg,
   },
 });

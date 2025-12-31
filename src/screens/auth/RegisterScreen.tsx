@@ -48,7 +48,6 @@ export function RegisterScreen() {
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
-  const textMuted = useThemeColor({}, 'textMuted');
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
@@ -99,12 +98,12 @@ export function RegisterScreen() {
   const canProceed = fullName.trim() && selectedBoard && selectedClass;
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
         {/* Back Button */}
-        <Animated.View style={{opacity: fadeAnim}}>
+        <Animated.View style={[styles.backButtonContainer, {opacity: fadeAnim}]}>
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => navigation.goBack()}>
@@ -114,7 +113,8 @@ export function RegisterScreen() {
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={styles.scrollContent}>
           {/* Header */}
           <Animated.View
             style={[
@@ -262,7 +262,7 @@ export function RegisterScreen() {
             />
           </Animated.View>
 
-          <View style={{height: Spacing['2xl']}} />
+          <View style={{height: Spacing.xl}} />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -272,14 +272,20 @@ export function RegisterScreen() {
 const styles = StyleSheet.create({
   container: {flex: 1},
   keyboardView: {flex: 1},
+  backButtonContainer: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+  },
   backButton: {
     width: 44,
     height: 44,
     justifyContent: 'center',
-    marginLeft: Spacing.md,
+  },
+  scrollContent: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing.xl,
   },
   header: {
-    paddingHorizontal: Spacing.xl,
     marginBottom: Spacing.lg,
   },
   title: {
@@ -295,7 +301,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: Spacing.md,
-    marginHorizontal: Spacing.xl,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.xl,
     gap: Spacing.sm,
@@ -304,9 +309,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '600',
   },
-  form: {
-    paddingHorizontal: Spacing.xl,
-  },
+  form: {},
   sectionContainer: {
     marginBottom: Spacing.lg,
   },
@@ -360,7 +363,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   buttonContainer: {
-    paddingHorizontal: Spacing.xl,
     marginTop: Spacing.xl,
   },
 });

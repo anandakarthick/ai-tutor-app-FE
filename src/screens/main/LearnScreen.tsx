@@ -109,6 +109,7 @@ export function LearnScreen() {
             );
           })}
         </Animated.View>
+        <View style={{height: Spacing.xl}} />
       </ScrollView>
     </SafeAreaView>
   );
