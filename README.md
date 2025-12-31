@@ -1,97 +1,188 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# AI Tutor App - Student Dashboard
 
-# Getting Started
+A React Native mobile application for K-12 students with AI-powered tutoring features.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## Features
 
-## Step 1: Start Metro
+- 🏠 **Student Dashboard** - Overview with stats, study plan, subjects progress
+- 📚 **Learn** - Browse subjects and chapters
+- 📝 **Quizzes** - Topic quizzes, chapter tests, mock exams
+- 📊 **Progress** - Analytics, weekly charts, subject progress
+- 👤 **Profile** - Settings, preferences, account management
+- 💬 **AI Doubt Resolution** - Chat interface for asking doubts
+- 🌙 **Dark Mode** - Full light/dark theme support
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+## Tech Stack
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- React Native 0.83.1
+- React Navigation 7
+- React Native Reanimated 3
+- React Native SVG
+- React Native Vector Icons
+- TypeScript
 
-```sh
-# Using npm
+## Prerequisites
+
+- Node.js >= 20
+- JDK 17 (for Android)
+- Android Studio with SDK (for Android)
+- Xcode (for iOS, macOS only)
+
+## Setup Instructions
+
+### 1. Install Dependencies
+
+```bash
+cd ai-tutor-app-FE
+npm install
+```
+
+### 2. iOS Setup (macOS only)
+
+```bash
+cd ios
+pod install
+cd ..
+```
+
+### 3. Run the App
+
+#### Android
+
+```bash
+# Start Metro bundler (Terminal 1)
 npm start
 
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
+# Run Android (Terminal 2)
 npm run android
-
-# OR using Yarn
-yarn android
 ```
 
-### iOS
+#### iOS (macOS only)
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
-```
-
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
-```
-
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
-
-```sh
-# Using npm
+```bash
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Project Structure
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+```
+src/
+├── components/
+│   ├── ui/                    # Core UI components
+│   │   ├── Button.tsx
+│   │   ├── Input.tsx
+│   │   ├── Card.tsx
+│   │   ├── Avatar.tsx
+│   │   ├── Badge.tsx
+│   │   ├── ProgressBar.tsx
+│   │   ├── ProgressRing.tsx
+│   │   ├── Icon.tsx
+│   │   └── cards/             # Specialized cards
+│   │       ├── SubjectCard.tsx
+│   │       ├── StatsCard.tsx
+│   │       └── StudyPlanCard.tsx
+│   └── chat/                  # Chat components
+│
+├── screens/
+│   ├── auth/                  # Authentication screens
+│   │   ├── LoginScreen.tsx
+│   │   ├── RegisterScreen.tsx
+│   │   ├── VerifyOTPScreen.tsx
+│   │   └── OnboardingScreen.tsx
+│   │
+│   └── main/                  # Main app screens
+│       ├── HomeScreen.tsx
+│       ├── LearnScreen.tsx
+│       ├── QuizzesScreen.tsx
+│       ├── ProgressScreen.tsx
+│       ├── ProfileScreen.tsx
+│       └── DoubtScreen.tsx
+│
+├── navigation/                # React Navigation setup
+│   ├── AppNavigator.tsx
+│   ├── AuthNavigator.tsx
+│   └── MainTabNavigator.tsx
+│
+├── constants/
+│   └── theme.ts               # Design system
+│
+├── hooks/
+│   └── useThemeColor.ts       # Theme hook
+│
+└── types/
+    └── navigation.ts          # TypeScript types
+```
 
-## Step 3: Modify your app
+## Design System
 
-Now that you have successfully run the app, let's make changes!
+The app uses a comprehensive design system in `src/constants/theme.ts`:
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+### Colors
+- **Primary**: Indigo (#6366F1)
+- **Success**: Green (#10B981)
+- **Warning**: Amber (#F59E0B)
+- **Error**: Red (#EF4444)
+- **Subject Colors**: Pink (Math), Green (Science), Blue (English), etc.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+### Typography
+- Font sizes: xs (12) to 5xl (48)
+- System fonts (Roboto on Android, System on iOS)
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+### Spacing
+- 4px base unit scale (xs to 5xl)
 
-## Congratulations! :tada:
+### Border Radius
+- sm (4px) to full (9999px)
 
-You've successfully run and modified your React Native App. :partying_face:
+## Screens
 
-### Now what?
+### Auth Flow
+1. **Login** - Email/phone + password
+2. **Register** - Full registration form
+3. **Verify OTP** - 6-digit OTP verification
+4. **Onboarding** - 4-step wizard (Name → Board → Class → Medium)
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+### Main App
+1. **Home** - Dashboard with stats, study plan, subjects
+2. **Learn** - Subject grid with progress
+3. **Quizzes** - Quiz list with filters
+4. **Progress** - Analytics and charts
+5. **Profile** - Settings and account
 
-# Troubleshooting
+### Modal
+- **Doubt** - AI chat for asking doubts
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Troubleshooting
 
-# Learn More
+### Metro Bundler Issues
+```bash
+npm start -- --reset-cache
+```
 
-To learn more about React Native, take a look at the following resources:
+### Android Build Issues
+```bash
+cd android && ./gradlew clean && cd ..
+npm run android
+```
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+### iOS Build Issues
+```bash
+cd ios && pod deintegrate && pod install && cd ..
+npm run ios
+```
+
+### Vector Icons Not Showing
+Make sure fonts are linked properly:
+- Android: Check `android/app/build.gradle` has vector icons gradle line
+- iOS: Check `ios/aitutorpp/Info.plist` has font entries
+
+## Contributing
+
+1. Create feature branch
+2. Make changes
+3. Test on both Android and iOS
+4. Submit PR
+
+## License
+
+MIT
