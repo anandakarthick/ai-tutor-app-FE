@@ -1,6 +1,6 @@
 /**
  * App Navigator
- * Main navigation structure
+ * Root navigation container
  */
 
 import React from 'react';
@@ -14,29 +14,29 @@ import type {RootStackParamList} from '../types/navigation';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function AppNavigator() {
-  // TODO: Check if user is authenticated from your auth state
-  const isAuthenticated = true; // Change this based on your auth state
+  // TODO: Connect to actual auth state (Redux/Context)
+  // For now, always show Auth flow first
+  const isAuthenticated = false;
 
   return (
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
       }}>
-      {!isAuthenticated ? (
-        <Stack.Screen name="Auth" component={AuthNavigator} />
-      ) : (
+      {isAuthenticated ? (
         <>
           <Stack.Screen name="Main" component={MainTabNavigator} />
           <Stack.Screen
             name="Doubt"
             component={DoubtScreen}
             options={{
-              presentation: 'modal',
               animation: 'slide_from_bottom',
+              presentation: 'modal',
             }}
           />
         </>
+      ) : (
+        <Stack.Screen name="Auth" component={AuthNavigator} />
       )}
     </Stack.Navigator>
   );

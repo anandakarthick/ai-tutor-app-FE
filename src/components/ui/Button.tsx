@@ -16,7 +16,7 @@ import {
   type TextStyle,
 } from 'react-native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {Colors, BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
+import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 
 export type ButtonVariant =
   | 'primary'
@@ -53,13 +53,11 @@ export function Button({
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const primary = useThemeColor({}, 'primary');
-  const primaryLight = useThemeColor({}, 'primaryLight');
-  const secondary = useThemeColor({}, 'secondary');
+  const primaryBg = useThemeColor({}, 'primaryBackground');
   const success = useThemeColor({}, 'success');
   const error = useThemeColor({}, 'error');
   const text = useThemeColor({}, 'text');
   const border = useThemeColor({}, 'border');
-  const primaryBg = useThemeColor({}, 'primaryBackground');
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -75,7 +73,7 @@ export function Button({
     }).start();
   };
 
-  const getVariantStyles = (): {container: ViewStyle; text: TextStyle; shadow: any} => {
+  const getVariantStyles = (): {container: ViewStyle; text: TextStyle} => {
     const baseOpacity = disabled ? 0.5 : 1;
 
     switch (variant) {
@@ -86,7 +84,6 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: '#FFFFFF'},
-          shadow: Shadows.md,
         };
       case 'secondary':
         return {
@@ -95,7 +92,6 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: primary},
-          shadow: Shadows.sm,
         };
       case 'outline':
         return {
@@ -106,7 +102,6 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: primary},
-          shadow: Shadows.none,
         };
       case 'ghost':
         return {
@@ -115,7 +110,6 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: primary},
-          shadow: Shadows.none,
         };
       case 'danger':
         return {
@@ -124,7 +118,6 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: '#FFFFFF'},
-          shadow: Shadows.md,
         };
       case 'success':
         return {
@@ -133,13 +126,11 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: '#FFFFFF'},
-          shadow: Shadows.md,
         };
       default:
         return {
           container: {backgroundColor: primary},
           text: {color: '#FFFFFF'},
-          shadow: Shadows.md,
         };
     }
   };
@@ -178,9 +169,15 @@ export function Button({
 
   const variantStyles = getVariantStyles();
   const sizeStyles = getSizeStyles();
+  const showShadow = variant === 'primary' || variant === 'danger' || variant === 'success';
 
   return (
-    <Animated.View style={[{transform: [{scale: scaleAnim}]}, variantStyles.shadow]}>
+    <Animated.View
+      style={[
+        {transform: [{scale: scaleAnim}]},
+        showShadow && Shadows.md,
+        fullWidth && styles.fullWidth,
+      ]}>
       <TouchableOpacity
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -190,7 +187,6 @@ export function Button({
           styles.container,
           variantStyles.container,
           sizeStyles.container,
-          fullWidth && styles.fullWidth,
           style,
         ]}
         {...props}>

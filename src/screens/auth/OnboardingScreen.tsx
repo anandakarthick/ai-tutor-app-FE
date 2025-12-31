@@ -1,6 +1,6 @@
 /**
  * Onboarding Screen
- * Multi-step wizard for student profile setup
+ * Final setup before entering the app
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -8,279 +8,183 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   Animated,
+  Dimensions,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {Button, Input, Icon} from '../../components/ui';
-import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
+import {Button, Icon} from '../../components/ui';
+import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
+import type {AuthStackScreenProps} from '../../types/navigation';
 
-const BOARDS = [
-  {id: 'cbse', name: 'CBSE', description: 'Central Board'},
-  {id: 'icse', name: 'ICSE', description: 'CISCE Board'},
-  {id: 'state', name: 'State Board', description: 'State Government'},
-  {id: 'ib', name: 'IB', description: 'International'},
-  {id: 'cambridge', name: 'Cambridge', description: 'IGCSE'},
-];
+const {width} = Dimensions.get('window');
 
-const CLASSES = ['6th', '7th', '8th', '9th', '10th', '11th', '12th'];
-
-const MEDIUMS = [
-  {id: 'english', name: 'English'},
-  {id: 'hindi', name: 'Hindi'},
-  {id: 'tamil', name: 'Tamil'},
-  {id: 'telugu', name: 'Telugu'},
-  {id: 'kannada', name: 'Kannada'},
+const ONBOARDING_STEPS = [
+  {
+    icon: 'book-open',
+    emoji: '📚',
+    title: 'Learn at Your Pace',
+    description: 'Personalized lessons adapted to your learning style and speed.',
+    color: '#F97316',
+  },
+  {
+    icon: 'message-circle',
+    emoji: '🤖',
+    title: 'AI Doubt Solving',
+    description: 'Get instant answers to your questions 24/7 with our AI tutor.',
+    color: '#3B82F6',
+  },
+  {
+    icon: 'bar-chart-2',
+    emoji: '📊',
+    title: 'Track Progress',
+    description: 'Monitor your improvement with detailed analytics and insights.',
+    color: '#22C55E',
+  },
+  {
+    icon: 'trophy',
+    emoji: '🏆',
+    title: 'Earn Rewards',
+    description: 'Complete challenges, earn XP, and climb the leaderboard!',
+    color: '#8B5CF6',
+  },
 ];
 
 export function OnboardingScreen() {
-  const navigation = useNavigation<any>();
-  const [step, setStep] = useState(1);
-  const [studentName, setStudentName] = useState('');
-  const [schoolName, setSchoolName] = useState('');
-  const [selectedBoard, setSelectedBoard] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [selectedMedium, setSelectedMedium] = useState('');
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const navigation = useNavigation<AuthStackScreenProps<'Onboarding'>['navigation']>();
+  const route = useRoute<AuthStackScreenProps<'Onboarding'>['route']>();
+  
+  const [currentStep, setCurrentStep] = useState(0);
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
-  const border = useThemeColor({}, 'border');
 
-  const totalSteps = 4;
+  const currentData = ONBOARDING_STEPS[currentStep];
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
-  }, [step]);
+    // Animate when step changes
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 0.8,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+      ]),
+    ]).start();
+  }, [currentStep]);
 
   const handleNext = () => {
-    if (step < totalSteps) {
-      fadeAnim.setValue(0);
-      setStep(step + 1);
+    if (currentStep < ONBOARDING_STEPS.length - 1) {
+      setCurrentStep(currentStep + 1);
     } else {
-      // Complete onboarding - navigate to main app
+      handleComplete();
     }
   };
 
-  const handleBack = () => {
-    if (step > 1) {
-      fadeAnim.setValue(0);
-      setStep(step - 1);
-    }
+  const handleSkip = () => {
+    handleComplete();
   };
 
-  const canProceed = () => {
-    switch (step) {
-      case 1:
-        return studentName.trim().length > 0;
-      case 2:
-        return selectedBoard !== '';
-      case 3:
-        return selectedClass !== '';
-      case 4:
-        return selectedMedium !== '';
-      default:
-        return false;
-    }
+  const handleComplete = () => {
+    // Navigate to main app
+    // In real app, this would set auth state
+    navigation.reset({
+      index: 0,
+      routes: [{name: 'Login'}], // This would be 'Main' in real implementation
+    });
   };
 
-  const getStepTitle = () => {
-    switch (step) {
-      case 1:
-        return "Let's Get Started";
-      case 2:
-        return 'Select Your Board';
-      case 3:
-        return 'Select Your Class';
-      case 4:
-        return 'Select Your Medium';
-      default:
-        return '';
-    }
-  };
-
-  const getStepSubtitle = () => {
-    switch (step) {
-      case 1:
-        return 'Tell us a bit about yourself';
-      case 2:
-        return 'Choose your education board';
-      case 3:
-        return 'Which class are you in?';
-      case 4:
-        return 'Choose your preferred language';
-      default:
-        return '';
-    }
-  };
+  const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
-      {/* Header */}
-      <View style={styles.header}>
-        {step > 1 && (
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Icon name="chevron-left" size={24} color={text} />
-          </TouchableOpacity>
-        )}
-        <View style={styles.progressDots}>
-          {[1, 2, 3, 4].map(i => (
-            <View
-              key={i}
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: i <= step ? primary : border,
-                  width: i === step ? 24 : 8,
-                },
-              ]}
-            />
-          ))}
+      {/* Skip Button */}
+      {!isLastStep && (
+        <View style={styles.skipContainer}>
+          <Button
+            title="Skip"
+            variant="ghost"
+            size="sm"
+            onPress={handleSkip}
+          />
         </View>
-        <View style={styles.placeholder} />
+      )}
+
+      {/* Content */}
+      <Animated.View
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{scale: scaleAnim}],
+          },
+        ]}>
+        {/* Icon */}
+        <View
+          style={[
+            styles.iconContainer,
+            {backgroundColor: `${currentData.color}15`},
+          ]}>
+          <Text style={styles.emoji}>{currentData.emoji}</Text>
+        </View>
+
+        {/* Text */}
+        <Text style={[styles.title, {color: text}]}>{currentData.title}</Text>
+        <Text style={[styles.description, {color: textSecondary}]}>
+          {currentData.description}
+        </Text>
+      </Animated.View>
+
+      {/* Progress Dots */}
+      <View style={styles.dotsContainer}>
+        {ONBOARDING_STEPS.map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.dot,
+              {
+                backgroundColor:
+                  index === currentStep
+                    ? currentData.color
+                    : `${currentData.color}30`,
+                width: index === currentStep ? 24 : 8,
+              },
+            ]}
+          />
+        ))}
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}>
-        {/* Title */}
-        <Animated.View style={[styles.titleContainer, {opacity: fadeAnim}]}>
-          <Text style={[styles.title, {color: text}]}>{getStepTitle()}</Text>
-          <Text style={[styles.subtitle, {color: textSecondary}]}>
-            {getStepSubtitle()}
-          </Text>
-        </Animated.View>
-
-        {/* Step Content */}
-        {step === 1 && (
-          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
-            <Input
-              label="Student Name"
-              placeholder="Enter your name"
-              value={studentName}
-              onChangeText={setStudentName}
-              leftIcon="user"
-              autoCapitalize="words"
-            />
-            <Input
-              label="School Name (Optional)"
-              placeholder="Enter your school name"
-              value={schoolName}
-              onChangeText={setSchoolName}
-              leftIcon="school"
-            />
-          </Animated.View>
-        )}
-
-        {step === 2 && (
-          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
-            {BOARDS.map(board => (
-              <TouchableOpacity
-                key={board.id}
-                style={[
-                  styles.optionCard,
-                  {
-                    backgroundColor: card,
-                    borderColor:
-                      selectedBoard === board.id ? primary : border,
-                  },
-                  selectedBoard === board.id && styles.optionCardSelected,
-                ]}
-                onPress={() => setSelectedBoard(board.id)}>
-                <View style={styles.optionContent}>
-                  <Text style={[styles.optionTitle, {color: text}]}>
-                    {board.name}
-                  </Text>
-                  <Text
-                    style={[styles.optionDescription, {color: textSecondary}]}>
-                    {board.description}
-                  </Text>
-                </View>
-                {selectedBoard === board.id && (
-                  <View style={[styles.checkIcon, {backgroundColor: primary}]}>
-                    <Icon name="check" size={14} color="#FFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </Animated.View>
-        )}
-
-        {step === 3 && (
-          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
-            <View style={styles.classGrid}>
-              {CLASSES.map(cls => (
-                <TouchableOpacity
-                  key={cls}
-                  style={[
-                    styles.classCard,
-                    {
-                      backgroundColor: card,
-                      borderColor: selectedClass === cls ? primary : border,
-                    },
-                    selectedClass === cls && styles.classCardSelected,
-                  ]}
-                  onPress={() => setSelectedClass(cls)}>
-                  <Text
-                    style={[
-                      styles.classText,
-                      {color: selectedClass === cls ? primary : text},
-                    ]}>
-                    {cls}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </Animated.View>
-        )}
-
-        {step === 4 && (
-          <Animated.View style={[styles.stepContent, {opacity: fadeAnim}]}>
-            {MEDIUMS.map(medium => (
-              <TouchableOpacity
-                key={medium.id}
-                style={[
-                  styles.optionCard,
-                  {
-                    backgroundColor: card,
-                    borderColor:
-                      selectedMedium === medium.id ? primary : border,
-                  },
-                  selectedMedium === medium.id && styles.optionCardSelected,
-                ]}
-                onPress={() => setSelectedMedium(medium.id)}>
-                <View style={styles.optionContent}>
-                  <Text style={[styles.optionTitle, {color: text}]}>
-                    {medium.name}
-                  </Text>
-                </View>
-                {selectedMedium === medium.id && (
-                  <View style={[styles.checkIcon, {backgroundColor: primary}]}>
-                    <Icon name="check" size={14} color="#FFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
-          </Animated.View>
-        )}
-      </ScrollView>
-
-      {/* Footer */}
-      <View style={styles.footer}>
+      {/* Bottom Buttons */}
+      <View style={styles.bottomContainer}>
         <Button
-          title={step === totalSteps ? 'Get Started' : 'Continue'}
+          title={isLastStep ? "Let's Start! 🚀" : 'Next'}
           onPress={handleNext}
-          disabled={!canProceed()}
           fullWidth
           size="lg"
         />
@@ -290,98 +194,56 @@ export function OnboardingScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  container: {
+    flex: 1,
+  },
+  skipContainer: {
+    alignItems: 'flex-end',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingTop: Spacing.md,
   },
-  backButton: {
-    width: 44,
-    height: 44,
+  content: {
+    flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: Spacing['2xl'],
   },
-  progressDots: {
+  iconContainer: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing['2xl'],
+  },
+  emoji: {
+    fontSize: 64,
+  },
+  title: {
+    fontSize: FontSizes['2xl'],
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  description: {
+    fontSize: FontSizes.base,
+    textAlign: 'center',
+    lineHeight: 24,
+    paddingHorizontal: Spacing.lg,
+  },
+  dotsContainer: {
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.sm,
+    marginBottom: Spacing['2xl'],
   },
   dot: {
     height: 8,
     borderRadius: 4,
   },
-  placeholder: {width: 44},
-  scrollContent: {
-    flexGrow: 1,
-    padding: Spacing.xl,
-  },
-  titleContainer: {
-    marginBottom: Spacing.xl,
-  },
-  title: {
-    fontSize: FontSizes['2xl'],
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
-  },
-  subtitle: {
-    fontSize: FontSizes.base,
-  },
-  stepContent: {
-    flex: 1,
-  },
-  optionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-    marginBottom: Spacing.md,
-  },
-  optionCardSelected: {
-    borderWidth: 2,
-  },
-  optionContent: {
-    flex: 1,
-  },
-  optionTitle: {
-    fontSize: FontSizes.base,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  optionDescription: {
-    fontSize: FontSizes.sm,
-  },
-  checkIcon: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  classGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  classCard: {
-    width: '30%',
-    aspectRatio: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-  },
-  classCardSelected: {
-    borderWidth: 2,
-  },
-  classText: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
-  },
-  footer: {
-    padding: Spacing.xl,
-    paddingTop: Spacing.md,
+  bottomContainer: {
+    paddingHorizontal: Spacing.xl,
+    paddingBottom: Spacing['2xl'],
   },
 });

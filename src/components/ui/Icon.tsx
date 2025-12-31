@@ -36,6 +36,7 @@ const featherIconMap: Record<string, string> = {
   eye: 'eye',
   'eye-off': 'eye-off',
   phone: 'phone',
+  smartphone: 'smartphone',
   camera: 'camera',
   mic: 'mic',
   play: 'play',
@@ -87,6 +88,8 @@ const featherIconMap: Record<string, string> = {
   users: 'users',
   shield: 'shield',
   percent: 'percent',
+  'credit-card': 'credit-card',
+  building: 'briefcase',
 };
 
 // Map our icon names to Material Community icons
@@ -107,6 +110,7 @@ const materialIconMap: Record<string, string> = {
   'check-circle': 'check-circle',
   'x-circle': 'close-circle',
   question: 'help-circle',
+  bank: 'bank',
 };
 
 export function Icon({name, size = 24, color = '#000', style}: IconProps) {

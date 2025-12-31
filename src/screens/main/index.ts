@@ -1,5 +1,5 @@
 /**
- * Main screens exports
+ * Main Screens Export
  */
 
 export {HomeScreen} from './HomeScreen';

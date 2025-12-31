@@ -1,5 +1,5 @@
 /**
- * Login Screen - Orange Theme
+ * Login Screen - Mobile Number with Auto-fetch
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -7,11 +7,11 @@ import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
   Animated,
+  Platform,
+  PermissionsAndroid,
+  Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -20,17 +20,22 @@ import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
+// Mock SIM phone numbers (simulating auto-fetch)
+const MOCK_SIM_NUMBERS = [
+  {carrier: 'Jio', number: '9876543210'},
+  {carrier: 'Airtel', number: '8765432109'},
+];
+
 export function LoginScreen() {
-  const navigation =
-    useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const navigation = useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
-  
+  const [fetchingNumber, setFetchingNumber] = useState(true);
+  const [simNumbers, setSimNumbers] = useState<typeof MOCK_SIM_NUMBERS>([]);
+  const [selectedSim, setSelectedSim] = useState<number | null>(null);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -39,7 +44,7 @@ export function LoginScreen() {
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
-  const primaryLight = useThemeColor({}, 'primaryLight');
+  const primaryBg = useThemeColor({}, 'primaryBackground');
 
   useEffect(() => {
     Animated.parallel([
@@ -53,158 +58,164 @@ export function LoginScreen() {
         duration: 600,
         useNativeDriver: true,
       }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
     ]).start();
+
+    // Simulate fetching SIM numbers
+    fetchSimNumbers();
   }, []);
 
-  const handleLogin = async () => {
+  const fetchSimNumbers = async () => {
+    setFetchingNumber(true);
+    
+    // Simulate API delay
+    setTimeout(() => {
+      setSimNumbers(MOCK_SIM_NUMBERS);
+      if (MOCK_SIM_NUMBERS.length > 0) {
+        setSelectedSim(0);
+        setPhone(MOCK_SIM_NUMBERS[0].number);
+      }
+      setFetchingNumber(false);
+    }, 1500);
+  };
+
+  const handleSimSelect = (index: number) => {
+    setSelectedSim(index);
+    setPhone(simNumbers[index].number);
+  };
+
+  const handleContinue = () => {
+    if (phone.length !== 10) {
+      Alert.alert('Invalid Number', 'Please enter a valid 10-digit mobile number');
+      return;
+    }
+
     setLoading(true);
+    // Simulate sending OTP
     setTimeout(() => {
       setLoading(false);
-      // Navigate to main app - handled by AppNavigator
-    }, 1500);
+      navigation.navigate('VerifyOTP', {phone});
+    }, 1000);
+  };
+
+  const formatPhone = (value: string) => {
+    const cleaned = value.replace(/\D/g, '');
+    return cleaned.slice(0, 10);
   };
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
-      {/* Decorative circles - Orange themed */}
+      {/* Decorative circles */}
       <View style={[styles.circle1, {backgroundColor: `${primary}20`}]} />
-      <View style={[styles.circle2, {backgroundColor: `${primaryLight}15`}]} />
+      <View style={[styles.circle2, {backgroundColor: `${primary}15`}]} />
       <View style={[styles.circle3, {backgroundColor: `${primary}10`}]} />
-      
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled">
-          {/* Header */}
-          <Animated.View 
-            style={[
-              styles.header, 
-              {
-                opacity: fadeAnim, 
-                transform: [{translateY: slideAnim}, {scale: scaleAnim}]
-              }
-            ]}>
-            <View style={[styles.logoContainer, Shadows.glow]}>
-              <View style={[styles.logoInner, {backgroundColor: primary}]}>
-                <Icon name="book-open" size={36} color="#FFF" />
-              </View>
+
+      <Animated.View
+        style={[
+          styles.content,
+          {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
+        ]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={[styles.logoContainer, Shadows.glow]}>
+            <View style={[styles.logoInner, {backgroundColor: primary}]}>
+              <Icon name="book-open" size={40} color="#FFF" />
             </View>
-            <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
-            <Text style={[styles.title, {color: text}]}>Welcome Back!</Text>
-            <Text style={[styles.subtitle, {color: textSecondary}]}>
-              Sign in to continue your learning journey
+          </View>
+          <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
+          <Text style={[styles.title, {color: text}]}>Welcome!</Text>
+          <Text style={[styles.subtitle, {color: textSecondary}]}>
+            Enter your mobile number to get started
+          </Text>
+        </View>
+
+        {/* SIM Card Selection */}
+        {fetchingNumber ? (
+          <View style={[styles.fetchingContainer, {backgroundColor: primaryBg}]}>
+            <Icon name="smartphone" size={24} color={primary} />
+            <Text style={[styles.fetchingText, {color: primary}]}>
+              Detecting SIM cards...
             </Text>
-          </Animated.View>
-
-          {/* Form */}
-          <Animated.View 
-            style={[
-              styles.form, 
-              {opacity: fadeAnim, transform: [{translateY: slideAnim}]}
-            ]}>
-            <Input
-              label="Email or Phone"
-              placeholder="Enter your email or phone"
-              value={email}
-              onChangeText={setEmail}
-              leftIcon="mail"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <Input
-              label="Password"
-              placeholder="Enter your password"
-              value={password}
-              onChangeText={setPassword}
-              leftIcon="lock"
-              rightIcon={showPassword ? 'eye-off' : 'eye'}
-              onRightIconPress={() => setShowPassword(!showPassword)}
-              secureTextEntry={!showPassword}
-            />
-
-            <TouchableOpacity style={styles.forgotPassword}>
-              <Text style={[styles.forgotPasswordText, {color: primary}]}>
-                Forgot Password?
-              </Text>
-            </TouchableOpacity>
-
-            <Button
-              title="Sign In 🚀"
-              onPress={handleLogin}
-              loading={loading}
-              fullWidth
-              size="lg"
-            />
-          </Animated.View>
-
-          {/* Divider */}
-          <Animated.View 
-            style={[
-              styles.dividerContainer, 
-              {opacity: fadeAnim}
-            ]}>
-            <View style={[styles.divider, {backgroundColor: border}]} />
-            <Text style={[styles.dividerText, {color: textMuted}]}>
-              or continue with
+          </View>
+        ) : simNumbers.length > 0 ? (
+          <View style={styles.simContainer}>
+            <Text style={[styles.simLabel, {color: textSecondary}]}>
+              Select your mobile number
             </Text>
-            <View style={[styles.divider, {backgroundColor: border}]} />
-          </Animated.View>
+            {simNumbers.map((sim, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.simCard,
+                  {
+                    backgroundColor: card,
+                    borderColor: selectedSim === index ? primary : border,
+                    borderWidth: selectedSim === index ? 2 : 1,
+                  },
+                  Shadows.sm,
+                ]}
+                onPress={() => handleSimSelect(index)}>
+                <View style={[styles.simIcon, {backgroundColor: primaryBg}]}>
+                  <Icon name="smartphone" size={20} color={primary} />
+                </View>
+                <View style={styles.simInfo}>
+                  <Text style={[styles.simCarrier, {color: textSecondary}]}>
+                    {sim.carrier}
+                  </Text>
+                  <Text style={[styles.simNumber, {color: text}]}>
+                    +91 {sim.number.slice(0, 5)} {sim.number.slice(5)}
+                  </Text>
+                </View>
+                {selectedSim === index && (
+                  <View style={[styles.checkCircle, {backgroundColor: primary}]}>
+                    <Icon name="check" size={14} color="#FFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : null}
 
-          {/* Social Login */}
-          <Animated.View 
-            style={[
-              styles.socialButtons, 
-              {opacity: fadeAnim}
-            ]}>
-            <TouchableOpacity
-              style={[
-                styles.socialButton,
-                {backgroundColor: card, borderColor: border},
-                Shadows.sm,
-              ]}>
-              <Text style={styles.socialIcon}>🔵</Text>
-              <Text style={[styles.socialButtonText, {color: text}]}>
-                Google
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.socialButton,
-                {backgroundColor: card, borderColor: border},
-                Shadows.sm,
-              ]}>
-              <Text style={styles.socialIcon}>🍎</Text>
-              <Text style={[styles.socialButtonText, {color: text}]}>Apple</Text>
-            </TouchableOpacity>
-          </Animated.View>
+        {/* Manual Entry */}
+        <View style={styles.manualEntry}>
+          <Text style={[styles.orText, {color: textMuted}]}>
+            Or enter manually
+          </Text>
+          <View style={styles.phoneInputContainer}>
+            <View style={[styles.countryCode, {backgroundColor: primaryBg, borderColor: border}]}>
+              <Text style={[styles.countryCodeText, {color: text}]}>🇮🇳 +91</Text>
+            </View>
+            <View style={styles.phoneInput}>
+              <Input
+                placeholder="Enter mobile number"
+                value={phone}
+                onChangeText={(val) => setPhone(formatPhone(val))}
+                keyboardType="phone-pad"
+                maxLength={10}
+                containerStyle={styles.inputContainer}
+              />
+            </View>
+          </View>
+        </View>
 
-          {/* Register Link */}
-          <Animated.View 
-            style={[
-              styles.registerContainer, 
-              {opacity: fadeAnim}
-            ]}>
-            <Text style={[styles.registerText, {color: textSecondary}]}>
-              Don't have an account?{' '}
-            </Text>
-            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-              <Text style={[styles.registerLink, {color: primary}]}>
-                Sign Up 🔥
-              </Text>
-            </TouchableOpacity>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        {/* Continue Button */}
+        <View style={styles.buttonContainer}>
+          <Button
+            title="Get OTP 📱"
+            onPress={handleContinue}
+            loading={loading}
+            disabled={phone.length !== 10}
+            fullWidth
+            size="lg"
+          />
+        </View>
+
+        {/* Terms */}
+        <Text style={[styles.terms, {color: textMuted}]}>
+          By continuing, you agree to our{' '}
+          <Text style={{color: primary}}>Terms of Service</Text> and{' '}
+          <Text style={{color: primary}}>Privacy Policy</Text>
+        </Text>
+      </Animated.View>
     </SafeAreaView>
   );
 }
@@ -212,7 +223,6 @@ export function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    position: 'relative',
   },
   circle1: {
     position: 'absolute',
@@ -232,15 +242,14 @@ const styles = StyleSheet.create({
   },
   circle3: {
     position: 'absolute',
-    top: '40%',
+    top: '45%',
     right: -30,
     width: 100,
     height: 100,
     borderRadius: 50,
   },
-  keyboardView: {flex: 1},
-  scrollContent: {
-    flexGrow: 1,
+  content: {
+    flex: 1,
     padding: Spacing.xl,
     justifyContent: 'center',
   },
@@ -252,8 +261,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   logoInner: {
-    width: 80,
-    height: 80,
+    width: 90,
+    height: 90,
     borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
@@ -273,62 +282,95 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     textAlign: 'center',
   },
-  form: {
-    marginBottom: Spacing.xl,
-  },
-  forgotPassword: {
-    alignSelf: 'flex-end',
-    marginBottom: Spacing.lg,
-    marginTop: -Spacing.sm,
-  },
-  forgotPasswordText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  dividerContainer: {
+  fetchingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.xl,
+    gap: Spacing.md,
+  },
+  fetchingText: {
+    fontSize: FontSizes.base,
+    fontWeight: '500',
+  },
+  simContainer: {
+    marginBottom: Spacing.lg,
+  },
+  simLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.md,
+  },
+  simCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.base,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.md,
+  },
+  simIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  simInfo: {
+    flex: 1,
+  },
+  simCarrier: {
+    fontSize: FontSizes.xs,
+    marginBottom: 2,
+  },
+  simNumber: {
+    fontSize: FontSizes.lg,
+    fontWeight: '600',
+  },
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  manualEntry: {
     marginBottom: Spacing.xl,
   },
-  divider: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    marginHorizontal: Spacing.md,
+  orText: {
+    textAlign: 'center',
     fontSize: FontSizes.sm,
+    marginBottom: Spacing.md,
   },
-  socialButtons: {
+  phoneInputContainer: {
     flexDirection: 'row',
     gap: Spacing.md,
-    marginBottom: Spacing.xl,
   },
-  socialButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+  countryCode: {
+    paddingHorizontal: Spacing.base,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.sm,
+    borderWidth: 1.5,
+    justifyContent: 'center',
   },
-  socialIcon: {
-    fontSize: 18,
-  },
-  socialButtonText: {
+  countryCodeText: {
     fontSize: FontSizes.base,
     fontWeight: '600',
   },
-  registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+  phoneInput: {
+    flex: 1,
   },
-  registerText: {
-    fontSize: FontSizes.base,
+  inputContainer: {
+    marginBottom: 0,
   },
-  registerLink: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
+  buttonContainer: {
+    marginBottom: Spacing.lg,
+  },
+  terms: {
+    fontSize: FontSizes.xs,
+    textAlign: 'center',
+    lineHeight: 18,
   },
 });

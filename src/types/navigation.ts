@@ -4,30 +4,16 @@
 
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
 import type {BottomTabScreenProps} from '@react-navigation/bottom-tabs';
-import type {
-  CompositeScreenProps,
-  NavigatorScreenParams,
-} from '@react-navigation/native';
-
-// Root Stack
-export type RootStackParamList = {
-  Auth: NavigatorScreenParams<AuthStackParamList>;
-  Main: NavigatorScreenParams<MainTabParamList>;
-  Doubt: {subject?: string; topic?: string};
-  LearningSession: {
-    topicId: string;
-    topicTitle?: string;
-    subject?: string;
-    chapter?: string;
-  };
-};
+import type {CompositeScreenProps} from '@react-navigation/native';
 
 // Auth Stack
 export type AuthStackParamList = {
   Login: undefined;
-  Register: undefined;
-  VerifyOTP: {phone?: string; email?: string};
-  Onboarding: undefined;
+  VerifyOTP: {phone: string};
+  Register: {phone: string};
+  SelectPlan: {userId: string};
+  Payment: {planId: string; planName: string; price: number; userId: string};
+  Onboarding: {userId: string};
 };
 
 // Main Tab Navigator
@@ -39,25 +25,22 @@ export type MainTabParamList = {
   Profile: undefined;
 };
 
-// Screen Props Types
-export type RootStackScreenProps<T extends keyof RootStackParamList> =
-  NativeStackScreenProps<RootStackParamList, T>;
+// Root Stack (contains Auth and Main)
+export type RootStackParamList = {
+  Auth: undefined;
+  Main: undefined;
+  Doubt: undefined;
+};
 
+// Screen props types
 export type AuthStackScreenProps<T extends keyof AuthStackParamList> =
-  CompositeScreenProps<
-    NativeStackScreenProps<AuthStackParamList, T>,
-    RootStackScreenProps<keyof RootStackParamList>
-  >;
+  NativeStackScreenProps<AuthStackParamList, T>;
 
 export type MainTabScreenProps<T extends keyof MainTabParamList> =
   CompositeScreenProps<
     BottomTabScreenProps<MainTabParamList, T>,
-    RootStackScreenProps<keyof RootStackParamList>
+    NativeStackScreenProps<RootStackParamList>
   >;
 
-// Declare global navigation types
-declare global {
-  namespace ReactNavigation {
-    interface RootParamList extends RootStackParamList {}
-  }
-}
+export type RootStackScreenProps<T extends keyof RootStackParamList> =
+  NativeStackScreenProps<RootStackParamList, T>;
