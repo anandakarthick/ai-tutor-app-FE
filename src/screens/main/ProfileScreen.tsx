@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useAuth} from '../../context/AuthContext';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
 
@@ -30,6 +31,7 @@ const STUDENT = {
 };
 
 export function ProfileScreen() {
+  const {logout} = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -58,6 +60,21 @@ export function ProfileScreen() {
       }),
     ]).start();
   }, []);
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {text: 'Cancel', style: 'cancel'},
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => logout(),
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView
@@ -274,7 +291,7 @@ export function ProfileScreen() {
               textColor={text}
               textSecondary={textSecondary}
               textMuted={textMuted}
-              onPress={() => Alert.alert('Logout', 'Are you sure?')}
+              onPress={handleLogout}
             />
           </Card>
         </Animated.View>

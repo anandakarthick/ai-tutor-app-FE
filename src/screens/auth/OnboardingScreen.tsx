@@ -9,16 +9,14 @@ import {
   Text,
   StyleSheet,
   Animated,
-  Dimensions,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {Button, Icon} from '../../components/ui';
+import {useAuth} from '../../context/AuthContext';
+import {Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
-
-const {width} = Dimensions.get('window');
 
 const ONBOARDING_STEPS = [
   {
@@ -52,8 +50,9 @@ const ONBOARDING_STEPS = [
 ];
 
 export function OnboardingScreen() {
-  const navigation = useNavigation<AuthStackScreenProps<'Onboarding'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'Onboarding'>['route']>();
+  const {userId} = route.params;
+  const {login} = useAuth();
   
   const [currentStep, setCurrentStep] = useState(0);
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -62,7 +61,6 @@ export function OnboardingScreen() {
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
-  const primary = useThemeColor({}, 'primary');
 
   const currentData = ONBOARDING_STEPS[currentStep];
 
@@ -110,11 +108,10 @@ export function OnboardingScreen() {
   };
 
   const handleComplete = () => {
-    // Navigate to main app
-    // In real app, this would set auth state
-    navigation.reset({
-      index: 0,
-      routes: [{name: 'Login'}], // This would be 'Main' in real implementation
+    // Login the user - this will automatically switch to Main app
+    login({
+      phone: userId,
+      name: 'Student',
     });
   };
 

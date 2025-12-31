@@ -134,7 +134,7 @@ export function DoubtScreen() {
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
-      edges={['top']}>
+      edges={['top', 'bottom']}>
       {/* Header */}
       <Animated.View
         style={[styles.header, {borderBottomColor: border, opacity: fadeAnim}]}>
@@ -144,7 +144,7 @@ export function DoubtScreen() {
           <Icon name="chevron-left" size={24} color={text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, {color: text}]}>Ask a Doubt</Text>
+          <Text style={[styles.headerTitle, {color: text}]}>Ask a Doubt 💬</Text>
         </View>
         <TouchableOpacity style={styles.headerAction}>
           <Icon name="more-vertical" size={24} color={textSecondary} />

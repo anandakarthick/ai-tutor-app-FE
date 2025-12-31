@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import {StatusBar, useColorScheme, View} from 'react-native';
+import {StatusBar, useColorScheme} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -13,6 +13,7 @@ import {
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {AppNavigator} from './src/navigation/AppNavigator';
+import {AuthProvider} from './src/context/AuthContext';
 import {Colors} from './src/constants/theme';
 
 // Custom themes with vibrant colors
@@ -48,16 +49,18 @@ function App(): React.JSX.Element {
 
   return (
     <SafeAreaProvider>
-      <StatusBar
-        barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor={
-          isDark ? Colors.dark.background : Colors.light.background
-        }
-        translucent={false}
-      />
-      <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
-        <AppNavigator />
-      </NavigationContainer>
+      <AuthProvider>
+        <StatusBar
+          barStyle={isDark ? 'light-content' : 'dark-content'}
+          backgroundColor={
+            isDark ? Colors.dark.background : Colors.light.background
+          }
+          translucent={false}
+        />
+        <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
+          <AppNavigator />
+        </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
 }
