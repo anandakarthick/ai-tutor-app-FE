@@ -1,12 +1,13 @@
 /**
  * Badge Component
- * Status indicators and labels
+ * Status indicator labels
  */
 
 import React from 'react';
 import {View, Text, StyleSheet, type ViewStyle} from 'react-native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
+import {Icon} from './Icon';
 
 type BadgeVariant =
   | 'default'
@@ -14,14 +15,15 @@ type BadgeVariant =
   | 'success'
   | 'warning'
   | 'error'
-  | 'info';
+  | 'info'
+  | 'secondary';
 type BadgeSize = 'sm' | 'md';
 
 interface BadgeProps {
   label: string;
   variant?: BadgeVariant;
   size?: BadgeSize;
-  icon?: React.ReactNode;
+  icon?: string;
   style?: ViewStyle;
 }
 
@@ -33,32 +35,57 @@ export function Badge({
   style,
 }: BadgeProps) {
   const primary = useThemeColor({}, 'primary');
-  const primaryBackground = useThemeColor({}, 'primaryBackground');
+  const primaryBg = useThemeColor({}, 'primaryBackground');
+  const secondary = useThemeColor({}, 'secondary');
   const success = useThemeColor({}, 'success');
-  const successBackground = useThemeColor({}, 'successBackground');
+  const successLight = useThemeColor({}, 'successLight');
   const warning = useThemeColor({}, 'warning');
-  const warningBackground = useThemeColor({}, 'warningBackground');
+  const warningLight = useThemeColor({}, 'warningLight');
   const error = useThemeColor({}, 'error');
-  const errorBackground = useThemeColor({}, 'errorBackground');
+  const errorLight = useThemeColor({}, 'errorLight');
   const info = useThemeColor({}, 'info');
-  const infoBackground = useThemeColor({}, 'infoBackground');
+  const infoLight = useThemeColor({}, 'infoLight');
   const text = useThemeColor({}, 'text');
-  const backgroundTertiary = useThemeColor({}, 'backgroundTertiary');
+  const textSecondary = useThemeColor({}, 'textSecondary');
+  const backgroundSecondary = useThemeColor({}, 'backgroundSecondary');
 
   const getVariantStyles = () => {
     switch (variant) {
       case 'primary':
-        return {backgroundColor: primaryBackground, color: primary};
+        return {
+          backgroundColor: primaryBg,
+          textColor: primary,
+        };
+      case 'secondary':
+        return {
+          backgroundColor: `${secondary}20`,
+          textColor: secondary,
+        };
       case 'success':
-        return {backgroundColor: successBackground, color: success};
+        return {
+          backgroundColor: successLight,
+          textColor: success,
+        };
       case 'warning':
-        return {backgroundColor: warningBackground, color: warning};
+        return {
+          backgroundColor: warningLight,
+          textColor: '#92400E',
+        };
       case 'error':
-        return {backgroundColor: errorBackground, color: error};
+        return {
+          backgroundColor: errorLight,
+          textColor: error,
+        };
       case 'info':
-        return {backgroundColor: infoBackground, color: info};
+        return {
+          backgroundColor: infoLight,
+          textColor: info,
+        };
       default:
-        return {backgroundColor: backgroundTertiary, color: text};
+        return {
+          backgroundColor: backgroundSecondary,
+          textColor: textSecondary,
+        };
     }
   };
 
@@ -68,22 +95,23 @@ export function Badge({
   return (
     <View
       style={[
-        styles.badge,
-        {
-          backgroundColor: variantStyles.backgroundColor,
-          paddingVertical: isSmall ? 2 : Spacing.xs,
-          paddingHorizontal: isSmall ? Spacing.sm : Spacing.md,
-        },
+        styles.container,
+        {backgroundColor: variantStyles.backgroundColor},
+        isSmall ? styles.containerSm : styles.containerMd,
         style,
       ]}>
-      {icon && <View style={styles.icon}>{icon}</View>}
+      {icon && (
+        <Icon
+          name={icon}
+          size={isSmall ? 10 : 12}
+          color={variantStyles.textColor}
+        />
+      )}
       <Text
         style={[
           styles.label,
-          {
-            color: variantStyles.color,
-            fontSize: isSmall ? FontSizes.xs : FontSizes.sm,
-          },
+          {color: variantStyles.textColor},
+          isSmall ? styles.labelSm : styles.labelMd,
         ]}>
         {label}
       </Text>
@@ -92,16 +120,29 @@ export function Badge({
 }
 
 const styles = StyleSheet.create({
-  badge: {
+  container: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: BorderRadius.full,
     alignSelf: 'flex-start',
+    gap: 4,
   },
-  icon: {
-    marginRight: Spacing.xs,
+  containerSm: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 3,
+    borderRadius: BorderRadius.base,
+  },
+  containerMd: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.md,
   },
   label: {
     fontWeight: '600',
+  },
+  labelSm: {
+    fontSize: FontSizes.xs,
+  },
+  labelMd: {
+    fontSize: FontSizes.sm,
   },
 });

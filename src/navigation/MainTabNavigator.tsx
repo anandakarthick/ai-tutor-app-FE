@@ -4,7 +4,7 @@
  */
 
 import React, {useEffect, useRef} from 'react';
-import {Platform, StyleSheet, Animated} from 'react-native';
+import {Platform, StyleSheet, Animated, View} from 'react-native';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
@@ -14,7 +14,7 @@ import {QuizzesScreen} from '../screens/main/QuizzesScreen';
 import {ProgressScreen} from '../screens/main/ProgressScreen';
 import {ProfileScreen} from '../screens/main/ProfileScreen';
 import {Icon} from '../components/ui/Icon';
-import {Shadows} from '../constants/theme';
+import {Shadows, BorderRadius} from '../constants/theme';
 import {useThemeColor} from '../hooks/useThemeColor';
 import type {MainTabParamList} from '../types/navigation';
 
@@ -24,19 +24,40 @@ function TabIcon({
   name,
   color,
   focused,
+  isCenter,
 }: {
   name: string;
   color: string;
   focused: boolean;
+  isCenter?: boolean;
 }) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const primary = useThemeColor({}, 'primary');
 
   useEffect(() => {
     Animated.spring(scaleAnim, {
-      toValue: focused ? 1.1 : 1,
+      toValue: focused ? 1.15 : 1,
       useNativeDriver: true,
+      tension: 100,
+      friction: 8,
     }).start();
   }, [focused]);
+
+  if (isCenter) {
+    return (
+      <Animated.View
+        style={[
+          styles.centerIcon,
+          {
+            backgroundColor: primary,
+            transform: [{scale: scaleAnim}],
+          },
+          focused && Shadows.glow,
+        ]}>
+        <Icon name={name} size={24} color="#FFFFFF" />
+      </Animated.View>
+    );
+  }
 
   return (
     <Animated.View style={{transform: [{scale: scaleAnim}]}}>
@@ -65,15 +86,18 @@ export function MainTabNavigator() {
           backgroundColor: cardColor,
           borderTopColor: borderColor,
           borderTopWidth: 1,
-          height: 60 + bottomPadding,
-          paddingTop: 8,
+          height: 65 + bottomPadding,
+          paddingTop: 10,
           paddingBottom: bottomPadding,
           ...Shadows.md,
         },
         tabBarLabelStyle: {
           fontSize: 11,
           fontWeight: '600',
-          marginBottom: Platform.OS === 'ios' ? 0 : 4,
+          marginTop: 2,
+        },
+        tabBarItemStyle: {
+          paddingVertical: 4,
         },
       }}>
       <Tab.Screen
@@ -83,6 +107,7 @@ export function MainTabNavigator() {
           tabBarIcon: ({color, focused}) => (
             <TabIcon name="home" color={color} focused={focused} />
           ),
+          tabBarLabel: 'Home',
         }}
       />
       <Tab.Screen
@@ -92,6 +117,7 @@ export function MainTabNavigator() {
           tabBarIcon: ({color, focused}) => (
             <TabIcon name="book-open" color={color} focused={focused} />
           ),
+          tabBarLabel: 'Learn',
         }}
       />
       <Tab.Screen
@@ -99,8 +125,14 @@ export function MainTabNavigator() {
         component={QuizzesScreen}
         options={{
           tabBarIcon: ({color, focused}) => (
-            <TabIcon name="file-text" color={color} focused={focused} />
+            <TabIcon
+              name="file-text"
+              color={focused ? '#FFFFFF' : color}
+              focused={focused}
+              isCenter
+            />
           ),
+          tabBarLabel: 'Quiz',
         }}
       />
       <Tab.Screen
@@ -110,6 +142,7 @@ export function MainTabNavigator() {
           tabBarIcon: ({color, focused}) => (
             <TabIcon name="bar-chart-2" color={color} focused={focused} />
           ),
+          tabBarLabel: 'Progress',
         }}
       />
       <Tab.Screen
@@ -119,8 +152,20 @@ export function MainTabNavigator() {
           tabBarIcon: ({color, focused}) => (
             <TabIcon name="user" color={color} focused={focused} />
           ),
+          tabBarLabel: 'Profile',
         }}
       />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  centerIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 15,
+  },
+});

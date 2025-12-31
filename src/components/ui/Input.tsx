@@ -1,5 +1,5 @@
 /**
- * Input Component
+ * Input Component - Orange Theme
  * Text input with label, error states, and icons
  */
 
@@ -111,6 +111,7 @@ export function Input({
           placeholderTextColor={textMuted}
           onFocus={handleFocus}
           onBlur={handleBlur}
+          selectionColor={primary}
           {...props}
         />
         {rightIcon && (
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     overflow: 'hidden',
   },
   input: {

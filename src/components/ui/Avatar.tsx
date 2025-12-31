@@ -1,13 +1,14 @@
 /**
  * Avatar Component
- * User profile image with fallback
+ * User profile picture or initials - Orange Theme
  */
 
 import React from 'react';
-import {View, Text, StyleSheet, Image, type ViewStyle} from 'react-native';
+import {View, Text, Image, StyleSheet, type ViewStyle} from 'react-native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {BorderRadius, FontSizes} from '../../constants/theme';
 
-type AvatarSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
 
 interface AvatarProps {
   source?: string | null;
@@ -17,41 +18,63 @@ interface AvatarProps {
 }
 
 const sizeMap: Record<AvatarSize, number> = {
-  xs: 24,
   sm: 32,
   md: 40,
-  lg: 56,
-  xl: 80,
+  lg: 48,
+  xl: 72,
 };
 
 const fontSizeMap: Record<AvatarSize, number> = {
-  xs: 10,
-  sm: 12,
-  md: 14,
-  lg: 20,
-  xl: 28,
+  sm: FontSizes.xs,
+  md: FontSizes.sm,
+  lg: FontSizes.base,
+  xl: FontSizes.xl,
 };
 
 export function Avatar({source, name, size = 'md', style}: AvatarProps) {
+  const primary = useThemeColor({}, 'primary');
   const primaryLight = useThemeColor({}, 'primaryLight');
 
   const dimension = sizeMap[size];
   const fontSize = fontSizeMap[size];
 
-  const getInitials = (n: string) => {
-    const parts = n.trim().split(' ');
-    if (parts.length >= 2) {
-      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+  const getInitials = (fullName: string): string => {
+    const names = fullName.trim().split(' ');
+    if (names.length >= 2) {
+      return `${names[0][0]}${names[1][0]}`.toUpperCase();
     }
-    return n.substring(0, 2).toUpperCase();
+    return fullName.substring(0, 2).toUpperCase();
   };
+
+  // Generate a warm gradient color based on name
+  const getGradientColor = (fullName?: string): string => {
+    if (!fullName) return primary;
+    
+    const colors = [
+      '#F97316', // Orange
+      '#EA580C', // Dark Orange
+      '#FB923C', // Light Orange
+      '#EF4444', // Red
+      '#F59E0B', // Amber
+      '#D97706', // Yellow
+    ];
+    
+    let hash = 0;
+    for (let i = 0; i < fullName.length; i++) {
+      hash = fullName.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  const bgColor = getGradientColor(name);
 
   if (source) {
     return (
       <Image
         source={{uri: source}}
         style={[
-          styles.avatar,
+          styles.image,
           {
             width: dimension,
             height: dimension,
@@ -59,7 +82,6 @@ export function Avatar({source, name, size = 'md', style}: AvatarProps) {
           },
           style,
         ]}
-        resizeMode="cover"
       />
     );
   }
@@ -67,16 +89,16 @@ export function Avatar({source, name, size = 'md', style}: AvatarProps) {
   return (
     <View
       style={[
-        styles.fallback,
+        styles.container,
         {
           width: dimension,
           height: dimension,
           borderRadius: dimension / 2,
-          backgroundColor: primaryLight,
+          backgroundColor: bgColor,
         },
         style,
       ]}>
-      <Text style={[styles.initials, {fontSize, color: '#FFFFFF'}]}>
+      <Text style={[styles.initials, {fontSize}]}>
         {name ? getInitials(name) : '?'}
       </Text>
     </View>
@@ -84,14 +106,15 @@ export function Avatar({source, name, size = 'md', style}: AvatarProps) {
 }
 
 const styles = StyleSheet.create({
-  avatar: {
-    backgroundColor: '#E5E7EB',
-  },
-  fallback: {
+  container: {
     alignItems: 'center',
     justifyContent: 'center',
   },
+  image: {
+    resizeMode: 'cover',
+  },
   initials: {
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

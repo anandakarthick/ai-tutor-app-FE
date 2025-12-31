@@ -20,7 +20,7 @@ import {
   FontSizes,
   Shadows,
   Spacing,
-  getSubjectColor,
+  getSubjectTheme,
 } from '../../../constants/theme';
 
 interface SubjectCardProps {
@@ -47,7 +47,7 @@ export function SubjectCard({
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
 
-  const subjectColor = getSubjectColor(subject, colorScheme);
+  const subjectTheme = getSubjectTheme(subject, colorScheme);
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -72,10 +72,31 @@ export function SubjectCard({
       chemistry: 'flask',
       biology: 'leaf',
       english: 'book',
+      hindi: 'book',
       history: 'history',
       geography: 'globe',
+      'social science': 'globe',
+      socialscience: 'globe',
     };
     return iconMap[subj.toLowerCase()] || 'book';
+  };
+
+  const getSubjectEmoji = (subj: string): string => {
+    const emojiMap: Record<string, string> = {
+      mathematics: '📐',
+      math: '📐',
+      science: '🔬',
+      physics: '⚛️',
+      chemistry: '🧪',
+      biology: '🧬',
+      english: '📖',
+      hindi: '📚',
+      history: '🏛️',
+      geography: '🌍',
+      'social science': '🌐',
+      socialscience: '🌐',
+    };
+    return emojiMap[subj.toLowerCase()] || '📘';
   };
 
   return (
@@ -89,23 +110,31 @@ export function SubjectCard({
         <View
           style={[
             styles.iconContainer,
-            {backgroundColor: `${subjectColor}20`},
+            {backgroundColor: subjectTheme.background},
           ]}>
           <Icon
             name={icon || getSubjectIcon(subject)}
             size={24}
-            color={subjectColor}
+            color={subjectTheme.icon}
           />
         </View>
         <View style={styles.content}>
-          <Text style={[styles.subject, {color: text}]} numberOfLines={1}>
-            {subject}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.subject, {color: text}]} numberOfLines={1}>
+              {subject}
+            </Text>
+            <Text style={styles.emoji}>{getSubjectEmoji(subject)}</Text>
+          </View>
           <Text style={[styles.chapters, {color: textSecondary}]}>
-            {chaptersCompleted}/{totalChapters} chapters
+            {chaptersCompleted}/{totalChapters} chapters completed
           </Text>
         </View>
-        <ProgressRing progress={progress} size="sm" showLabel={false} />
+        <ProgressRing 
+          progress={progress} 
+          size="sm" 
+          showLabel={false}
+          variant={progress >= 50 ? 'success' : 'primary'}
+        />
       </TouchableOpacity>
     </Animated.View>
   );
@@ -116,13 +145,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     marginBottom: Spacing.md,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: BorderRadius.md,
+    width: 52,
+    height: 52,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Spacing.md,
@@ -131,9 +160,18 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: Spacing.md,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
   subject: {
     fontSize: FontSizes.base,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  emoji: {
+    fontSize: 14,
     marginBottom: 4,
   },
   chapters: {

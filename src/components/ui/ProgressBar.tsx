@@ -1,5 +1,5 @@
 /**
- * ProgressBar Component
+ * ProgressBar Component - Orange Theme
  * Linear progress indicator
  */
 
@@ -9,7 +9,7 @@ import {useThemeColor} from '../../hooks/useThemeColor';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 
 type ProgressBarSize = 'sm' | 'md' | 'lg';
-type ProgressBarVariant = 'primary' | 'success' | 'warning' | 'error';
+type ProgressBarVariant = 'primary' | 'success' | 'warning' | 'error' | 'secondary';
 
 interface ProgressBarProps {
   progress: number; // 0-100
@@ -22,9 +22,9 @@ interface ProgressBarProps {
 }
 
 const heightMap: Record<ProgressBarSize, number> = {
-  sm: 4,
-  md: 8,
-  lg: 12,
+  sm: 6,
+  md: 10,
+  lg: 14,
 };
 
 export function ProgressBar({
@@ -39,6 +39,7 @@ export function ProgressBar({
   const animatedProgress = useRef(new Animated.Value(0)).current;
 
   const primary = useThemeColor({}, 'primary');
+  const secondary = useThemeColor({}, 'secondary');
   const success = useThemeColor({}, 'success');
   const warning = useThemeColor({}, 'warning');
   const error = useThemeColor({}, 'error');
@@ -54,8 +55,10 @@ export function ProgressBar({
         return warning;
       case 'error':
         return error;
+      case 'secondary':
+        return secondary;
       default:
-        return primary;
+        return primary; // Orange
     }
   };
 
@@ -64,7 +67,7 @@ export function ProgressBar({
     if (animated) {
       Animated.timing(animatedProgress, {
         toValue: clampedProgress,
-        duration: 600,
+        duration: 800,
         useNativeDriver: false,
       }).start();
     } else {
@@ -86,7 +89,7 @@ export function ProgressBar({
         <View style={styles.labelContainer}>
           {label && <Text style={[styles.label, {color: text}]}>{label}</Text>}
           {showLabel && (
-            <Text style={[styles.percentage, {color: textSecondary}]}>
+            <Text style={[styles.percentage, {color: primary}]}>
               {Math.round(progress)}%
             </Text>
           )}
@@ -112,6 +115,17 @@ export function ProgressBar({
             },
           ]}
         />
+        {/* Shine effect */}
+        <Animated.View
+          style={[
+            styles.shine,
+            {
+              height: height / 2,
+              borderRadius: height / 4,
+              width: widthInterpolate,
+            },
+          ]}
+        />
       </View>
     </View>
   );
@@ -119,7 +133,7 @@ export function ProgressBar({
 
 const styles = StyleSheet.create({
   container: {
-    width: '100%',
+    flex: 1,
   },
   labelContainer: {
     flexDirection: 'row',
@@ -129,19 +143,27 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: FontSizes.sm,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   percentage: {
     fontSize: FontSizes.sm,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   track: {
     width: '100%',
     overflow: 'hidden',
+    position: 'relative',
   },
   fill: {
     position: 'absolute',
     left: 0,
     top: 0,
+  },
+  shine: {
+    position: 'absolute',
+    left: 0,
+    top: 1,
+    backgroundColor: 'rgba(255,255,255,0.35)',
+    marginLeft: 2,
   },
 });

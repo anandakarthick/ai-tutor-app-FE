@@ -7,8 +7,12 @@
         <!-- Ensure system bars don't overlap content -->
         <item name="android:windowDrawsSystemBarBackgrounds">true</item>
         <item name="android:fitsSystemWindows">true</item>
-        <!-- Navigation bar color -->
-        <item name="android:navigationBarColor">@android:color/white</item>
+        <!-- Navigation bar color - warm cream background -->
+        <item name="android:navigationBarColor">#FFFBF7</item>
+        <!-- Status bar -->
+        <item name="android:statusBarColor">#FFFBF7</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
     </style>
 
 </resources>

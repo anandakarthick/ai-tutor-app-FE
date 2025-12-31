@@ -1,25 +1,34 @@
 /**
  * useThemeColor Hook
- * Get colors based on current theme
+ * Get color based on current color scheme
  */
 
 import {useColorScheme} from 'react-native';
 import {Colors} from '../constants/theme';
 
+type ColorScheme = 'light' | 'dark';
+type ThemeColors = typeof Colors.light;
+type ColorName = keyof ThemeColors;
+
 export function useThemeColor(
   props: {light?: string; dark?: string},
-  colorName: keyof typeof Colors.light & keyof typeof Colors.dark,
-) {
-  const theme = useColorScheme() ?? 'light';
-  const colorFromProps = props[theme];
+  colorName: ColorName,
+): string {
+  const colorScheme = useColorScheme() ?? 'light';
+  const colorFromProps = props[colorScheme];
 
   if (colorFromProps) {
     return colorFromProps;
-  } else {
-    return Colors[theme][colorName];
   }
+
+  return Colors[colorScheme][colorName] as string;
 }
 
-export function useColorSchemeValue() {
+export function useThemeColors(): ThemeColors {
+  const colorScheme = useColorScheme() ?? 'light';
+  return Colors[colorScheme];
+}
+
+export function useColorSchemeValue(): ColorScheme {
   return useColorScheme() ?? 'light';
 }

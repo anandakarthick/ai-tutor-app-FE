@@ -16,14 +16,15 @@ import {
   type TextStyle,
 } from 'react-native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {Colors, BorderRadius, FontSizes, Spacing} from '../../constants/theme';
+import {Colors, BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 
 export type ButtonVariant =
   | 'primary'
   | 'secondary'
   | 'outline'
   | 'ghost'
-  | 'danger';
+  | 'danger'
+  | 'success';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends TouchableOpacityProps {
@@ -52,9 +53,13 @@ export function Button({
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const primary = useThemeColor({}, 'primary');
+  const primaryLight = useThemeColor({}, 'primaryLight');
+  const secondary = useThemeColor({}, 'secondary');
+  const success = useThemeColor({}, 'success');
   const error = useThemeColor({}, 'error');
   const text = useThemeColor({}, 'text');
   const border = useThemeColor({}, 'border');
+  const primaryBg = useThemeColor({}, 'primaryBackground');
 
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
@@ -70,7 +75,7 @@ export function Button({
     }).start();
   };
 
-  const getVariantStyles = (): {container: ViewStyle; text: TextStyle} => {
+  const getVariantStyles = (): {container: ViewStyle; text: TextStyle; shadow: any} => {
     const baseOpacity = disabled ? 0.5 : 1;
 
     switch (variant) {
@@ -81,24 +86,27 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: '#FFFFFF'},
+          shadow: Shadows.md,
         };
       case 'secondary':
         return {
           container: {
-            backgroundColor: Colors.light.primaryBackground,
+            backgroundColor: primaryBg,
             opacity: baseOpacity,
           },
           text: {color: primary},
+          shadow: Shadows.sm,
         };
       case 'outline':
         return {
           container: {
             backgroundColor: 'transparent',
-            borderWidth: 1.5,
-            borderColor: border,
+            borderWidth: 2,
+            borderColor: primary,
             opacity: baseOpacity,
           },
-          text: {color: text},
+          text: {color: primary},
+          shadow: Shadows.none,
         };
       case 'ghost':
         return {
@@ -107,6 +115,7 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: primary},
+          shadow: Shadows.none,
         };
       case 'danger':
         return {
@@ -115,11 +124,22 @@ export function Button({
             opacity: baseOpacity,
           },
           text: {color: '#FFFFFF'},
+          shadow: Shadows.md,
+        };
+      case 'success':
+        return {
+          container: {
+            backgroundColor: success,
+            opacity: baseOpacity,
+          },
+          text: {color: '#FFFFFF'},
+          shadow: Shadows.md,
         };
       default:
         return {
           container: {backgroundColor: primary},
           text: {color: '#FFFFFF'},
+          shadow: Shadows.md,
         };
     }
   };
@@ -131,7 +151,7 @@ export function Button({
           container: {
             paddingVertical: Spacing.sm,
             paddingHorizontal: Spacing.base,
-            borderRadius: BorderRadius.base,
+            borderRadius: BorderRadius.md,
           },
           text: {fontSize: FontSizes.sm},
         };
@@ -140,16 +160,16 @@ export function Button({
           container: {
             paddingVertical: Spacing.base,
             paddingHorizontal: Spacing.xl,
-            borderRadius: BorderRadius.lg,
+            borderRadius: BorderRadius.xl,
           },
-          text: {fontSize: FontSizes.lg},
+          text: {fontSize: FontSizes.md},
         };
       default:
         return {
           container: {
             paddingVertical: Spacing.md,
             paddingHorizontal: Spacing.lg,
-            borderRadius: BorderRadius.md,
+            borderRadius: BorderRadius.lg,
           },
           text: {fontSize: FontSizes.base},
         };
@@ -160,7 +180,7 @@ export function Button({
   const sizeStyles = getSizeStyles();
 
   return (
-    <Animated.View style={{transform: [{scale: scaleAnim}]}}>
+    <Animated.View style={[{transform: [{scale: scaleAnim}]}, variantStyles.shadow]}>
       <TouchableOpacity
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
@@ -212,8 +232,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   text: {
-    fontWeight: '600',
+    fontWeight: '700',
     textAlign: 'center',
+    letterSpacing: 0.3,
   },
   iconLeft: {
     marginRight: Spacing.sm,

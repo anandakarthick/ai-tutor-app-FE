@@ -3,8 +3,8 @@
  * Main entry point
  */
 
-import React, {useEffect} from 'react';
-import {StatusBar, useColorScheme, View, Platform} from 'react-native';
+import React from 'react';
+import {StatusBar, useColorScheme} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -15,7 +15,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {Colors} from './src/constants/theme';
 
-// Custom themes
+// Custom themes with vibrant colors
 const CustomLightTheme = {
   ...DefaultTheme,
   colors: {
@@ -25,6 +25,7 @@ const CustomLightTheme = {
     card: Colors.light.card,
     text: Colors.light.text,
     border: Colors.light.border,
+    notification: Colors.light.accent,
   },
 };
 
@@ -37,6 +38,7 @@ const CustomDarkTheme = {
     card: Colors.dark.card,
     text: Colors.dark.text,
     border: Colors.dark.border,
+    notification: Colors.dark.accent,
   },
 };
 

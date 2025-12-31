@@ -1,5 +1,5 @@
 /**
- * Login Screen
+ * Login Screen - Orange Theme
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -17,7 +17,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Button, Input, Icon} from '../../components/ui';
-import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
+import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
 export function LoginScreen() {
@@ -27,7 +27,10 @@ export function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(40)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -36,13 +39,27 @@ export function LoginScreen() {
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
+  const primaryLight = useThemeColor({}, 'primaryLight');
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const handleLogin = async () => {
@@ -55,6 +72,11 @@ export function LoginScreen() {
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]}>
+      {/* Decorative circles - Orange themed */}
+      <View style={[styles.circle1, {backgroundColor: `${primary}20`}]} />
+      <View style={[styles.circle2, {backgroundColor: `${primaryLight}15`}]} />
+      <View style={[styles.circle3, {backgroundColor: `${primary}10`}]} />
+      
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}>
@@ -63,18 +85,32 @@ export function LoginScreen() {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           {/* Header */}
-          <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
-            <View style={[styles.logoContainer, {backgroundColor: primary}]}>
-              <Icon name="book-open" size={32} color="#FFF" />
+          <Animated.View 
+            style={[
+              styles.header, 
+              {
+                opacity: fadeAnim, 
+                transform: [{translateY: slideAnim}, {scale: scaleAnim}]
+              }
+            ]}>
+            <View style={[styles.logoContainer, Shadows.glow]}>
+              <View style={[styles.logoInner, {backgroundColor: primary}]}>
+                <Icon name="book-open" size={36} color="#FFF" />
+              </View>
             </View>
+            <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
             <Text style={[styles.title, {color: text}]}>Welcome Back!</Text>
             <Text style={[styles.subtitle, {color: textSecondary}]}>
-              Sign in to continue learning
+              Sign in to continue your learning journey
             </Text>
           </Animated.View>
 
           {/* Form */}
-          <Animated.View style={[styles.form, {opacity: fadeAnim}]}>
+          <Animated.View 
+            style={[
+              styles.form, 
+              {opacity: fadeAnim, transform: [{translateY: slideAnim}]}
+            ]}>
             <Input
               label="Email or Phone"
               placeholder="Enter your email or phone"
@@ -103,7 +139,7 @@ export function LoginScreen() {
             </TouchableOpacity>
 
             <Button
-              title="Sign In"
+              title="Sign In 🚀"
               onPress={handleLogin}
               loading={loading}
               fullWidth
@@ -112,7 +148,11 @@ export function LoginScreen() {
           </Animated.View>
 
           {/* Divider */}
-          <Animated.View style={[styles.dividerContainer, {opacity: fadeAnim}]}>
+          <Animated.View 
+            style={[
+              styles.dividerContainer, 
+              {opacity: fadeAnim}
+            ]}>
             <View style={[styles.divider, {backgroundColor: border}]} />
             <Text style={[styles.dividerText, {color: textMuted}]}>
               or continue with
@@ -121,13 +161,18 @@ export function LoginScreen() {
           </Animated.View>
 
           {/* Social Login */}
-          <Animated.View style={[styles.socialButtons, {opacity: fadeAnim}]}>
+          <Animated.View 
+            style={[
+              styles.socialButtons, 
+              {opacity: fadeAnim}
+            ]}>
             <TouchableOpacity
               style={[
                 styles.socialButton,
                 {backgroundColor: card, borderColor: border},
+                Shadows.sm,
               ]}>
-              <Icon name="globe" size={20} color={text} />
+              <Text style={styles.socialIcon}>🔵</Text>
               <Text style={[styles.socialButtonText, {color: text}]}>
                 Google
               </Text>
@@ -136,20 +181,25 @@ export function LoginScreen() {
               style={[
                 styles.socialButton,
                 {backgroundColor: card, borderColor: border},
+                Shadows.sm,
               ]}>
-              <Icon name="star" size={20} color={text} />
+              <Text style={styles.socialIcon}>🍎</Text>
               <Text style={[styles.socialButtonText, {color: text}]}>Apple</Text>
             </TouchableOpacity>
           </Animated.View>
 
           {/* Register Link */}
-          <Animated.View style={[styles.registerContainer, {opacity: fadeAnim}]}>
+          <Animated.View 
+            style={[
+              styles.registerContainer, 
+              {opacity: fadeAnim}
+            ]}>
             <Text style={[styles.registerText, {color: textSecondary}]}>
               Don't have an account?{' '}
             </Text>
             <TouchableOpacity onPress={() => navigation.navigate('Register')}>
               <Text style={[styles.registerLink, {color: primary}]}>
-                Sign Up
+                Sign Up 🔥
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -160,7 +210,34 @@ export function LoginScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
+  container: {
+    flex: 1,
+    position: 'relative',
+  },
+  circle1: {
+    position: 'absolute',
+    top: -80,
+    right: -80,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+  },
+  circle2: {
+    position: 'absolute',
+    bottom: -40,
+    left: -60,
+    width: 180,
+    height: 180,
+    borderRadius: 90,
+  },
+  circle3: {
+    position: 'absolute',
+    top: '40%',
+    right: -30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
   keyboardView: {flex: 1},
   scrollContent: {
     flexGrow: 1,
@@ -172,12 +249,20 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: BorderRadius.xl,
+    marginBottom: Spacing.md,
+  },
+  logoInner: {
+    width: 80,
+    height: 80,
+    borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Spacing.lg,
+  },
+  appName: {
+    fontSize: FontSizes.xl,
+    fontWeight: '700',
+    marginBottom: Spacing.md,
+    letterSpacing: 1,
   },
   title: {
     fontSize: FontSizes['2xl'],
@@ -224,9 +309,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     gap: Spacing.sm,
+  },
+  socialIcon: {
+    fontSize: 18,
   },
   socialButtonText: {
     fontSize: FontSizes.base,
@@ -241,6 +329,6 @@ const styles = StyleSheet.create({
   },
   registerLink: {
     fontSize: FontSizes.base,
-    fontWeight: '600',
+    fontWeight: '700',
   },
 });

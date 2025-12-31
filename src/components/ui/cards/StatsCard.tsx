@@ -47,15 +47,19 @@ export function StatsCard({
         toValue: 1,
         delay,
         useNativeDriver: true,
+        tension: 50,
+        friction: 7,
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
         delay,
-        duration: 300,
+        duration: 400,
         useNativeDriver: true,
       }),
     ]).start();
   }, [delay]);
+
+  const color = iconColor || primary;
 
   return (
     <Animated.View
@@ -68,9 +72,9 @@ export function StatsCard({
       <View
         style={[
           styles.iconContainer,
-          {backgroundColor: `${iconColor || primary}15`},
+          {backgroundColor: `${color}15`},
         ]}>
-        <Icon name={icon} size={20} color={iconColor || primary} />
+        <Icon name={icon} size={22} color={color} />
       </View>
       <Text style={[styles.title, {color: textSecondary}]}>{title}</Text>
       <View style={styles.valueContainer}>
@@ -113,13 +117,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.xl,
     minWidth: 140,
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.base,
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,

@@ -1,16 +1,16 @@
 /**
  * ProgressRing Component
- * Circular progress indicator
+ * Circular progress indicator with orange theme
  */
 
 import React, {useEffect, useRef, useState} from 'react';
 import {View, Text, StyleSheet, Animated, type ViewStyle} from 'react-native';
-import Svg, {Circle} from 'react-native-svg';
+import Svg, {Circle, Defs, LinearGradient, Stop} from 'react-native-svg';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {FontSizes} from '../../constants/theme';
 
 type ProgressRingSize = 'sm' | 'md' | 'lg' | 'xl';
-type ProgressRingVariant = 'primary' | 'success' | 'warning' | 'error';
+type ProgressRingVariant = 'primary' | 'success' | 'warning' | 'error' | 'secondary';
 
 interface ProgressRingProps {
   progress: number; // 0-100
@@ -50,10 +50,6 @@ export function ProgressRing({
   const [displayProgress, setDisplayProgress] = useState(0);
   const animatedValue = useRef(new Animated.Value(0)).current;
 
-  const primary = useThemeColor({}, 'primary');
-  const success = useThemeColor({}, 'success');
-  const warning = useThemeColor({}, 'warning');
-  const error = useThemeColor({}, 'error');
   const backgroundTertiary = useThemeColor({}, 'backgroundTertiary');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -63,16 +59,19 @@ export function ProgressRing({
   const radius = (dimension - stroke) / 2;
   const circumference = radius * 2 * Math.PI;
 
-  const getColor = () => {
+  const getColors = (): {start: string; end: string} => {
     switch (variant) {
       case 'success':
-        return success;
+        return {start: '#22C55E', end: '#16A34A'};
       case 'warning':
-        return warning;
+        return {start: '#FBBF24', end: '#F59E0B'};
       case 'error':
-        return error;
+        return {start: '#F87171', end: '#EF4444'};
+      case 'secondary':
+        return {start: '#3B82F6', end: '#2563EB'};
       default:
-        return primary;
+        // Orange gradient
+        return {start: '#FB923C', end: '#F97316'};
     }
   };
 
@@ -99,7 +98,7 @@ export function ProgressRing({
     }
   }, [progress, animated]);
 
-  const color = getColor();
+  const colors = getColors();
   const center = dimension / 2;
   const strokeDashoffset = circumference - (displayProgress / 100) * circumference;
 
@@ -107,6 +106,12 @@ export function ProgressRing({
     <View
       style={[styles.container, {width: dimension, height: dimension}, style]}>
       <Svg width={dimension} height={dimension}>
+        <Defs>
+          <LinearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <Stop offset="0%" stopColor={colors.start} />
+            <Stop offset="100%" stopColor={colors.end} />
+          </LinearGradient>
+        </Defs>
         {/* Background circle */}
         <Circle
           cx={center}
@@ -116,12 +121,12 @@ export function ProgressRing({
           strokeWidth={stroke}
           fill="transparent"
         />
-        {/* Progress circle */}
+        {/* Progress circle with gradient */}
         <Circle
           cx={center}
           cy={center}
           r={radius}
-          stroke={color}
+          stroke="url(#progressGradient)"
           strokeWidth={stroke}
           fill="transparent"
           strokeDasharray={circumference}
@@ -142,7 +147,9 @@ export function ProgressRing({
                     ? FontSizes.xs
                     : size === 'md'
                     ? FontSizes.sm
-                    : FontSizes.xl,
+                    : size === 'lg'
+                    ? FontSizes.xl
+                    : FontSizes['2xl'],
               },
             ]}>
             {Math.round(displayProgress)}%
