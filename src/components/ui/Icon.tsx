@@ -90,6 +90,12 @@ const featherIconMap: Record<string, string> = {
   percent: 'percent',
   'credit-card': 'credit-card',
   building: 'briefcase',
+  cast: 'cast',
+  wifi: 'wifi',
+  'wifi-off': 'wifi-off',
+  tv: 'tv',
+  monitor: 'monitor',
+  airplay: 'airplay',
 };
 
 // Map our icon names to Material Community icons
@@ -111,6 +117,9 @@ const materialIconMap: Record<string, string> = {
   'x-circle': 'close-circle',
   question: 'help-circle',
   bank: 'bank',
+  'cast-connected': 'cast-connected',
+  'television': 'television',
+  'remote-tv': 'remote-tv',
 };
 
 export function Icon({name, size = 24, color = '#000', style}: IconProps) {

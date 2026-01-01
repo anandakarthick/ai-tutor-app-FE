@@ -1,9 +1,9 @@
 /**
  * Home Screen / Dashboard
- * Student's main dashboard with orange theme
+ * Student's main dashboard with orange theme and Cast feature
  */
 
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,9 @@ import {
   TouchableOpacity,
   Animated,
   useColorScheme,
+  Modal,
+  ActivityIndicator,
+  Platform,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -83,17 +86,35 @@ const SUBJECTS = [
   {subject: 'English', chaptersCompleted: 4, totalChapters: 12, progress: 33},
 ];
 
+// Mock cast devices
+const MOCK_CAST_DEVICES = [
+  {id: '1', name: 'Living Room TV', type: 'chromecast', isConnected: false},
+  {id: '2', name: 'Samsung Smart TV', type: 'smarttv', isConnected: false},
+  {id: '3', name: 'Bedroom Fire Stick', type: 'firestick', isConnected: false},
+];
+
 export function HomeScreen() {
   const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
+  // Cast state
+  const [showCastModal, setShowCastModal] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [castDevices, setCastDevices] = useState<typeof MOCK_CAST_DEVICES>([]);
+  const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
+  const [isCasting, setIsCasting] = useState(false);
+
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
+  const textMuted = useThemeColor({}, 'textMuted');
   const primary = useThemeColor({}, 'primary');
   const card = useThemeColor({}, 'card');
+  const border = useThemeColor({}, 'border');
+  const success = useThemeColor({}, 'success');
+  const error = useThemeColor({}, 'error');
 
   useEffect(() => {
     Animated.parallel([
@@ -109,6 +130,55 @@ export function HomeScreen() {
       }),
     ]).start();
   }, []);
+
+  const handleCastPress = () => {
+    setShowCastModal(true);
+    scanForDevices();
+  };
+
+  const scanForDevices = () => {
+    setIsScanning(true);
+    setCastDevices([]);
+    
+    // Simulate scanning for devices
+    setTimeout(() => {
+      setCastDevices(MOCK_CAST_DEVICES);
+      setIsScanning(false);
+    }, 2000);
+  };
+
+  const connectToDevice = (deviceId: string) => {
+    const device = castDevices.find(d => d.id === deviceId);
+    if (!device) return;
+
+    // Simulate connection
+    setConnectedDevice(deviceId);
+    setIsCasting(true);
+    
+    // Update devices list
+    setCastDevices(prev => prev.map(d => ({
+      ...d,
+      isConnected: d.id === deviceId,
+    })));
+  };
+
+  const disconnectDevice = () => {
+    setConnectedDevice(null);
+    setIsCasting(false);
+    setCastDevices(prev => prev.map(d => ({
+      ...d,
+      isConnected: false,
+    })));
+  };
+
+  const getDeviceIcon = (type: string) => {
+    switch (type) {
+      case 'chromecast': return '📺';
+      case 'smarttv': return '🖥️';
+      case 'firestick': return '🔥';
+      default: return '📱';
+    }
+  };
 
   return (
     <SafeAreaView
@@ -141,12 +211,63 @@ export function HomeScreen() {
               />
             </View>
           </View>
-          <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
-            <View style={[styles.avatarContainer, {borderColor: primary}]}>
-              <Avatar name={STUDENT.name} source={STUDENT.avatar} size="lg" />
-            </View>
-          </TouchableOpacity>
+          <View style={styles.headerRight}>
+            {/* Cast Button */}
+            <TouchableOpacity
+              style={[
+                styles.castButton,
+                {
+                  backgroundColor: isCasting ? `${success}15` : card,
+                  borderColor: isCasting ? success : border,
+                },
+                Shadows.sm,
+              ]}
+              onPress={handleCastPress}>
+              <Icon 
+                name={isCasting ? 'check-circle' : 'cast'} 
+                size={20} 
+                color={isCasting ? success : primary} 
+              />
+              {isCasting && (
+                <View style={[styles.castingDot, {backgroundColor: success}]} />
+              )}
+            </TouchableOpacity>
+            
+            {/* Profile Avatar */}
+            <TouchableOpacity onPress={() => navigation.navigate('Profile')}>
+              <View style={[styles.avatarContainer, {borderColor: primary}]}>
+                <Avatar name={STUDENT.name} source={STUDENT.avatar} size="lg" />
+              </View>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
+
+        {/* Casting Banner */}
+        {isCasting && connectedDevice && (
+          <Animated.View
+            style={[
+              styles.castingBanner,
+              {backgroundColor: `${success}15`, borderColor: success},
+              {opacity: fadeAnim},
+            ]}>
+            <View style={styles.castingBannerLeft}>
+              <Text style={styles.castingEmoji}>📺</Text>
+              <View>
+                <Text style={[styles.castingText, {color: success}]}>
+                  Casting to {castDevices.find(d => d.id === connectedDevice)?.name}
+                </Text>
+                <Text style={[styles.castingSubtext, {color: textMuted}]}>
+                  Screen mirroring active
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[styles.stopCastButton, {backgroundColor: error}]}
+              onPress={disconnectDevice}>
+              <Icon name="x" size={14} color="#FFF" />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Quick Stats */}
         <Animated.View
@@ -323,6 +444,107 @@ export function HomeScreen() {
 
         <View style={{height: Spacing['2xl']}} />
       </ScrollView>
+
+      {/* Cast Modal */}
+      <Modal
+        visible={showCastModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowCastModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {backgroundColor: card}]}>
+            {/* Modal Header */}
+            <View style={[styles.modalHeader, {borderBottomColor: border}]}>
+              <View style={styles.modalTitleRow}>
+                <Text style={styles.modalEmoji}>📺</Text>
+                <Text style={[styles.modalTitle, {color: text}]}>Cast Screen</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowCastModal(false)}>
+                <Icon name="x" size={24} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <View style={styles.modalBody}>
+              {/* Network Info */}
+              <View style={[styles.networkInfo, {backgroundColor: `${primary}10`}]}>
+                <Icon name="wifi" size={16} color={primary} />
+                <Text style={[styles.networkText, {color: textSecondary}]}>
+                  Scanning devices on your network...
+                </Text>
+              </View>
+
+              {/* Scanning */}
+              {isScanning ? (
+                <View style={styles.scanningContainer}>
+                  <ActivityIndicator size="large" color={primary} />
+                  <Text style={[styles.scanningText, {color: textMuted}]}>
+                    Looking for nearby devices...
+                  </Text>
+                </View>
+              ) : castDevices.length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyEmoji}>📡</Text>
+                  <Text style={[styles.emptyText, {color: textMuted}]}>
+                    No devices found
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.rescanButton, {backgroundColor: primary}]}
+                    onPress={scanForDevices}>
+                    <Icon name="refresh-cw" size={16} color="#FFF" />
+                    <Text style={styles.rescanText}>Scan Again</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View style={styles.devicesList}>
+                  <Text style={[styles.devicesTitle, {color: text}]}>
+                    Available Devices
+                  </Text>
+                  {castDevices.map(device => (
+                    <TouchableOpacity
+                      key={device.id}
+                      style={[
+                        styles.deviceCard,
+                        {
+                          backgroundColor: device.isConnected ? `${success}10` : background,
+                          borderColor: device.isConnected ? success : border,
+                        },
+                      ]}
+                      onPress={() => device.isConnected ? disconnectDevice() : connectToDevice(device.id)}>
+                      <Text style={styles.deviceIcon}>{getDeviceIcon(device.type)}</Text>
+                      <View style={styles.deviceInfo}>
+                        <Text style={[styles.deviceName, {color: text}]}>
+                          {device.name}
+                        </Text>
+                        <Text style={[styles.deviceType, {color: textMuted}]}>
+                          {device.type === 'chromecast' ? 'Chromecast' : 
+                           device.type === 'smarttv' ? 'Smart TV' : 'Fire TV Stick'}
+                        </Text>
+                      </View>
+                      {device.isConnected ? (
+                        <View style={[styles.connectedBadge, {backgroundColor: success}]}>
+                          <Icon name="check" size={12} color="#FFF" />
+                          <Text style={styles.connectedText}>Connected</Text>
+                        </View>
+                      ) : (
+                        <Icon name="cast" size={20} color={primary} />
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
+              {/* Help Text */}
+              <View style={[styles.helpContainer, {backgroundColor: `${textMuted}10`}]}>
+                <Icon name="info" size={14} color={textMuted} />
+                <Text style={[styles.helpText, {color: textMuted}]}>
+                  Make sure your device and TV are on the same WiFi network
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -387,10 +609,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   headerLeft: {
     flex: 1,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
   },
   greeting: {
     fontSize: FontSizes.sm,
@@ -411,8 +638,56 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     padding: 2,
   },
+  castButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    position: 'relative',
+  },
+  castingDot: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  castingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    marginBottom: Spacing.lg,
+  },
+  castingBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  castingEmoji: {
+    fontSize: 24,
+  },
+  castingText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  castingSubtext: {
+    fontSize: FontSizes.xs,
+  },
+  stopCastButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   statsContainer: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.lg,
   },
   statsRow: {
     flexDirection: 'row',
@@ -559,5 +834,138 @@ const styles = StyleSheet.create({
     top: Spacing.sm,
     right: Spacing.sm,
     fontSize: 16,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  modalEmoji: {
+    fontSize: 24,
+  },
+  modalTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+  },
+  modalBody: {
+    padding: Spacing.lg,
+  },
+  networkInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  networkText: {
+    fontSize: FontSizes.sm,
+    flex: 1,
+  },
+  scanningContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing['2xl'],
+  },
+  scanningText: {
+    fontSize: FontSizes.sm,
+    marginTop: Spacing.md,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing['2xl'],
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.sm,
+    marginBottom: Spacing.lg,
+  },
+  rescanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+  },
+  rescanText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  devicesList: {},
+  devicesTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.md,
+  },
+  deviceCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    marginBottom: Spacing.sm,
+  },
+  deviceIcon: {
+    fontSize: 28,
+    marginRight: Spacing.md,
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  deviceName: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  deviceType: {
+    fontSize: FontSizes.xs,
+  },
+  connectedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    gap: 4,
+  },
+  connectedText: {
+    fontSize: FontSizes.xs,
+    fontWeight: '600',
+    color: '#FFF',
+  },
+  helpContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginTop: Spacing.lg,
+  },
+  helpText: {
+    fontSize: FontSizes.xs,
+    flex: 1,
+    lineHeight: 16,
   },
 });
