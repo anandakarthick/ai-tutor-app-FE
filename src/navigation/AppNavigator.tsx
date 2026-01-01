@@ -11,6 +11,7 @@ import {AuthNavigator} from './AuthNavigator';
 import {MainTabNavigator} from './MainTabNavigator';
 import {DoubtScreen} from '../screens/main/DoubtScreen';
 import {SubjectDetailScreen, ChapterScreen, LessonScreen} from '../screens/learn';
+import {NotificationSettingsScreen} from '../screens/settings';
 import type {RootStackParamList} from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -51,6 +52,13 @@ export function AppNavigator() {
           <Stack.Screen
             name="Lesson"
             component={LessonScreen}
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="NotificationSettings"
+            component={NotificationSettingsScreen}
             options={{
               animation: 'slide_from_right',
             }}

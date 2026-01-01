@@ -12,11 +12,15 @@
     "clean": "cd android && ./gradlew clean && cd .."
   },
   "dependencies": {
+    "@notifee/react-native": "^9.1.8",
+    "@react-native-firebase/app": "^23.7.0",
+    "@react-native-firebase/messaging": "^23.7.0",
     "@react-navigation/bottom-tabs": "^6.6.1",
     "@react-navigation/native": "^6.1.18",
     "@react-navigation/native-stack": "^6.11.0",
     "react": "19.2.0",
     "react-native": "0.83.1",
+    "react-native-google-cast": "^4.9.1",
     "react-native-safe-area-context": "^5.5.2",
     "react-native-screens": "^4.10.0",
     "react-native-svg": "^15.11.1",

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Orange Color for Notifications -->
+    <color name="notification_color">#F97316</color>
+    <color name="primary">#F97316</color>
+    <color name="primary_dark">#EA580C</color>
+    <color name="accent">#F97316</color>
+</resources>

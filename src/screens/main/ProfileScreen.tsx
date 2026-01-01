@@ -1,6 +1,6 @@
 /**
  * Profile Screen - Orange Theme
- * Student profile and settings
+ * Student profile and settings with Notification settings link
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -15,6 +15,7 @@ import {
   Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useAuth} from '../../context/AuthContext';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
@@ -31,8 +32,9 @@ const STUDENT = {
 };
 
 export function ProfileScreen() {
+  const navigation = useNavigation<any>();
   const {logout} = useAuth();
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -194,20 +196,16 @@ export function ProfileScreen() {
             PREFERENCES
           </Text>
           <Card padding="sm">
-            <View style={styles.menuItem}>
-              <View style={[styles.menuIcon, {backgroundColor: primaryBg}]}>
-                <Icon name="bell" size={18} color={primary} />
-              </View>
-              <Text style={[styles.menuLabel, {color: text}]}>
-                Notifications 🔔
-              </Text>
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={setNotificationsEnabled}
-                trackColor={{false: '#D1D5DB', true: `${primary}60`}}
-                thumbColor={notificationsEnabled ? primary : '#F3F4F6'}
-              />
-            </View>
+            <MenuItem
+              icon="bell"
+              label="Notifications"
+              emoji="🔔"
+              primaryColor={primary}
+              textColor={text}
+              textSecondary={textSecondary}
+              textMuted={textMuted}
+              onPress={() => navigation.navigate('NotificationSettings')}
+            />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <MenuItem
               icon="globe"
@@ -221,17 +219,22 @@ export function ProfileScreen() {
               onPress={() => {}}
             />
             <View style={[styles.divider, {backgroundColor: border}]} />
-            <MenuItem
-              icon="moon"
-              label="Dark Mode"
-              value="System"
-              emoji="🌙"
-              primaryColor={primary}
-              textColor={text}
-              textSecondary={textSecondary}
-              textMuted={textMuted}
-              onPress={() => {}}
-            />
+            <View style={styles.menuItem}>
+              <View style={[styles.menuIcon, {backgroundColor: primaryBg}]}>
+                <Icon name="moon" size={18} color={primary} />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuLabel, {color: text}]}>
+                  Dark Mode 🌙
+                </Text>
+              </View>
+              <Switch
+                value={darkModeEnabled}
+                onValueChange={setDarkModeEnabled}
+                trackColor={{false: '#D1D5DB', true: `${primary}60`}}
+                thumbColor={darkModeEnabled ? primary : '#F3F4F6'}
+              />
+            </View>
           </Card>
         </Animated.View>
 

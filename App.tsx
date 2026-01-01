@@ -1,10 +1,10 @@
 /**
  * AI Tutor App
- * Main entry point
+ * Main entry point with Push Notifications
  */
 
-import React from 'react';
-import {StatusBar, useColorScheme} from 'react-native';
+import React, {useEffect} from 'react';
+import {StatusBar, useColorScheme, Alert, Platform} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -15,6 +15,7 @@ import {SafeAreaProvider} from 'react-native-safe-area-context';
 import {AppNavigator} from './src/navigation/AppNavigator';
 import {AuthProvider} from './src/context/AuthContext';
 import {Colors} from './src/constants/theme';
+import NotificationService from './src/services/NotificationService';
 
 // Custom themes with vibrant colors
 const CustomLightTheme = {
@@ -46,6 +47,45 @@ const CustomDarkTheme = {
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Initialize Push Notifications
+  useEffect(() => {
+    const initializeNotifications = async () => {
+      try {
+        console.log('🔔 Initializing Push Notifications...');
+        
+        // Initialize the notification service
+        await NotificationService.initialize();
+
+        // Subscribe to general topics
+        await NotificationService.subscribeToTopic('all_users');
+        await NotificationService.subscribeToTopic('announcements');
+
+        // Set up foreground notification handler
+        NotificationService.onNotification((message) => {
+          console.log('📬 Foreground notification in App:', message);
+          // The notification will be displayed by the service
+        });
+
+        // Set up notification opened handler
+        NotificationService.onNotificationOpened((message) => {
+          console.log('🔓 Notification opened in App:', message);
+          // Navigation will be handled by useNotification hook in screens
+        });
+
+        console.log('✅ Push Notifications initialized successfully');
+      } catch (error) {
+        console.error('❌ Error initializing push notifications:', error);
+      }
+    };
+
+    initializeNotifications();
+
+    // Cleanup on unmount
+    return () => {
+      NotificationService.cleanup();
+    };
+  }, []);
 
   return (
     <SafeAreaProvider>

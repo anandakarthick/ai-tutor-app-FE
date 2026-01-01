@@ -1,9 +1,9 @@
 /**
  * Home Screen / Dashboard
- * Student's main dashboard with orange theme and Cast feature
+ * Student's main dashboard with Chromecast feature
  */
 
-import React, {useEffect, useRef, useState} from 'react';
+import React, {useEffect, useRef, useState, useCallback} from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,10 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  Alert,
+  PermissionsAndroid,
+  NativeModules,
+  NativeEventEmitter,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -34,6 +38,9 @@ import {
   Shadows,
   Spacing,
 } from '../../constants/theme';
+
+// Get the native Cast module
+const {CastModule} = NativeModules;
 
 // Mock data
 const STUDENT = {
@@ -86,12 +93,12 @@ const SUBJECTS = [
   {subject: 'English', chaptersCompleted: 4, totalChapters: 12, progress: 33},
 ];
 
-// Mock cast devices
-const MOCK_CAST_DEVICES = [
-  {id: '1', name: 'Living Room TV', type: 'chromecast', isConnected: false},
-  {id: '2', name: 'Samsung Smart TV', type: 'smarttv', isConnected: false},
-  {id: '3', name: 'Bedroom Fire Stick', type: 'firestick', isConnected: false},
-];
+interface CastDevice {
+  deviceId: string;
+  friendlyName: string;
+  modelName?: string;
+  isConnected: boolean;
+}
 
 export function HomeScreen() {
   const navigation = useNavigation<any>();
@@ -102,9 +109,11 @@ export function HomeScreen() {
   // Cast state
   const [showCastModal, setShowCastModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
-  const [castDevices, setCastDevices] = useState<typeof MOCK_CAST_DEVICES>([]);
-  const [connectedDevice, setConnectedDevice] = useState<string | null>(null);
+  const [castDevices, setCastDevices] = useState<CastDevice[]>([]);
+  const [connectedDevice, setConnectedDevice] = useState<CastDevice | null>(null);
   const [isCasting, setIsCasting] = useState(false);
+  const [castError, setCastError] = useState<string | null>(null);
+  const [isCastInitialized, setIsCastInitialized] = useState(false);
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -114,7 +123,7 @@ export function HomeScreen() {
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
-  const error = useThemeColor({}, 'error');
+  const errorColor = useThemeColor({}, 'error');
 
   useEffect(() => {
     Animated.parallel([
@@ -131,53 +140,217 @@ export function HomeScreen() {
     ]).start();
   }, []);
 
-  const handleCastPress = () => {
+  // Initialize Cast on mount
+  useEffect(() => {
+    if (CastModule) {
+      CastModule.initialize()
+        .then(() => {
+          console.log('Cast module initialized');
+          setIsCastInitialized(true);
+        })
+        .catch((err: any) => {
+          console.log('Cast init error (non-fatal):', err.message);
+          // Still mark as initialized to allow usage
+          setIsCastInitialized(true);
+        });
+    }
+  }, []);
+
+  // Setup Cast event listeners
+  useEffect(() => {
+    if (!CastModule) return;
+
+    const eventEmitter = new NativeEventEmitter(CastModule);
+    
+    const deviceDiscoveredListener = eventEmitter.addListener(
+      'castDeviceDiscovered',
+      (device: any) => {
+        console.log('Device discovered:', device);
+        setCastDevices(prev => {
+          const exists = prev.find(d => d.deviceId === device.deviceId);
+          if (exists) return prev;
+          return [...prev, {
+            deviceId: device.deviceId,
+            friendlyName: device.friendlyName,
+            modelName: device.modelName,
+            isConnected: false,
+          }];
+        });
+      }
+    );
+
+    const sessionStartedListener = eventEmitter.addListener(
+      'castSessionStarted',
+      () => {
+        console.log('Cast session started');
+        setIsCasting(true);
+      }
+    );
+
+    const sessionEndedListener = eventEmitter.addListener(
+      'castSessionEnded',
+      () => {
+        console.log('Cast session ended');
+        setIsCasting(false);
+        setConnectedDevice(null);
+        setCastDevices(prev => prev.map(d => ({...d, isConnected: false})));
+      }
+    );
+
+    return () => {
+      deviceDiscoveredListener.remove();
+      sessionStartedListener.remove();
+      sessionEndedListener.remove();
+      
+      // Stop discovery on unmount
+      if (CastModule) {
+        CastModule.stopDiscovery().catch(() => {});
+      }
+    };
+  }, []);
+
+  const requestPermissions = async (): Promise<boolean> => {
+    if (Platform.OS !== 'android') return true;
+    
+    try {
+      const granted = await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      ]);
+      
+      const fineGranted = granted['android.permission.ACCESS_FINE_LOCATION'] === 'granted';
+      const coarseGranted = granted['android.permission.ACCESS_COARSE_LOCATION'] === 'granted';
+      
+      return fineGranted || coarseGranted;
+    } catch (err) {
+      console.warn('Permission error:', err);
+      return false;
+    }
+  };
+
+  const handleCastPress = async () => {
+    setCastError(null);
     setShowCastModal(true);
+    
+    const hasPermission = await requestPermissions();
+    if (!hasPermission) {
+      setCastError('Location permission is required to discover Cast devices');
+      return;
+    }
+    
     scanForDevices();
   };
 
-  const scanForDevices = () => {
+  const scanForDevices = async () => {
+    if (!CastModule) {
+      setCastError('Cast module not available. Please rebuild the app.');
+      return;
+    }
+
     setIsScanning(true);
     setCastDevices([]);
-    
-    // Simulate scanning for devices
-    setTimeout(() => {
-      setCastDevices(MOCK_CAST_DEVICES);
+    setCastError(null);
+
+    try {
+      // Start discovery
+      await CastModule.startDiscovery();
+      console.log('Discovery started');
+
+      // Poll for devices multiple times
+      const pollForDevices = async (attempts: number) => {
+        if (attempts <= 0) {
+          setIsScanning(false);
+          return;
+        }
+
+        try {
+          const devices = await CastModule.getDiscoveredDevices();
+          console.log(`Poll attempt ${6 - attempts}: Found ${devices?.length || 0} devices`);
+          
+          if (devices && devices.length > 0) {
+            const mappedDevices = devices.map((device: any) => ({
+              deviceId: device.deviceId,
+              friendlyName: device.friendlyName,
+              modelName: device.modelName,
+              isConnected: false,
+            }));
+            setCastDevices(mappedDevices);
+          }
+          
+          // Continue polling
+          setTimeout(() => pollForDevices(attempts - 1), 1500);
+        } catch (e) {
+          console.error('Error polling devices:', e);
+          setTimeout(() => pollForDevices(attempts - 1), 1500);
+        }
+      };
+
+      // Start polling after initial delay
+      setTimeout(() => pollForDevices(5), 1000);
+
+    } catch (err: any) {
+      console.error('Scan error:', err);
+      setCastError(err.message || 'Failed to scan for devices');
       setIsScanning(false);
-    }, 2000);
-  };
-
-  const connectToDevice = (deviceId: string) => {
-    const device = castDevices.find(d => d.id === deviceId);
-    if (!device) return;
-
-    // Simulate connection
-    setConnectedDevice(deviceId);
-    setIsCasting(true);
-    
-    // Update devices list
-    setCastDevices(prev => prev.map(d => ({
-      ...d,
-      isConnected: d.id === deviceId,
-    })));
-  };
-
-  const disconnectDevice = () => {
-    setConnectedDevice(null);
-    setIsCasting(false);
-    setCastDevices(prev => prev.map(d => ({
-      ...d,
-      isConnected: false,
-    })));
-  };
-
-  const getDeviceIcon = (type: string) => {
-    switch (type) {
-      case 'chromecast': return '📺';
-      case 'smarttv': return '🖥️';
-      case 'firestick': return '🔥';
-      default: return '📱';
     }
+  };
+
+  const showNativeCastDialog = async () => {
+    if (!CastModule) {
+      Alert.alert('Error', 'Cast module not available');
+      return;
+    }
+
+    try {
+      await CastModule.showCastDialog();
+      setShowCastModal(false);
+    } catch (err: any) {
+      console.error('Cast dialog error:', err);
+      Alert.alert('Error', err.message || 'Failed to show cast dialog');
+    }
+  };
+
+  const connectToDevice = async (device: CastDevice) => {
+    if (!CastModule) return;
+
+    try {
+      console.log('Connecting to:', device.friendlyName);
+      await CastModule.castToDevice(device.deviceId);
+      
+      setConnectedDevice({...device, isConnected: true});
+      setIsCasting(true);
+      setCastDevices(prev => prev.map(d => ({
+        ...d,
+        isConnected: d.deviceId === device.deviceId,
+      })));
+      
+      setShowCastModal(false);
+      Alert.alert('Connected!', `Now casting to ${device.friendlyName}`);
+    } catch (err: any) {
+      console.error('Connection error:', err);
+      Alert.alert('Connection Failed', err.message || 'Could not connect to device');
+    }
+  };
+
+  const disconnectDevice = async () => {
+    if (!CastModule) return;
+
+    try {
+      await CastModule.endSession();
+      setConnectedDevice(null);
+      setIsCasting(false);
+      setCastDevices(prev => prev.map(d => ({...d, isConnected: false})));
+    } catch (err: any) {
+      console.error('Disconnect error:', err);
+    }
+  };
+
+  const getDeviceIcon = (modelName?: string) => {
+    const model = (modelName || '').toLowerCase();
+    if (model.includes('chromecast')) return '📺';
+    if (model.includes('tv')) return '🖥️';
+    if (model.includes('shield')) return '🎮';
+    return '📺';
   };
 
   return (
@@ -254,7 +427,7 @@ export function HomeScreen() {
               <Text style={styles.castingEmoji}>📺</Text>
               <View>
                 <Text style={[styles.castingText, {color: success}]}>
-                  Casting to {castDevices.find(d => d.id === connectedDevice)?.name}
+                  Casting to {connectedDevice.friendlyName}
                 </Text>
                 <Text style={[styles.castingSubtext, {color: textMuted}]}>
                   Screen mirroring active
@@ -262,7 +435,7 @@ export function HomeScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[styles.stopCastButton, {backgroundColor: error}]}
+              style={[styles.stopCastButton, {backgroundColor: errorColor}]}
               onPress={disconnectDevice}>
               <Icon name="x" size={14} color="#FFF" />
             </TouchableOpacity>
@@ -296,7 +469,7 @@ export function HomeScreen() {
           </View>
         </Animated.View>
 
-        {/* Continue Learning - Orange Gradient Card */}
+        {/* Continue Learning */}
         <Animated.View
           style={[
             styles.section,
@@ -450,7 +623,12 @@ export function HomeScreen() {
         visible={showCastModal}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowCastModal(false)}>
+        onRequestClose={() => {
+          setShowCastModal(false);
+          if (CastModule) {
+            CastModule.stopDiscovery().catch(() => {});
+          }
+        }}>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, {backgroundColor: card}]}>
             {/* Modal Header */}
@@ -459,50 +637,66 @@ export function HomeScreen() {
                 <Text style={styles.modalEmoji}>📺</Text>
                 <Text style={[styles.modalTitle, {color: text}]}>Cast Screen</Text>
               </View>
-              <TouchableOpacity onPress={() => setShowCastModal(false)}>
+              <TouchableOpacity onPress={() => {
+                setShowCastModal(false);
+                if (CastModule) {
+                  CastModule.stopDiscovery().catch(() => {});
+                }
+              }}>
                 <Icon name="x" size={24} color={textMuted} />
               </TouchableOpacity>
             </View>
 
             {/* Modal Body */}
-            <View style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              {/* Native Cast Dialog Button */}
+              {CastModule && (
+                <TouchableOpacity
+                  style={[styles.nativeCastButton, {backgroundColor: primary}]}
+                  onPress={showNativeCastDialog}>
+                  <Icon name="cast" size={20} color="#FFF" />
+                  <Text style={styles.nativeCastText}>Open Native Cast Picker</Text>
+                </TouchableOpacity>
+              )}
+
               {/* Network Info */}
               <View style={[styles.networkInfo, {backgroundColor: `${primary}10`}]}>
                 <Icon name="wifi" size={16} color={primary} />
                 <Text style={[styles.networkText, {color: textSecondary}]}>
-                  Scanning devices on your network...
+                  Ensure your phone and TV are connected to the same WiFi network
                 </Text>
               </View>
 
+              {/* Error Message */}
+              {castError && (
+                <View style={[styles.errorContainer, {backgroundColor: `${errorColor}15`}]}>
+                  <Icon name="alert-circle" size={16} color={errorColor} />
+                  <Text style={[styles.errorText, {color: errorColor}]}>{castError}</Text>
+                </View>
+              )}
+
               {/* Scanning */}
-              {isScanning ? (
+              {isScanning && (
                 <View style={styles.scanningContainer}>
                   <ActivityIndicator size="large" color={primary} />
-                  <Text style={[styles.scanningText, {color: textMuted}]}>
-                    Looking for nearby devices...
+                  <Text style={[styles.scanningText, {color: text}]}>
+                    Scanning for Cast devices...
+                  </Text>
+                  <Text style={[styles.scanningHint, {color: textMuted}]}>
+                    This may take up to 10 seconds
                   </Text>
                 </View>
-              ) : castDevices.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                  <Text style={styles.emptyEmoji}>📡</Text>
-                  <Text style={[styles.emptyText, {color: textMuted}]}>
-                    No devices found
-                  </Text>
-                  <TouchableOpacity
-                    style={[styles.rescanButton, {backgroundColor: primary}]}
-                    onPress={scanForDevices}>
-                    <Icon name="refresh-cw" size={16} color="#FFF" />
-                    <Text style={styles.rescanText}>Scan Again</Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
+              )}
+
+              {/* Device List */}
+              {castDevices.length > 0 && (
                 <View style={styles.devicesList}>
                   <Text style={[styles.devicesTitle, {color: text}]}>
-                    Available Devices
+                    Available Devices ({castDevices.length})
                   </Text>
                   {castDevices.map(device => (
                     <TouchableOpacity
-                      key={device.id}
+                      key={device.deviceId}
                       style={[
                         styles.deviceCard,
                         {
@@ -510,15 +704,14 @@ export function HomeScreen() {
                           borderColor: device.isConnected ? success : border,
                         },
                       ]}
-                      onPress={() => device.isConnected ? disconnectDevice() : connectToDevice(device.id)}>
-                      <Text style={styles.deviceIcon}>{getDeviceIcon(device.type)}</Text>
+                      onPress={() => device.isConnected ? disconnectDevice() : connectToDevice(device)}>
+                      <Text style={styles.deviceIcon}>{getDeviceIcon(device.modelName)}</Text>
                       <View style={styles.deviceInfo}>
                         <Text style={[styles.deviceName, {color: text}]}>
-                          {device.name}
+                          {device.friendlyName}
                         </Text>
                         <Text style={[styles.deviceType, {color: textMuted}]}>
-                          {device.type === 'chromecast' ? 'Chromecast' : 
-                           device.type === 'smarttv' ? 'Smart TV' : 'Fire TV Stick'}
+                          {device.modelName || 'Cast Device'}
                         </Text>
                       </View>
                       {device.isConnected ? (
@@ -534,14 +727,39 @@ export function HomeScreen() {
                 </View>
               )}
 
-              {/* Help Text */}
-              <View style={[styles.helpContainer, {backgroundColor: `${textMuted}10`}]}>
-                <Icon name="info" size={14} color={textMuted} />
-                <Text style={[styles.helpText, {color: textMuted}]}>
-                  Make sure your device and TV are on the same WiFi network
+              {/* No Devices Found */}
+              {!isScanning && castDevices.length === 0 && !castError && (
+                <View style={styles.emptyContainer}>
+                  <Text style={styles.emptyEmoji}>📡</Text>
+                  <Text style={[styles.emptyText, {color: text}]}>
+                    No Cast devices found
+                  </Text>
+                  <Text style={[styles.emptyHint, {color: textMuted}]}>
+                    Make sure your Chromecast or Smart TV is turned on
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.rescanButton, {backgroundColor: primary}]}
+                    onPress={scanForDevices}>
+                    <Icon name="refresh-cw" size={16} color="#FFF" />
+                    <Text style={styles.rescanText}>Scan Again</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Troubleshooting Tips */}
+              <View style={[styles.tipsContainer, {backgroundColor: `${textMuted}08`}]}>
+                <Text style={[styles.tipsTitle, {color: text}]}>💡 Troubleshooting Tips</Text>
+                <Text style={[styles.tipText, {color: textMuted}]}>
+                  • Both devices must be on the same WiFi network{'\n'}
+                  • Restart your Chromecast/TV if not visible{'\n'}
+                  • Grant location permission for device discovery{'\n'}
+                  • Make sure Google Home app can see your Cast device{'\n'}
+                  • Try the "Open Native Cast Picker" button above
                 </Text>
               </View>
-            </View>
+
+              <View style={{height: Spacing.xl}} />
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -844,7 +1062,7 @@ const styles = StyleSheet.create({
   modalContent: {
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
-    maxHeight: '80%',
+    maxHeight: '90%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -868,37 +1086,75 @@ const styles = StyleSheet.create({
   modalBody: {
     padding: Spacing.lg,
   },
+  nativeCastButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  nativeCastText: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+    color: '#FFF',
+  },
   networkInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   networkText: {
     fontSize: FontSizes.sm,
     flex: 1,
   },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
+  errorText: {
+    fontSize: FontSizes.sm,
+    flex: 1,
+  },
   scanningContainer: {
     alignItems: 'center',
-    paddingVertical: Spacing['2xl'],
+    paddingVertical: Spacing.xl,
   },
   scanningText: {
     fontSize: FontSizes.sm,
     marginTop: Spacing.md,
+    fontWeight: '500',
+  },
+  scanningHint: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
   },
   emptyContainer: {
     alignItems: 'center',
-    paddingVertical: Spacing['2xl'],
+    paddingVertical: Spacing.lg,
   },
   emptyEmoji: {
     fontSize: 48,
     marginBottom: Spacing.md,
   },
   emptyText: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+    marginBottom: Spacing.xs,
+  },
+  emptyHint: {
     fontSize: FontSizes.sm,
+    textAlign: 'center',
     marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
   },
   rescanButton: {
     flexDirection: 'row',
@@ -913,7 +1169,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFF',
   },
-  devicesList: {},
+  devicesList: {
+    marginTop: Spacing.sm,
+  },
   devicesTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
@@ -955,17 +1213,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFF',
   },
-  helpContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  tipsContainer: {
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
-    gap: Spacing.sm,
-    marginTop: Spacing.lg,
+    marginTop: Spacing.md,
   },
-  helpText: {
+  tipsTitle: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.sm,
+  },
+  tipText: {
     fontSize: FontSizes.xs,
-    flex: 1,
-    lineHeight: 16,
+    lineHeight: 18,
   },
 });
