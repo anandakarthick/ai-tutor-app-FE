@@ -10,6 +10,7 @@ import {useAuth} from '../context/AuthContext';
 import {AuthNavigator} from './AuthNavigator';
 import {MainTabNavigator} from './MainTabNavigator';
 import {DoubtScreen} from '../screens/main/DoubtScreen';
+import {SubjectDetailScreen, ChapterScreen, LessonScreen} from '../screens/learn';
 import type {RootStackParamList} from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -31,6 +32,27 @@ export function AppNavigator() {
             options={{
               animation: 'slide_from_bottom',
               presentation: 'modal',
+            }}
+          />
+          <Stack.Screen
+            name="SubjectDetail"
+            component={SubjectDetailScreen}
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="Chapter"
+            component={ChapterScreen}
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="Lesson"
+            component={LessonScreen}
+            options={{
+              animation: 'slide_from_right',
             }}
           />
         </>

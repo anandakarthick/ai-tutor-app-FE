@@ -30,6 +30,9 @@ export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
   Doubt: undefined;
+  SubjectDetail: {subject: string};
+  Chapter: {subject: string; chapter: string; chapterId: string; subjectColor: string};
+  Lesson: {subject: string; chapter: string; lesson: string; lessonId: string; subjectColor: string; lessonType: string};
 };
 
 // Screen props types

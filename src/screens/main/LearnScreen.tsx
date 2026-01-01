@@ -14,6 +14,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {Icon, ProgressBar} from '../../components/ui';
 import {
@@ -34,6 +35,7 @@ const SUBJECTS = [
 ];
 
 export function LearnScreen() {
+  const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -58,6 +60,10 @@ export function LearnScreen() {
       }),
     ]).start();
   }, []);
+
+  const handleSubjectPress = (subjectName: string) => {
+    navigation.navigate('SubjectDetail', {subject: subjectName});
+  };
 
   return (
     <SafeAreaView
@@ -105,6 +111,7 @@ export function LearnScreen() {
                 textColor={text}
                 textSecondary={textSecondary}
                 delay={index * 50}
+                onPress={() => handleSubjectPress(subject.name)}
               />
             );
           })}
@@ -126,6 +133,7 @@ function SubjectGridCard({
   textColor,
   textSecondary,
   delay,
+  onPress,
 }: {
   name: string;
   icon: string;
@@ -137,6 +145,7 @@ function SubjectGridCard({
   textColor: string;
   textSecondary: string;
   delay: number;
+  onPress: () => void;
 }) {
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -183,7 +192,8 @@ function SubjectGridCard({
         style={[styles.subjectCard, {backgroundColor: cardColor}, Shadows.md]}
         activeOpacity={0.9}
         onPressIn={handlePressIn}
-        onPressOut={handlePressOut}>
+        onPressOut={handlePressOut}
+        onPress={onPress}>
         <View style={styles.emojiCorner}>
           <Text style={styles.emoji}>{emoji}</Text>
         </View>
