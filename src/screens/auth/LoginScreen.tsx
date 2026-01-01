@@ -11,7 +11,6 @@ import {
   Animated,
   ScrollView,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -62,22 +61,25 @@ export function LoginScreen() {
 
     setLoading(true);
     try {
+      console.log('📱 Sending OTP to:', phone);
       const result = await sendOtp(phone, 'login');
+      console.log('📱 SendOtp result:', result);
+      
       if (result.success) {
-        // In dev mode, show the OTP for testing
+        // In dev mode, log the OTP for testing
         if (__DEV__ && result.otp) {
-          Alert.alert('Dev Mode', `Your OTP is: ${result.otp}`, [
-            {
-              text: 'OK',
-              onPress: () => navigation.navigate('VerifyOTP', {phone, isLogin: true}),
-            },
-          ]);
-        } else {
-          navigation.navigate('VerifyOTP', {phone, isLogin: true});
+          console.log('🔑 Dev OTP:', result.otp);
         }
+        
+        // Navigate to OTP screen
+        console.log('📱 Navigating to VerifyOTP...');
+        navigation.navigate('VerifyOTP', {phone, isLogin: true});
+      } else {
+        Alert.alert('Error', 'Failed to send OTP. Please try again.');
       }
-    } catch (error) {
-      console.log('Send OTP error:', error);
+    } catch (error: any) {
+      console.log('❌ Send OTP error:', error);
+      Alert.alert('Error', error.message || 'Failed to send OTP');
     } finally {
       setLoading(false);
     }
