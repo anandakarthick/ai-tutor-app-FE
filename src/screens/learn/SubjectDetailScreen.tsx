@@ -1,6 +1,6 @@
 /**
  * Subject Detail Screen
- * Shows chapters list like Udemy course
+ * Shows chapters list like Udemy course with search
  */
 
 import React, {useState, useRef, useEffect} from 'react';
@@ -11,6 +11,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  TextInput,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
@@ -179,6 +180,8 @@ export function SubjectDetailScreen() {
   const route = useRoute<any>();
   const {subject} = route.params || {subject: 'Mathematics'};
   
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -191,6 +194,11 @@ export function SubjectDetailScreen() {
 
   const subjectColor = SUBJECT_COLORS[subject] || '#F97316';
   const subjectData = CHAPTERS_DATA[subject] || CHAPTERS_DATA.Mathematics;
+
+  // Filter chapters based on search
+  const filteredChapters = subjectData.chapters.filter((chapter: any) =>
+    chapter.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -271,118 +279,160 @@ export function SubjectDetailScreen() {
         </Animated.View>
       </View>
 
+      {/* Search Bar */}
+      <View style={[styles.searchContainer, {backgroundColor: background}]}>
+        <View style={[
+          styles.searchBar, 
+          {
+            backgroundColor: card, 
+            borderColor: isSearchFocused ? subjectColor : border,
+          }
+        ]}>
+          <Icon name="search" size={18} color={isSearchFocused ? subjectColor : textMuted} />
+          <TextInput
+            style={[styles.searchInput, {color: text}]}
+            placeholder="Search chapters..."
+            placeholderTextColor={textMuted}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onFocus={() => setIsSearchFocused(true)}
+            onBlur={() => setIsSearchFocused(false)}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Icon name="x" size={18} color={textMuted} />
+            </TouchableOpacity>
+          )}
+        </View>
+        {searchQuery.length > 0 && (
+          <Text style={[styles.searchResult, {color: textMuted}]}>
+            {filteredChapters.length} chapter{filteredChapters.length !== 1 ? 's' : ''} found
+          </Text>
+        )}
+      </View>
+
       {/* Chapters List */}
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled">
         
         <Text style={[styles.sectionTitle, {color: text}]}>
           Course Content 📚
         </Text>
 
-        {subjectData.chapters.map((chapter: any, index: number) => (
-          <Animated.View
-            key={chapter.id}
-            style={[
-              {
-                opacity: fadeAnim,
-                transform: [{translateY: slideAnim}],
-              },
-            ]}>
-            <TouchableOpacity
+        {filteredChapters.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>🔍</Text>
+            <Text style={[styles.emptyText, {color: textMuted}]}>
+              No chapters found for "{searchQuery}"
+            </Text>
+          </View>
+        ) : (
+          filteredChapters.map((chapter: any, index: number) => (
+            <Animated.View
+              key={chapter.id}
               style={[
-                styles.chapterCard,
                 {
-                  backgroundColor: card,
-                  borderColor: chapter.isCurrent ? subjectColor : border,
-                  borderWidth: chapter.isCurrent ? 2 : 1,
-                  opacity: chapter.isLocked ? 0.6 : 1,
+                  opacity: fadeAnim,
+                  transform: [{translateY: slideAnim}],
                 },
-                Shadows.sm,
-              ]}
-              onPress={() => handleChapterPress(chapter)}
-              disabled={chapter.isLocked}>
-              
-              {/* Chapter Number */}
-              <View
+              ]}>
+              <TouchableOpacity
                 style={[
-                  styles.chapterNumber,
+                  styles.chapterCard,
                   {
-                    backgroundColor: chapter.isCompleted
-                      ? success
-                      : chapter.isCurrent
-                      ? subjectColor
-                      : `${subjectColor}20`,
+                    backgroundColor: card,
+                    borderColor: chapter.isCurrent ? subjectColor : border,
+                    borderWidth: chapter.isCurrent ? 2 : 1,
+                    opacity: chapter.isLocked ? 0.6 : 1,
                   },
-                ]}>
-                {chapter.isCompleted ? (
-                  <Icon name="check" size={16} color="#FFF" />
-                ) : chapter.isLocked ? (
-                  <Icon name="lock" size={14} color={subjectColor} />
-                ) : (
-                  <Text
-                    style={[
-                      styles.chapterNumberText,
-                      {color: chapter.isCurrent ? '#FFF' : subjectColor},
-                    ]}>
-                    {index + 1}
-                  </Text>
-                )}
-              </View>
-
-              {/* Chapter Info */}
-              <View style={styles.chapterInfo}>
-                <View style={styles.chapterTitleRow}>
-                  <Text 
-                    style={[styles.chapterTitle, {color: text}]} 
-                    numberOfLines={2}>
-                    {chapter.title}
-                  </Text>
-                  {chapter.isCurrent && (
-                    <Badge label="In Progress" variant="warning" size="sm" />
+                  Shadows.sm,
+                ]}
+                onPress={() => handleChapterPress(chapter)}
+                disabled={chapter.isLocked}>
+                
+                {/* Chapter Number */}
+                <View
+                  style={[
+                    styles.chapterNumber,
+                    {
+                      backgroundColor: chapter.isCompleted
+                        ? success
+                        : chapter.isCurrent
+                        ? subjectColor
+                        : `${subjectColor}20`,
+                    },
+                  ]}>
+                  {chapter.isCompleted ? (
+                    <Icon name="check" size={16} color="#FFF" />
+                  ) : chapter.isLocked ? (
+                    <Icon name="lock" size={14} color={subjectColor} />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.chapterNumberText,
+                        {color: chapter.isCurrent ? '#FFF' : subjectColor},
+                      ]}>
+                      {subjectData.chapters.indexOf(chapter) + 1}
+                    </Text>
                   )}
                 </View>
-                <View style={styles.chapterMeta}>
-                  <View style={styles.metaItem}>
-                    <Icon name="book-open" size={12} color={textMuted} />
-                    <Text style={[styles.metaText, {color: textMuted}]}>
-                      {chapter.lessons} lessons
-                    </Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Icon name="clock" size={12} color={textMuted} />
-                    <Text style={[styles.metaText, {color: textMuted}]}>
-                      {chapter.duration}
-                    </Text>
-                  </View>
-                </View>
-                
-                {/* Chapter Progress */}
-                {chapter.progress > 0 && !chapter.isCompleted && (
-                  <View style={styles.chapterProgress}>
-                    <View style={[styles.chapterProgressBg, {backgroundColor: `${subjectColor}20`}]}>
-                      <View 
-                        style={[
-                          styles.chapterProgressFill, 
-                          {backgroundColor: subjectColor, width: `${chapter.progress}%`}
-                        ]} 
-                      />
-                    </View>
-                    <Text style={[styles.chapterProgressText, {color: textMuted}]}>
-                      {chapter.progress}%
-                    </Text>
-                  </View>
-                )}
-              </View>
 
-              {/* Arrow */}
-              {!chapter.isLocked && (
-                <Icon name="chevron-right" size={20} color={textMuted} />
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-        ))}
+                {/* Chapter Info */}
+                <View style={styles.chapterInfo}>
+                  <View style={styles.chapterTitleRow}>
+                    <Text 
+                      style={[styles.chapterTitle, {color: text}]} 
+                      numberOfLines={2}>
+                      {chapter.title}
+                    </Text>
+                    {chapter.isCurrent && (
+                      <Badge label="In Progress" variant="warning" size="sm" />
+                    )}
+                  </View>
+                  <View style={styles.chapterMeta}>
+                    <View style={styles.metaItem}>
+                      <Icon name="book-open" size={12} color={textMuted} />
+                      <Text style={[styles.metaText, {color: textMuted}]}>
+                        {chapter.lessons} lessons
+                      </Text>
+                    </View>
+                    <View style={styles.metaItem}>
+                      <Icon name="clock" size={12} color={textMuted} />
+                      <Text style={[styles.metaText, {color: textMuted}]}>
+                        {chapter.duration}
+                      </Text>
+                    </View>
+                  </View>
+                  
+                  {/* Chapter Progress */}
+                  {chapter.progress > 0 && !chapter.isCompleted && (
+                    <View style={styles.chapterProgress}>
+                      <View style={[styles.chapterProgressBg, {backgroundColor: `${subjectColor}20`}]}>
+                        <View 
+                          style={[
+                            styles.chapterProgressFill, 
+                            {backgroundColor: subjectColor, width: `${chapter.progress}%`}
+                          ]} 
+                        />
+                      </View>
+                      <Text style={[styles.chapterProgressText, {color: textMuted}]}>
+                        {chapter.progress}%
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Arrow */}
+                {!chapter.isLocked && (
+                  <Icon name="chevron-right" size={20} color={textMuted} />
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          ))
+        )}
 
         <View style={{height: Spacing['3xl']}} />
       </ScrollView>
@@ -393,7 +443,7 @@ export function SubjectDetailScreen() {
 const styles = StyleSheet.create({
   container: {flex: 1},
   header: {
-    paddingBottom: Spacing.xl,
+    paddingBottom: Spacing.lg,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -419,7 +469,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.base,
-    paddingTop: Spacing.md,
+    paddingTop: Spacing.sm,
   },
   backButton: {
     width: 40,
@@ -435,84 +485,119 @@ const styles = StyleSheet.create({
   },
   headerContent: {
     alignItems: 'center',
-    paddingHorizontal: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
   },
   subjectEmoji: {
-    fontSize: 48,
-    marginBottom: Spacing.sm,
+    fontSize: 40,
+    marginBottom: Spacing.xs,
   },
   subjectTitle: {
-    fontSize: FontSizes['2xl'],
+    fontSize: FontSizes.xl,
     fontWeight: '700',
     color: '#FFF',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   subjectMeta: {
     fontSize: FontSizes.sm,
     color: 'rgba(255,255,255,0.8)',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   progressContainer: {
     width: '100%',
     backgroundColor: 'rgba(255,255,255,0.15)',
     borderRadius: BorderRadius.lg,
-    padding: Spacing.base,
+    padding: Spacing.sm,
   },
   progressHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   progressLabel: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: 'rgba(255,255,255,0.9)',
     fontWeight: '500',
   },
   progressValue: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: '#FFF',
     fontWeight: '700',
   },
   progressBarBg: {
-    height: 8,
+    height: 6,
     backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#FFF',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   progressDetail: {
-    fontSize: FontSizes.xs,
+    fontSize: 10,
     color: 'rgba(255,255,255,0.7)',
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
     textAlign: 'center',
+  },
+  searchContainer: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    gap: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    paddingVertical: 4,
+  },
+  searchResult: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.sm,
   },
   content: {flex: 1},
   scrollContent: {
-    padding: Spacing.lg,
+    paddingHorizontal: Spacing.md,
   },
   sectionTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.base,
     fontWeight: '700',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing['2xl'],
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.sm,
+    textAlign: 'center',
   },
   chapterCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
+    padding: Spacing.sm,
     borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   chapterNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
   chapterNumberText: {
     fontSize: FontSizes.sm,
@@ -524,17 +609,17 @@ const styles = StyleSheet.create({
   chapterTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.xs,
+    gap: Spacing.xs,
+    marginBottom: 4,
   },
   chapterTitle: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '600',
     flex: 1,
   },
   chapterMeta: {
     flexDirection: 'row',
-    gap: Spacing.lg,
+    gap: Spacing.md,
   },
   metaItem: {
     flexDirection: 'row',
@@ -547,7 +632,7 @@ const styles = StyleSheet.create({
   chapterProgress: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.sm,
+    marginTop: Spacing.xs,
     gap: Spacing.sm,
   },
   chapterProgressBg: {

@@ -158,7 +158,6 @@ export function LessonScreen() {
   const [isCompleted, setIsCompleted] = useState(false);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
 
   const background = useThemeColor({}, 'background');
@@ -168,7 +167,6 @@ export function LessonScreen() {
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
-  const primaryBg = useThemeColor({}, 'primaryBackground');
 
   const lessonData = LESSON_CONTENT[lesson] || LESSON_CONTENT['default'];
 
@@ -223,7 +221,6 @@ export function LessonScreen() {
 
   const handleComplete = () => {
     setIsCompleted(true);
-    // Navigate to next lesson or back
     setTimeout(() => {
       navigation.goBack();
     }, 1500);
@@ -330,7 +327,7 @@ export function LessonScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={[styles.header, {borderBottomColor: border}]}>
         <TouchableOpacity
@@ -392,8 +389,6 @@ export function LessonScreen() {
             </View>
           )}
         </View>
-
-        <View style={{height: 120}} />
       </ScrollView>
 
       {/* Audio Player - Fixed at bottom */}
@@ -418,34 +413,34 @@ export function LessonScreen() {
 
           {/* Rewind */}
           <TouchableOpacity style={styles.seekButton} onPress={() => handleSeek(false)}>
-            <Icon name="refresh-cw" size={20} color={textSecondary} style={{transform: [{scaleX: -1}]}} />
+            <Icon name="refresh-cw" size={18} color={textSecondary} style={{transform: [{scaleX: -1}]}} />
             <Text style={[styles.seekText, {color: textMuted}]}>10</Text>
           </TouchableOpacity>
 
           {/* Play/Pause */}
           <TouchableOpacity 
-            style={[styles.playButton, {backgroundColor: subjectColor}]} 
+            style={[styles.playButton, {backgroundColor: subjectColor}, Shadows.md]} 
             onPress={handlePlayPause}>
-            <Icon name={isPlaying ? 'pause' : 'play'} size={28} color="#FFF" />
+            <Icon name={isPlaying ? 'pause' : 'play'} size={24} color="#FFF" />
           </TouchableOpacity>
 
           {/* Forward */}
           <TouchableOpacity style={styles.seekButton} onPress={() => handleSeek(true)}>
-            <Icon name="refresh-cw" size={20} color={textSecondary} />
+            <Icon name="refresh-cw" size={18} color={textSecondary} />
             <Text style={[styles.seekText, {color: textMuted}]}>10</Text>
           </TouchableOpacity>
 
           {/* Volume */}
           <TouchableOpacity style={[styles.volumeButton, {backgroundColor: `${subjectColor}15`}]}>
-            <Icon name="volume-2" size={20} color={subjectColor} />
+            <Icon name="volume-2" size={18} color={subjectColor} />
           </TouchableOpacity>
         </View>
 
         {/* Now Playing Label */}
         <View style={styles.nowPlaying}>
-          <Icon name="mic" size={12} color={success} />
+          <View style={[styles.nowPlayingDot, {backgroundColor: isPlaying ? success : textMuted}]} />
           <Text style={[styles.nowPlayingText, {color: textMuted}]}>
-            {isPlaying ? '🔊 Audio narration playing...' : '🎧 Tap play to listen'}
+            {isPlaying ? '🔊 Playing...' : '🎧 Tap play to listen'}
           </Text>
         </View>
       </View>
@@ -458,13 +453,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -478,23 +473,24 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   headerLesson: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
   },
   bookmarkButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
+    paddingBottom: Spacing.sm,
   },
   lessonTitleCard: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
     alignItems: 'center',
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.md,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -502,207 +498,204 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -30,
     right: -30,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   lessonTitleDecor2: {
     position: 'absolute',
     bottom: -20,
     left: -20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   lessonTitleEmoji: {
-    fontSize: 40,
-    marginBottom: Spacing.sm,
+    fontSize: 32,
+    marginBottom: Spacing.xs,
   },
   lessonTitleText: {
-    fontSize: FontSizes.xl,
+    fontSize: FontSizes.lg,
     fontWeight: '700',
     color: '#FFF',
     textAlign: 'center',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   lessonSubtitleText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: 'rgba(255,255,255,0.8)',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   lessonMeta: {},
   contentContainer: {
-    marginBottom: Spacing.xl,
+    marginBottom: Spacing.sm,
   },
   sectionHeading: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.base,
     fontWeight: '700',
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.md,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   paragraph: {
-    fontSize: FontSizes.base,
-    lineHeight: 26,
-    marginBottom: Spacing.md,
+    fontSize: FontSizes.sm,
+    lineHeight: 22,
+    marginBottom: Spacing.sm,
   },
   highlightBox: {
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    borderLeftWidth: 4,
-    marginBottom: Spacing.lg,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderLeftWidth: 3,
+    marginBottom: Spacing.md,
   },
   highlightText: {
-    fontSize: FontSizes.base,
-    lineHeight: 24,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
     fontWeight: '500',
   },
   listContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
   },
   listItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   listBullet: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginTop: 8,
-    marginRight: Spacing.md,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: 6,
+    marginRight: Spacing.sm,
   },
   listText: {
     flex: 1,
-    fontSize: FontSizes.base,
-    lineHeight: 24,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
   },
   exampleBox: {
-    borderRadius: BorderRadius.lg,
+    borderRadius: BorderRadius.md,
     borderWidth: 1,
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
     overflow: 'hidden',
   },
   exampleHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
-    gap: Spacing.sm,
+    padding: Spacing.sm,
+    gap: Spacing.xs,
   },
   exampleTitle: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
     color: '#FFF',
   },
   exampleContent: {
-    padding: Spacing.base,
+    padding: Spacing.sm,
   },
   exampleProblem: {
-    fontSize: FontSizes.base,
-    lineHeight: 24,
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
     fontFamily: 'monospace',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   solutionDivider: {
     height: 1,
-    marginVertical: Spacing.md,
+    marginVertical: Spacing.sm,
   },
   solutionLabel: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     fontWeight: '700',
-    marginBottom: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   solutionStep: {
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
-    marginBottom: Spacing.sm,
+    fontSize: FontSizes.xs,
+    lineHeight: 18,
+    marginBottom: Spacing.xs,
     fontFamily: 'monospace',
   },
   practiceBox: {
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
     borderWidth: 2,
     borderStyle: 'dashed',
-    marginBottom: Spacing.lg,
-  },
-  practiceText: {
-    fontSize: FontSizes.base,
-    lineHeight: 24,
     marginBottom: Spacing.md,
   },
+  practiceText: {
+    fontSize: FontSizes.sm,
+    lineHeight: 20,
+    marginBottom: Spacing.sm,
+  },
   showAnswerButton: {
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.sm,
     alignItems: 'center',
   },
   showAnswerText: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
     color: '#FFF',
   },
   answerBox: {
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    marginTop: Spacing.md,
+    marginTop: Spacing.sm,
   },
   answerText: {
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
+    fontSize: FontSizes.xs,
+    lineHeight: 18,
     fontFamily: 'monospace',
   },
   keypointsContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.sm,
   },
   keypointItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    marginBottom: Spacing.sm,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.xs,
   },
   keypointIcon: {
-    fontSize: 16,
-    marginRight: Spacing.md,
+    fontSize: 14,
+    marginRight: Spacing.sm,
   },
   keypointText: {
     flex: 1,
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     fontWeight: '500',
   },
   completeContainer: {
-    marginTop: Spacing.lg,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   completedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.md,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.sm,
   },
   completedText: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.base,
     fontWeight: '700',
     color: '#FFF',
   },
-  // Audio Player
+  // Audio Player - Compact
   audioPlayer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.xl,
+    paddingHorizontal: Spacing.md,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
     borderTopWidth: 1,
   },
   audioProgressContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.xs,
   },
   audioProgressBg: {
-    height: 4,
+    height: 3,
     borderRadius: 2,
     overflow: 'hidden',
   },
@@ -713,44 +706,45 @@ const styles = StyleSheet.create({
   audioTimeRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: Spacing.xs,
+    marginTop: 2,
   },
   audioTime: {
-    fontSize: FontSizes.xs,
+    fontSize: 10,
   },
   audioControls: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: Spacing.lg,
+    gap: Spacing.md,
+    paddingVertical: Spacing.xs,
   },
   speedButton: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
   },
   speedText: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     fontWeight: '700',
   },
   seekButton: {
     alignItems: 'center',
   },
   seekText: {
-    fontSize: FontSizes.xs,
-    marginTop: 2,
+    fontSize: 9,
+    marginTop: 1,
   },
   playButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   volumeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -758,10 +752,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.md,
-    gap: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  nowPlayingDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   nowPlayingText: {
-    fontSize: FontSizes.xs,
+    fontSize: 10,
   },
 });

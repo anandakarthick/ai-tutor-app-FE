@@ -19,6 +19,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useAuth} from '../../context/AuthContext';
 import {Button, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
@@ -26,16 +27,16 @@ import type {AuthStackScreenProps} from '../../types/navigation';
 // Default OTP for testing
 const DEFAULT_OTP = '242526';
 
-// Mock user database - Only these numbers are "registered"
-const MOCK_USERS: Record<string, {name: string; isRegistered: boolean}> = {
-  '9999999999': {name: 'Test User', isRegistered: true},
-  '8888888888': {name: 'Demo User', isRegistered: true},
-};
-
 export function VerifyOTPScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'VerifyOTP'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'VerifyOTP'>['route']>();
-  const {phone, fromRegistration} = route.params as {phone: string; fromRegistration?: boolean};
+  const {login} = useAuth();
+  
+  const {phone, isLogin, fromRegistration} = route.params as {
+    phone: string; 
+    isLogin?: boolean;
+    fromRegistration?: boolean;
+  };
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -140,8 +141,17 @@ export function VerifyOTPScreen() {
     setTimeout(() => {
       setLoading(false);
       
-      // If coming from registration (direct registration flow)
-      // Go directly to plan selection
+      // If login flow - go directly to Dashboard
+      if (isLogin) {
+        login({
+          phone,
+          name: 'Student',
+        });
+        // Navigation will automatically switch to Main app
+        return;
+      }
+      
+      // If coming from registration - go to plan selection
       if (fromRegistration) {
         navigation.reset({
           index: 0,
@@ -150,19 +160,11 @@ export function VerifyOTPScreen() {
         return;
       }
       
-      // Check if user exists in our mock database
-      const existingUser = MOCK_USERS[phone];
-      
-      if (existingUser) {
-        // Existing user - go to plan selection (or main app if already subscribed)
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'SelectPlan', params: {userId: phone}}],
-        });
-      } else {
-        // New user - go to registration
-        navigation.navigate('Register', {phone, isDirectRegistration: false});
-      }
+      // Default - go to dashboard
+      login({
+        phone,
+        name: 'Student',
+      });
     }, 1000);
   };
 

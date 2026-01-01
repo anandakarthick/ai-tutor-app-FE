@@ -1,8 +1,8 @@
 /**
- * Login Screen - Mobile Number with Auto-fetch
+ * Login Screen - Mobile Number Entry
  */
 
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useRef, useEffect} from 'react';
 import {
   View,
   Text,
@@ -19,19 +19,10 @@ import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
-// Mock SIM phone numbers (simulating auto-fetch)
-const MOCK_SIM_NUMBERS = [
-  {carrier: 'Jio', number: '9876543210'},
-  {carrier: 'Airtel', number: '8765432109'},
-];
-
 export function LoginScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
-  const [fetchingNumber, setFetchingNumber] = useState(true);
-  const [simNumbers, setSimNumbers] = useState<typeof MOCK_SIM_NUMBERS>([]);
-  const [selectedSim, setSelectedSim] = useState<number | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(40)).current;
@@ -58,29 +49,7 @@ export function LoginScreen() {
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Simulate fetching SIM numbers
-    fetchSimNumbers();
   }, []);
-
-  const fetchSimNumbers = async () => {
-    setFetchingNumber(true);
-    
-    // Simulate API delay
-    setTimeout(() => {
-      setSimNumbers(MOCK_SIM_NUMBERS);
-      if (MOCK_SIM_NUMBERS.length > 0) {
-        setSelectedSim(0);
-        setPhone(MOCK_SIM_NUMBERS[0].number);
-      }
-      setFetchingNumber(false);
-    }, 1500);
-  };
-
-  const handleSimSelect = (index: number) => {
-    setSelectedSim(index);
-    setPhone(simNumbers[index].number);
-  };
 
   const handleContinue = () => {
     if (phone.length !== 10) {
@@ -92,12 +61,11 @@ export function LoginScreen() {
     // Simulate sending OTP
     setTimeout(() => {
       setLoading(false);
-      navigation.navigate('VerifyOTP', {phone});
+      navigation.navigate('VerifyOTP', {phone, isLogin: true});
     }, 1000);
   };
 
   const handleRegister = () => {
-    // Navigate directly to registration with empty phone (will enter later)
     navigation.navigate('Register', {phone: '', isDirectRegistration: true});
   };
 
@@ -130,71 +98,22 @@ export function LoginScreen() {
               </View>
             </View>
             <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
-            <Text style={[styles.title, {color: text}]}>Welcome!</Text>
+            <Text style={[styles.title, {color: text}]}>Welcome Back!</Text>
             <Text style={[styles.subtitle, {color: textSecondary}]}>
-              Enter your mobile number to get started
+              Enter your mobile number to continue
             </Text>
           </View>
 
-          {/* SIM Card Selection */}
-          {fetchingNumber ? (
-            <View style={[styles.fetchingContainer, {backgroundColor: primaryBg}]}>
-              <Icon name="smartphone" size={24} color={primary} />
-              <Text style={[styles.fetchingText, {color: primary}]}>
-                Detecting SIM cards...
-              </Text>
-            </View>
-          ) : simNumbers.length > 0 ? (
-            <View style={styles.simContainer}>
-              <Text style={[styles.simLabel, {color: textSecondary}]}>
-                Select your mobile number
-              </Text>
-              {simNumbers.map((sim, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={[
-                    styles.simCard,
-                    {
-                      backgroundColor: card,
-                      borderColor: selectedSim === index ? primary : border,
-                      borderWidth: selectedSim === index ? 2 : 1,
-                    },
-                    Shadows.sm,
-                  ]}
-                  onPress={() => handleSimSelect(index)}>
-                  <View style={[styles.simIcon, {backgroundColor: primaryBg}]}>
-                    <Icon name="smartphone" size={20} color={primary} />
-                  </View>
-                  <View style={styles.simInfo}>
-                    <Text style={[styles.simCarrier, {color: textSecondary}]}>
-                      {sim.carrier}
-                    </Text>
-                    <Text style={[styles.simNumber, {color: text}]}>
-                      +91 {sim.number.slice(0, 5)} {sim.number.slice(5)}
-                    </Text>
-                  </View>
-                  {selectedSim === index && (
-                    <View style={[styles.checkCircle, {backgroundColor: primary}]}>
-                      <Icon name="check" size={14} color="#FFF" />
-                    </View>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          ) : null}
-
-          {/* Manual Entry */}
-          <View style={styles.manualEntry}>
-            <Text style={[styles.orText, {color: textMuted}]}>
-              Or enter manually
-            </Text>
+          {/* Phone Input */}
+          <View style={styles.phoneContainer}>
+            <Text style={[styles.inputLabel, {color: text}]}>Mobile Number</Text>
             <View style={styles.phoneInputContainer}>
               <View style={[styles.countryCode, {backgroundColor: primaryBg, borderColor: border}]}>
                 <Text style={[styles.countryCodeText, {color: text}]}>🇮🇳 +91</Text>
               </View>
               <View style={styles.phoneInput}>
                 <Input
-                  placeholder="Enter mobile number"
+                  placeholder="Enter 10-digit mobile number"
                   value={phone}
                   onChangeText={(val) => setPhone(formatPhone(val))}
                   keyboardType="phone-pad"
@@ -203,6 +122,11 @@ export function LoginScreen() {
                 />
               </View>
             </View>
+            {phone.length > 0 && phone.length < 10 && (
+              <Text style={[styles.errorHint, {color: '#EF4444'}]}>
+                Please enter 10 digits ({10 - phone.length} remaining)
+              </Text>
+            )}
           </View>
 
           {/* Continue Button */}
@@ -217,13 +141,23 @@ export function LoginScreen() {
             />
           </View>
 
+          {/* Divider */}
+          <View style={styles.dividerContainer}>
+            <View style={[styles.dividerLine, {backgroundColor: border}]} />
+            <Text style={[styles.dividerText, {color: textMuted}]}>OR</Text>
+            <View style={[styles.dividerLine, {backgroundColor: border}]} />
+          </View>
+
           {/* Register Link */}
           <View style={styles.registerContainer}>
             <Text style={[styles.registerText, {color: textSecondary}]}>
-              New to AI Tutor?{' '}
+              New to AI Tutor?
             </Text>
-            <TouchableOpacity onPress={handleRegister}>
-              <Text style={[styles.registerLink, {color: primary}]}>
+            <TouchableOpacity 
+              style={[styles.registerButton, {backgroundColor: primaryBg, borderColor: primary}]}
+              onPress={handleRegister}>
+              <Icon name="user" size={18} color={primary} />
+              <Text style={[styles.registerButtonText, {color: primary}]}>
                 Register Now 📝
               </Text>
             </TouchableOpacity>
@@ -307,66 +241,12 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     textAlign: 'center',
   },
-  fetchingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.lg,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.xl,
-    gap: Spacing.md,
-  },
-  fetchingText: {
-    fontSize: FontSizes.base,
-    fontWeight: '500',
-  },
-  simContainer: {
-    marginBottom: Spacing.lg,
-  },
-  simLabel: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    marginBottom: Spacing.md,
-  },
-  simCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
-  },
-  simIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: BorderRadius.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: Spacing.md,
-  },
-  simInfo: {
-    flex: 1,
-  },
-  simCarrier: {
-    fontSize: FontSizes.xs,
-    marginBottom: 2,
-  },
-  simNumber: {
-    fontSize: FontSizes.lg,
-    fontWeight: '600',
-  },
-  checkCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  manualEntry: {
+  phoneContainer: {
     marginBottom: Spacing.xl,
   },
-  orText: {
-    textAlign: 'center',
+  inputLabel: {
     fontSize: FontSizes.sm,
+    fontWeight: '600',
     marginBottom: Spacing.md,
   },
   phoneInputContainer: {
@@ -390,19 +270,44 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 0,
   },
+  errorHint: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.sm,
+  },
   buttonContainer: {
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
+  },
+  dividerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    marginHorizontal: Spacing.md,
+    fontSize: FontSizes.sm,
   },
   registerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.xl,
   },
   registerText: {
     fontSize: FontSizes.base,
+    marginBottom: Spacing.md,
   },
-  registerLink: {
+  registerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    gap: Spacing.sm,
+  },
+  registerButtonText: {
     fontSize: FontSizes.base,
     fontWeight: '700',
   },

@@ -9,7 +9,7 @@ import type {CompositeScreenProps} from '@react-navigation/native';
 // Auth Stack
 export type AuthStackParamList = {
   Login: undefined;
-  VerifyOTP: {phone: string; fromRegistration?: boolean};
+  VerifyOTP: {phone: string; isLogin?: boolean; fromRegistration?: boolean};
   Register: {phone: string; isDirectRegistration?: boolean};
   SelectPlan: {userId: string};
   Payment: {planId: string; planName: string; price: number; userId: string};

@@ -1,6 +1,6 @@
 /**
  * Chapter Screen
- * Shows lessons list for a chapter
+ * Shows lessons list for a chapter with search
  */
 
 import React, {useState, useRef, useEffect} from 'react';
@@ -11,6 +11,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  TextInput,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
@@ -66,6 +67,8 @@ export function ChapterScreen() {
   const route = useRoute<any>();
   const {subject, chapter, chapterId, subjectColor} = route.params;
   
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
@@ -77,6 +80,12 @@ export function ChapterScreen() {
   const success = useThemeColor({}, 'success');
 
   const lessons = LESSONS_DATA[chapter] || getDefaultLessons(chapter);
+
+  // Filter lessons based on search
+  const filteredLessons = lessons.filter((lesson: any) =>
+    lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    lesson.type.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -141,7 +150,8 @@ export function ChapterScreen() {
 
       <ScrollView 
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled">
         
         {/* Progress Card */}
         <Animated.View style={[styles.progressCard, {backgroundColor: subjectColor, opacity: fadeAnim}]}>
@@ -177,89 +187,130 @@ export function ChapterScreen() {
           )}
         </Animated.View>
 
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={[
+            styles.searchBar, 
+            {
+              backgroundColor: card, 
+              borderColor: isSearchFocused ? subjectColor : border,
+            }
+          ]}>
+            <Icon name="search" size={18} color={isSearchFocused ? subjectColor : textMuted} />
+            <TextInput
+              style={[styles.searchInput, {color: text}]}
+              placeholder="Search lessons..."
+              placeholderTextColor={textMuted}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={() => setSearchQuery('')}>
+                <Icon name="x" size={18} color={textMuted} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {searchQuery.length > 0 && (
+            <Text style={[styles.searchResult, {color: textMuted}]}>
+              {filteredLessons.length} lesson{filteredLessons.length !== 1 ? 's' : ''} found
+            </Text>
+          )}
+        </View>
+
         {/* Lessons List */}
         <Text style={[styles.sectionTitle, {color: text}]}>
           Lessons 📖
         </Text>
 
-        {lessons.map((lesson: any, index: number) => (
-          <Animated.View key={lesson.id} style={{opacity: fadeAnim}}>
-            <TouchableOpacity
-              style={[
-                styles.lessonCard,
-                {
-                  backgroundColor: card,
-                  borderColor: lesson.isCurrent ? subjectColor : border,
-                  borderWidth: lesson.isCurrent ? 2 : 1,
-                  opacity: lesson.isLocked ? 0.5 : 1,
-                },
-                Shadows.sm,
-              ]}
-              onPress={() => handleLessonPress(lesson)}
-              disabled={lesson.isLocked}>
-              
-              {/* Lesson Number/Icon */}
-              <View
+        {filteredLessons.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>🔍</Text>
+            <Text style={[styles.emptyText, {color: textMuted}]}>
+              No lessons found for "{searchQuery}"
+            </Text>
+          </View>
+        ) : (
+          filteredLessons.map((lesson: any, index: number) => (
+            <Animated.View key={lesson.id} style={{opacity: fadeAnim}}>
+              <TouchableOpacity
                 style={[
-                  styles.lessonIcon,
+                  styles.lessonCard,
                   {
-                    backgroundColor: lesson.isCompleted
-                      ? success
-                      : lesson.isCurrent
-                      ? subjectColor
-                      : `${subjectColor}15`,
+                    backgroundColor: card,
+                    borderColor: lesson.isCurrent ? subjectColor : border,
+                    borderWidth: lesson.isCurrent ? 2 : 1,
+                    opacity: lesson.isLocked ? 0.5 : 1,
                   },
-                ]}>
-                {lesson.isCompleted ? (
-                  <Icon name="check" size={16} color="#FFF" />
-                ) : lesson.isLocked ? (
-                  <Icon name="lock" size={14} color={textMuted} />
-                ) : (
-                  <Icon
-                    name={getTypeIcon(lesson.type)}
-                    size={16}
-                    color={lesson.isCurrent ? '#FFF' : subjectColor}
-                  />
-                )}
-              </View>
-
-              {/* Lesson Info */}
-              <View style={styles.lessonInfo}>
-                <View style={styles.lessonTitleRow}>
-                  <Text style={[styles.lessonTitle, {color: text}]} numberOfLines={2}>
-                    {lesson.title}
-                  </Text>
+                  Shadows.sm,
+                ]}
+                onPress={() => handleLessonPress(lesson)}
+                disabled={lesson.isLocked}>
+                
+                {/* Lesson Number/Icon */}
+                <View
+                  style={[
+                    styles.lessonIcon,
+                    {
+                      backgroundColor: lesson.isCompleted
+                        ? success
+                        : lesson.isCurrent
+                        ? subjectColor
+                        : `${subjectColor}15`,
+                    },
+                  ]}>
+                  {lesson.isCompleted ? (
+                    <Icon name="check" size={14} color="#FFF" />
+                  ) : lesson.isLocked ? (
+                    <Icon name="lock" size={12} color={textMuted} />
+                  ) : (
+                    <Icon
+                      name={getTypeIcon(lesson.type)}
+                      size={14}
+                      color={lesson.isCurrent ? '#FFF' : subjectColor}
+                    />
+                  )}
                 </View>
-                <View style={styles.lessonMeta}>
-                  <Badge 
-                    label={getTypeLabel(lesson.type)} 
-                    variant={lesson.type === 'quiz' ? 'info' : lesson.type === 'notes' ? 'success' : 'primary'} 
-                    size="sm" 
-                  />
-                  <View style={styles.durationBadge}>
-                    <Icon name="clock" size={10} color={textMuted} />
-                    <Text style={[styles.durationText, {color: textMuted}]}>
-                      {lesson.duration}
+
+                {/* Lesson Info */}
+                <View style={styles.lessonInfo}>
+                  <View style={styles.lessonTitleRow}>
+                    <Text style={[styles.lessonTitle, {color: text}]} numberOfLines={2}>
+                      {lesson.title}
                     </Text>
                   </View>
+                  <View style={styles.lessonMeta}>
+                    <Badge 
+                      label={getTypeLabel(lesson.type)} 
+                      variant={lesson.type === 'quiz' ? 'info' : lesson.type === 'notes' ? 'success' : 'primary'} 
+                      size="sm" 
+                    />
+                    <View style={styles.durationBadge}>
+                      <Icon name="clock" size={10} color={textMuted} />
+                      <Text style={[styles.durationText, {color: textMuted}]}>
+                        {lesson.duration}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-              </View>
 
-              {/* Play/Status Icon */}
-              {!lesson.isLocked && (
-                <View style={[styles.playButton, {backgroundColor: `${subjectColor}15`}]}>
-                  <Icon 
-                    name={lesson.isCompleted ? 'refresh-cw' : 'play'} 
-                    size={16} 
-                    color={subjectColor} 
-                  />
-                </View>
-              )}
-            </TouchableOpacity>
-          </Animated.View>
-        ))}
+                {/* Play/Status Icon */}
+                {!lesson.isLocked && (
+                  <View style={[styles.playButton, {backgroundColor: `${subjectColor}15`}]}>
+                    <Icon 
+                      name={lesson.isCompleted ? 'refresh-cw' : 'play'} 
+                      size={14} 
+                      color={subjectColor} 
+                    />
+                  </View>
+                )}
+              </TouchableOpacity>
+            </Animated.View>
+          ))
+        )}
 
-        <View style={{height: Spacing['3xl']}} />
+        <View style={{height: Spacing['2xl']}} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -270,13 +321,13 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -290,22 +341,22 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   headerTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.base,
     fontWeight: '700',
   },
   menuButton: {
-    width: 40,
-    height: 40,
+    width: 36,
+    height: 36,
     alignItems: 'center',
     justifyContent: 'center',
   },
   scrollContent: {
-    padding: Spacing.lg,
+    padding: Spacing.md,
   },
   progressCard: {
-    borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
-    marginBottom: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
     position: 'relative',
     overflow: 'hidden',
   },
@@ -313,124 +364,158 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -30,
     right: -30,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     backgroundColor: 'rgba(255,255,255,0.1)',
   },
   progressDecor2: {
     position: 'absolute',
     bottom: -20,
     left: -20,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: 'rgba(255,255,255,0.08)',
   },
   progressContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   progressLeft: {},
   progressTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
     color: '#FFF',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   progressSubtitle: {
-    fontSize: FontSizes.sm,
+    fontSize: FontSizes.xs,
     color: 'rgba(255,255,255,0.8)',
   },
   progressCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   progressPercent: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
     color: '#FFF',
   },
   progressBarContainer: {
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   progressBarBg: {
-    height: 8,
+    height: 6,
     backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressBarFill: {
     height: '100%',
     backgroundColor: '#FFF',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   continueButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#FFF',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    gap: Spacing.xs,
   },
   continueText: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '700',
   },
+  searchContainer: {
+    marginBottom: Spacing.md,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    gap: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    paddingVertical: 4,
+  },
+  searchResult: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
+    marginLeft: Spacing.sm,
+  },
   sectionTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: FontSizes.base,
     fontWeight: '700',
-    marginBottom: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing['2xl'],
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.sm,
+    textAlign: 'center',
   },
   lessonCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
   },
   lessonIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
+    marginRight: Spacing.sm,
   },
   lessonInfo: {
     flex: 1,
   },
   lessonTitleRow: {
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
   lessonTitle: {
-    fontSize: FontSizes.base,
+    fontSize: FontSizes.sm,
     fontWeight: '600',
   },
   lessonMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.md,
+    gap: Spacing.sm,
   },
   durationBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
   },
   durationText: {
     fontSize: FontSizes.xs,
   },
   playButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
