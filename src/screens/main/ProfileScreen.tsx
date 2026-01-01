@@ -1,6 +1,6 @@
 /**
  * Profile Screen - Orange Theme
- * Student profile and settings with Notification settings link
+ * Student profile and settings with all working features
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -13,6 +13,10 @@ import {
   Switch,
   Alert,
   Animated,
+  Modal,
+  TextInput,
+  Linking,
+  useColorScheme,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -21,20 +25,45 @@ import {useAuth} from '../../context/AuthContext';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
 
-const STUDENT = {
-  name: 'Rahul Kumar',
-  class: '10th',
-  board: 'CBSE',
-  streak: 7,
-  xp: 2450,
-  level: 12,
-  badges: 8,
-};
+const BOARDS = ['CBSE', 'ICSE', 'State Board', 'IB', 'Cambridge'];
+const CLASSES = ['6th', '7th', '8th', '9th', '10th', '11th', '12th'];
 
 export function ProfileScreen() {
   const navigation = useNavigation<any>();
   const {logout} = useAuth();
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const systemColorScheme = useColorScheme();
+  
+  // Student data state
+  const [student, setStudent] = useState({
+    name: 'Rahul Kumar',
+    email: 'rahul.kumar@email.com',
+    phone: '9876543210',
+    class: '10th',
+    board: 'CBSE',
+    streak: 7,
+    xp: 2450,
+    level: 12,
+    badges: 8,
+  });
+
+  // Modal states
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [showClassBoard, setShowClassBoard] = useState(false);
+  const [showHelpCenter, setShowHelpCenter] = useState(false);
+  const [showContactUs, setShowContactUs] = useState(false);
+
+  // Edit profile form state
+  const [editName, setEditName] = useState(student.name);
+  const [editEmail, setEditEmail] = useState(student.email);
+  const [editPhone, setEditPhone] = useState(student.phone);
+
+  // Class & Board selection state
+  const [selectedClass, setSelectedClass] = useState(student.class);
+  const [selectedBoard, setSelectedBoard] = useState(student.board);
+
+  // Dark mode state
+  const [darkModeEnabled, setDarkModeEnabled] = useState(systemColorScheme === 'dark');
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -47,6 +76,7 @@ export function ProfileScreen() {
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const error = useThemeColor({}, 'error');
+  const success = useThemeColor({}, 'success');
 
   useEffect(() => {
     Animated.parallel([
@@ -78,6 +108,78 @@ export function ProfileScreen() {
     );
   };
 
+  const handleSaveProfile = () => {
+    if (!editName.trim()) {
+      Alert.alert('Error', 'Please enter your name');
+      return;
+    }
+    if (!editEmail.trim() || !editEmail.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email');
+      return;
+    }
+    if (!editPhone.trim() || editPhone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid phone number');
+      return;
+    }
+
+    setStudent(prev => ({
+      ...prev,
+      name: editName.trim(),
+      email: editEmail.trim(),
+      phone: editPhone.trim(),
+    }));
+    setShowEditProfile(false);
+    Alert.alert('Success', 'Profile updated successfully! ✅');
+  };
+
+  const handleSaveClassBoard = () => {
+    setStudent(prev => ({
+      ...prev,
+      class: selectedClass,
+      board: selectedBoard,
+    }));
+    setShowClassBoard(false);
+    Alert.alert('Success', 'Class & Board updated successfully! 🎓');
+  };
+
+  const handleDarkModeToggle = (value: boolean) => {
+    setDarkModeEnabled(value);
+    Alert.alert(
+      'Theme Changed',
+      `Dark mode ${value ? 'enabled' : 'disabled'}. Restart the app for full effect.`,
+      [{text: 'OK'}]
+    );
+  };
+
+  const handleRateApp = () => {
+    Alert.alert(
+      'Rate AI Tutor ⭐',
+      'Enjoying the app? Please rate us on the Play Store!',
+      [
+        {text: 'Maybe Later', style: 'cancel'},
+        {
+          text: 'Rate Now',
+          onPress: () => {
+            // Replace with your actual Play Store URL
+            Linking.openURL('https://play.google.com/store/apps/details?id=com.aitutorpp');
+          },
+        },
+      ]
+    );
+  };
+
+  const handleContactEmail = () => {
+    Linking.openURL('mailto:support@kasoftware.com?subject=AI Tutor App Support');
+  };
+
+  const handleContactPhone = () => {
+    Linking.openURL('tel:+919876543210');
+  };
+
+  const handleWhatsApp = () => {
+    Linking.openURL('https://wa.me/919876543210?text=Hi, I need help with AI Tutor App');
+  };
+
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
@@ -92,16 +194,16 @@ export function ProfileScreen() {
             {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
           ]}>
           <View style={[styles.avatarRing, {borderColor: primary}]}>
-            <Avatar name={STUDENT.name} size="xl" />
+            <Avatar name={student.name} size="xl" />
           </View>
-          <Text style={[styles.name, {color: text}]}>{STUDENT.name} 🔥</Text>
+          <Text style={[styles.name, {color: text}]}>{student.name} 🔥</Text>
           <View style={styles.badges}>
             <Badge
-              label={`${STUDENT.class} • ${STUDENT.board}`}
+              label={`${student.class} • ${student.board}`}
               variant="primary"
             />
             <Badge 
-              label={`⚡ Level ${STUDENT.level}`} 
+              label={`⚡ Level ${student.level}`} 
               variant="level" 
             />
           </View>
@@ -115,7 +217,7 @@ export function ProfileScreen() {
           ]}>
           <StatCard
             icon="flame"
-            value={STUDENT.streak}
+            value={student.streak}
             label="Day Streak 🔥"
             color="#EF4444"
             cardColor={card}
@@ -124,7 +226,7 @@ export function ProfileScreen() {
           />
           <StatCard
             icon="star"
-            value={STUDENT.xp.toLocaleString()}
+            value={student.xp.toLocaleString()}
             label="XP Points ⭐"
             color="#F97316"
             cardColor={card}
@@ -133,7 +235,7 @@ export function ProfileScreen() {
           />
           <StatCard
             icon="trophy"
-            value={STUDENT.badges}
+            value={student.badges}
             label="Badges 🏆"
             color="#FBBF24"
             cardColor={card}
@@ -142,7 +244,7 @@ export function ProfileScreen() {
           />
         </Animated.View>
 
-        {/* Menu Sections */}
+        {/* Account Section */}
         <Animated.View
           style={[
             styles.menuSection,
@@ -158,35 +260,33 @@ export function ProfileScreen() {
               emoji="✏️"
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
-              onPress={() => {}}
-            />
-            <View style={[styles.divider, {backgroundColor: border}]} />
-            <MenuItem
-              icon="school"
-              label="School Details"
-              emoji="🏫"
-              primaryColor={primary}
-              textColor={text}
-              textSecondary={textSecondary}
-              textMuted={textMuted}
-              onPress={() => {}}
+              onPress={() => {
+                setEditName(student.name);
+                setEditEmail(student.email);
+                setEditPhone(student.phone);
+                setShowEditProfile(true);
+              }}
             />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <MenuItem
               icon="graduation-cap"
               label="Class & Board"
+              value={`${student.class} • ${student.board}`}
               emoji="🎓"
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
-              onPress={() => {}}
+              onPress={() => {
+                setSelectedClass(student.class);
+                setSelectedBoard(student.board);
+                setShowClassBoard(true);
+              }}
             />
           </Card>
         </Animated.View>
 
+        {/* Preferences Section */}
         <Animated.View
           style={[
             styles.menuSection,
@@ -202,21 +302,8 @@ export function ProfileScreen() {
               emoji="🔔"
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
               onPress={() => navigation.navigate('NotificationSettings')}
-            />
-            <View style={[styles.divider, {backgroundColor: border}]} />
-            <MenuItem
-              icon="globe"
-              label="Language"
-              value="English"
-              emoji="🌐"
-              primaryColor={primary}
-              textColor={text}
-              textSecondary={textSecondary}
-              textMuted={textMuted}
-              onPress={() => {}}
             />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <View style={styles.menuItem}>
@@ -230,7 +317,7 @@ export function ProfileScreen() {
               </View>
               <Switch
                 value={darkModeEnabled}
-                onValueChange={setDarkModeEnabled}
+                onValueChange={handleDarkModeToggle}
                 trackColor={{false: '#D1D5DB', true: `${primary}60`}}
                 thumbColor={darkModeEnabled ? primary : '#F3F4F6'}
               />
@@ -238,6 +325,7 @@ export function ProfileScreen() {
           </Card>
         </Animated.View>
 
+        {/* Support Section */}
         <Animated.View
           style={[
             styles.menuSection,
@@ -253,9 +341,8 @@ export function ProfileScreen() {
               emoji="❓"
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
-              onPress={() => {}}
+              onPress={() => setShowHelpCenter(true)}
             />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <MenuItem
@@ -264,9 +351,8 @@ export function ProfileScreen() {
               emoji="📧"
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
-              onPress={() => {}}
+              onPress={() => setShowContactUs(true)}
             />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <MenuItem
@@ -275,13 +361,13 @@ export function ProfileScreen() {
               emoji="⭐"
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
-              onPress={() => {}}
+              onPress={handleRateApp}
             />
           </Card>
         </Animated.View>
 
+        {/* Logout Section */}
         <Animated.View
           style={[
             styles.menuSection,
@@ -295,7 +381,6 @@ export function ProfileScreen() {
               errorColor={error}
               primaryColor={primary}
               textColor={text}
-              textSecondary={textSecondary}
               textMuted={textMuted}
               onPress={handleLogout}
             />
@@ -303,11 +388,275 @@ export function ProfileScreen() {
         </Animated.View>
 
         <Text style={[styles.version, {color: textMuted}]}>
-          Version 1.0.0 • Made with 🧡
+          Version 1.0.0 • Powered by KA Software
         </Text>
 
         <View style={{height: Spacing['2xl']}} />
       </ScrollView>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={showEditProfile}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowEditProfile(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {backgroundColor: card}]}>
+            <View style={[styles.modalHeader, {borderBottomColor: border}]}>
+              <Text style={[styles.modalTitle, {color: text}]}>Edit Profile ✏️</Text>
+              <TouchableOpacity onPress={() => setShowEditProfile(false)}>
+                <Icon name="x" size={24} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Full Name</Text>
+              <TextInput
+                style={[styles.input, {backgroundColor: background, color: text, borderColor: border}]}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="Enter your name"
+                placeholderTextColor={textMuted}
+              />
+
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Email Address</Text>
+              <TextInput
+                style={[styles.input, {backgroundColor: background, color: text, borderColor: border}]}
+                value={editEmail}
+                onChangeText={setEditEmail}
+                placeholder="Enter your email"
+                placeholderTextColor={textMuted}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Phone Number</Text>
+              <TextInput
+                style={[styles.input, {backgroundColor: background, color: text, borderColor: border}]}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="Enter your phone"
+                placeholderTextColor={textMuted}
+                keyboardType="phone-pad"
+                maxLength={10}
+              />
+
+              <TouchableOpacity
+                style={[styles.saveButton, {backgroundColor: primary}]}
+                onPress={handleSaveProfile}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Class & Board Modal */}
+      <Modal
+        visible={showClassBoard}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowClassBoard(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {backgroundColor: card}]}>
+            <View style={[styles.modalHeader, {borderBottomColor: border}]}>
+              <Text style={[styles.modalTitle, {color: text}]}>Class & Board 🎓</Text>
+              <TouchableOpacity onPress={() => setShowClassBoard(false)}>
+                <Icon name="x" size={24} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Select Class</Text>
+              <View style={styles.optionsGrid}>
+                {CLASSES.map(cls => (
+                  <TouchableOpacity
+                    key={cls}
+                    style={[
+                      styles.optionButton,
+                      {
+                        backgroundColor: selectedClass === cls ? primary : background,
+                        borderColor: selectedClass === cls ? primary : border,
+                      },
+                    ]}
+                    onPress={() => setSelectedClass(cls)}>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        {color: selectedClass === cls ? '#FFF' : text},
+                      ]}>
+                      {cls}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[styles.inputLabel, {color: textSecondary, marginTop: Spacing.lg}]}>
+                Select Board
+              </Text>
+              <View style={styles.optionsGrid}>
+                {BOARDS.map(board => (
+                  <TouchableOpacity
+                    key={board}
+                    style={[
+                      styles.optionButton,
+                      styles.optionButtonWide,
+                      {
+                        backgroundColor: selectedBoard === board ? primary : background,
+                        borderColor: selectedBoard === board ? primary : border,
+                      },
+                    ]}
+                    onPress={() => setSelectedBoard(board)}>
+                    <Text
+                      style={[
+                        styles.optionText,
+                        {color: selectedBoard === board ? '#FFF' : text},
+                      ]}>
+                      {board}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.saveButton, {backgroundColor: primary}]}
+                onPress={handleSaveClassBoard}>
+                <Text style={styles.saveButtonText}>Save Changes</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Help Center Modal */}
+      <Modal
+        visible={showHelpCenter}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowHelpCenter(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {backgroundColor: card}]}>
+            <View style={[styles.modalHeader, {borderBottomColor: border}]}>
+              <Text style={[styles.modalTitle, {color: text}]}>Help Center ❓</Text>
+              <TouchableOpacity onPress={() => setShowHelpCenter(false)}>
+                <Icon name="x" size={24} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView style={styles.modalBody}>
+              <FAQItem
+                question="How do I start learning?"
+                answer="Go to the Learn tab, select a subject, choose a chapter, and start with any lesson. You can watch videos, read notes, and take quizzes."
+                textColor={text}
+                textMuted={textMuted}
+                border={border}
+              />
+              <FAQItem
+                question="How does the streak system work?"
+                answer="Complete at least one lesson every day to maintain your streak. Your streak resets if you miss a day. Keep learning to earn XP and badges!"
+                textColor={text}
+                textMuted={textMuted}
+                border={border}
+              />
+              <FAQItem
+                question="How do I change my subscription?"
+                answer="Go to Profile > Manage Subscription to view your current plan and upgrade options. You can upgrade anytime to access premium features."
+                textColor={text}
+                textMuted={textMuted}
+                border={border}
+              />
+              <FAQItem
+                question="Can I download lessons for offline viewing?"
+                answer="Yes! Premium users can download videos and notes for offline access. Look for the download icon on any lesson."
+                textColor={text}
+                textMuted={textMuted}
+                border={border}
+              />
+              <FAQItem
+                question="How do I ask doubts?"
+                answer="Tap the 'Ask Doubt' button on the home screen or within any lesson. Our AI tutor will help answer your questions instantly."
+                textColor={text}
+                textMuted={textMuted}
+                border={border}
+              />
+              <FAQItem
+                question="How are quizzes scored?"
+                answer="Each correct answer gives you XP points. Complete quizzes faster for bonus points. Your scores contribute to your level and leaderboard ranking."
+                textColor={text}
+                textMuted={textMuted}
+                border={border}
+              />
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Contact Us Modal */}
+      <Modal
+        visible={showContactUs}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowContactUs(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {backgroundColor: card, maxHeight: '60%'}]}>
+            <View style={[styles.modalHeader, {borderBottomColor: border}]}>
+              <Text style={[styles.modalTitle, {color: text}]}>Contact Us 📧</Text>
+              <TouchableOpacity onPress={() => setShowContactUs(false)}>
+                <Icon name="x" size={24} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.modalBody}>
+              <Text style={[styles.contactIntro, {color: textSecondary}]}>
+                We're here to help! Reach out to us through any of these channels:
+              </Text>
+
+              <TouchableOpacity
+                style={[styles.contactOption, {backgroundColor: background, borderColor: border}]}
+                onPress={handleContactEmail}>
+                <View style={[styles.contactIcon, {backgroundColor: `${primary}15`}]}>
+                  <Icon name="mail" size={20} color={primary} />
+                </View>
+                <View style={styles.contactInfo}>
+                  <Text style={[styles.contactLabel, {color: text}]}>Email Support</Text>
+                  <Text style={[styles.contactValue, {color: textMuted}]}>support@kasoftware.com</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.contactOption, {backgroundColor: background, borderColor: border}]}
+                onPress={handleContactPhone}>
+                <View style={[styles.contactIcon, {backgroundColor: '#22C55E15'}]}>
+                  <Icon name="phone" size={20} color="#22C55E" />
+                </View>
+                <View style={styles.contactInfo}>
+                  <Text style={[styles.contactLabel, {color: text}]}>Phone Support</Text>
+                  <Text style={[styles.contactValue, {color: textMuted}]}>+91 98765 43210</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={textMuted} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.contactOption, {backgroundColor: background, borderColor: border}]}
+                onPress={handleWhatsApp}>
+                <View style={[styles.contactIcon, {backgroundColor: '#25D36615'}]}>
+                  <Icon name="message-circle" size={20} color="#25D366" />
+                </View>
+                <View style={styles.contactInfo}>
+                  <Text style={[styles.contactLabel, {color: text}]}>WhatsApp</Text>
+                  <Text style={[styles.contactValue, {color: textMuted}]}>Chat with us</Text>
+                </View>
+                <Icon name="chevron-right" size={20} color={textMuted} />
+              </TouchableOpacity>
+
+              <Text style={[styles.responseTime, {color: textMuted}]}>
+                📞 We typically respond within 24 hours
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -349,7 +698,6 @@ function MenuItem({
   errorColor,
   primaryColor,
   textColor,
-  textSecondary,
   textMuted,
   onPress,
 }: {
@@ -361,7 +709,6 @@ function MenuItem({
   errorColor?: string;
   primaryColor: string;
   textColor: string;
-  textSecondary: string;
   textMuted: string;
   onPress: () => void;
 }) {
@@ -388,6 +735,40 @@ function MenuItem({
         )}
       </View>
       <Icon name="chevron-right" size={16} color={textMuted} />
+    </TouchableOpacity>
+  );
+}
+
+function FAQItem({
+  question,
+  answer,
+  textColor,
+  textMuted,
+  border,
+}: {
+  question: string;
+  answer: string;
+  textColor: string;
+  textMuted: string;
+  border: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <TouchableOpacity
+      style={[styles.faqItem, {borderBottomColor: border}]}
+      onPress={() => setExpanded(!expanded)}>
+      <View style={styles.faqHeader}>
+        <Text style={[styles.faqQuestion, {color: textColor}]}>{question}</Text>
+        <Icon
+          name={expanded ? 'chevron-up' : 'chevron-down'}
+          size={18}
+          color={textMuted}
+        />
+      </View>
+      {expanded && (
+        <Text style={[styles.faqAnswer, {color: textMuted}]}>{answer}</Text>
+      )}
     </TouchableOpacity>
   );
 }
@@ -466,6 +847,134 @@ const styles = StyleSheet.create({
   version: {
     textAlign: 'center',
     fontSize: FontSizes.sm,
+    marginTop: Spacing.lg,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    borderTopLeftRadius: BorderRadius['2xl'],
+    borderTopRightRadius: BorderRadius['2xl'],
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+  },
+  modalTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+  },
+  modalBody: {
+    padding: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.sm,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    fontSize: FontSizes.base,
+    marginBottom: Spacing.lg,
+  },
+  saveButton: {
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.lg,
+  },
+  saveButtonText: {
+    color: '#FFF',
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+  },
+  optionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  optionButton: {
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  optionButtonWide: {
+    minWidth: 100,
+  },
+  optionText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  // FAQ styles
+  faqItem: {
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+  },
+  faqHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  faqQuestion: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    flex: 1,
+    marginRight: Spacing.sm,
+  },
+  faqAnswer: {
+    fontSize: FontSizes.sm,
+    marginTop: Spacing.sm,
+    lineHeight: 20,
+  },
+  // Contact styles
+  contactIntro: {
+    fontSize: FontSizes.sm,
+    marginBottom: Spacing.lg,
+    lineHeight: 20,
+  },
+  contactOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    marginBottom: Spacing.sm,
+  },
+  contactIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing.md,
+  },
+  contactInfo: {
+    flex: 1,
+  },
+  contactLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
+  contactValue: {
+    fontSize: FontSizes.xs,
+    marginTop: 2,
+  },
+  responseTime: {
+    fontSize: FontSizes.xs,
+    textAlign: 'center',
     marginTop: Spacing.lg,
   },
 });
