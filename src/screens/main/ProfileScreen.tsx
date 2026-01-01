@@ -98,7 +98,10 @@ export function ProfileScreen() {
               label={`${STUDENT.class} • ${STUDENT.board}`}
               variant="primary"
             />
-            <Badge label={`⚡ Level ${STUDENT.level}`} variant="warning" />
+            <Badge 
+              label={`⚡ Level ${STUDENT.level}`} 
+              variant="level" 
+            />
           </View>
         </Animated.View>
 
@@ -111,7 +114,7 @@ export function ProfileScreen() {
           <StatCard
             icon="flame"
             value={STUDENT.streak}
-            label="Streak 🔥"
+            label="Day Streak 🔥"
             color="#EF4444"
             cardColor={card}
             textColor={text}
@@ -120,7 +123,7 @@ export function ProfileScreen() {
           <StatCard
             icon="star"
             value={STUDENT.xp.toLocaleString()}
-            label="XP ⭐"
+            label="XP Points ⭐"
             color="#F97316"
             cardColor={card}
             textColor={text}
@@ -401,7 +404,12 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: Spacing.sm,
   },
-  badges: {flexDirection: 'row', gap: Spacing.sm},
+  badges: {
+    flexDirection: 'row', 
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+  },
   statsRow: {
     flexDirection: 'row',
     gap: Spacing.md,
@@ -425,7 +433,7 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xl,
     fontWeight: '700',
   },
-  statLabel: {fontSize: FontSizes.xs, marginTop: 2},
+  statLabel: {fontSize: FontSizes.xs, marginTop: 2, textAlign: 'center'},
   menuSection: {marginBottom: Spacing.lg},
   sectionTitle: {
     fontSize: FontSizes.xs,

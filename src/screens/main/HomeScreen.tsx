@@ -135,8 +135,8 @@ export function HomeScreen() {
                 size="sm"
               />
               <Badge
-                label={`🔥 Level ${STUDENT.level}`}
-                variant="warning"
+                label={`⚡ Level ${STUDENT.level}`}
+                variant="level"
                 size="sm"
               />
             </View>
@@ -404,6 +404,7 @@ const styles = StyleSheet.create({
   badges: {
     flexDirection: 'row',
     gap: Spacing.sm,
+    flexWrap: 'wrap',
   },
   avatarContainer: {
     borderWidth: 3,

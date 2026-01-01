@@ -16,7 +16,8 @@ type BadgeVariant =
   | 'warning'
   | 'error'
   | 'info'
-  | 'secondary';
+  | 'secondary'
+  | 'level';
 type BadgeSize = 'sm' | 'md';
 
 interface BadgeProps {
@@ -40,7 +41,6 @@ export function Badge({
   const success = useThemeColor({}, 'success');
   const successLight = useThemeColor({}, 'successLight');
   const warning = useThemeColor({}, 'warning');
-  const warningLight = useThemeColor({}, 'warningLight');
   const error = useThemeColor({}, 'error');
   const errorLight = useThemeColor({}, 'errorLight');
   const info = useThemeColor({}, 'info');
@@ -68,8 +68,14 @@ export function Badge({
         };
       case 'warning':
         return {
-          backgroundColor: warningLight,
-          textColor: '#92400E',
+          backgroundColor: '#FEF3C7',
+          textColor: '#B45309',
+        };
+      case 'level':
+        return {
+          backgroundColor: '#FEF3C7',
+          textColor: '#B45309',
+          borderColor: '#FCD34D',
         };
       case 'error':
         return {
@@ -91,12 +97,14 @@ export function Badge({
 
   const variantStyles = getVariantStyles();
   const isSmall = size === 'sm';
+  const hasBorder = variant === 'level';
 
   return (
     <View
       style={[
         styles.container,
         {backgroundColor: variantStyles.backgroundColor},
+        hasBorder && {borderWidth: 1.5, borderColor: '#FCD34D'},
         isSmall ? styles.containerSm : styles.containerMd,
         style,
       ]}>
@@ -128,7 +136,7 @@ const styles = StyleSheet.create({
   },
   containerSm: {
     paddingHorizontal: Spacing.sm,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: BorderRadius.base,
   },
   containerMd: {
@@ -137,7 +145,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
   },
   label: {
-    fontWeight: '600',
+    fontWeight: '700',
   },
   labelSm: {
     fontSize: FontSizes.xs,

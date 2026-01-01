@@ -26,16 +26,16 @@ import type {AuthStackScreenProps} from '../../types/navigation';
 // Default OTP for testing
 const DEFAULT_OTP = '242526';
 
-// Mock user database
+// Mock user database - Only these numbers are "registered"
 const MOCK_USERS: Record<string, {name: string; isRegistered: boolean}> = {
-  '9876543210': {name: 'Rahul Kumar', isRegistered: true},
-  '8765432109': {name: 'Priya Sharma', isRegistered: true},
+  '9999999999': {name: 'Test User', isRegistered: true},
+  '8888888888': {name: 'Demo User', isRegistered: true},
 };
 
 export function VerifyOTPScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'VerifyOTP'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'VerifyOTP'>['route']>();
-  const {phone} = route.params;
+  const {phone, fromRegistration} = route.params as {phone: string; fromRegistration?: boolean};
 
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -140,7 +140,17 @@ export function VerifyOTPScreen() {
     setTimeout(() => {
       setLoading(false);
       
-      // Check if user exists
+      // If coming from registration (direct registration flow)
+      // Go directly to plan selection
+      if (fromRegistration) {
+        navigation.reset({
+          index: 0,
+          routes: [{name: 'SelectPlan', params: {userId: phone}}],
+        });
+        return;
+      }
+      
+      // Check if user exists in our mock database
       const existingUser = MOCK_USERS[phone];
       
       if (existingUser) {
@@ -151,7 +161,7 @@ export function VerifyOTPScreen() {
         });
       } else {
         // New user - go to registration
-        navigation.navigate('Register', {phone});
+        navigation.navigate('Register', {phone, isDirectRegistration: false});
       }
     }, 1000);
   };

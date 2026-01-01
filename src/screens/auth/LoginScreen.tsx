@@ -96,6 +96,11 @@ export function LoginScreen() {
     }, 1000);
   };
 
+  const handleRegister = () => {
+    // Navigate directly to registration with empty phone (will enter later)
+    navigation.navigate('Register', {phone: '', isDirectRegistration: true});
+  };
+
   const formatPhone = (value: string) => {
     const cleaned = value.replace(/\D/g, '');
     return cleaned.slice(0, 10);
@@ -210,6 +215,18 @@ export function LoginScreen() {
               fullWidth
               size="lg"
             />
+          </View>
+
+          {/* Register Link */}
+          <View style={styles.registerContainer}>
+            <Text style={[styles.registerText, {color: textSecondary}]}>
+              New to AI Tutor?{' '}
+            </Text>
+            <TouchableOpacity onPress={handleRegister}>
+              <Text style={[styles.registerLink, {color: primary}]}>
+                Register Now 📝
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Terms */}
@@ -375,6 +392,19 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginBottom: Spacing.lg,
+  },
+  registerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  registerText: {
+    fontSize: FontSizes.base,
+  },
+  registerLink: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
   },
   terms: {
     fontSize: FontSizes.xs,
