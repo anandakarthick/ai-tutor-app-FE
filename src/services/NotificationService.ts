@@ -6,7 +6,7 @@
 import messaging, {
   FirebaseMessagingTypes,
 } from '@react-native-firebase/messaging';
-import {Platform, PermissionsAndroid, Alert, Linking} from 'react-native';
+import {Platform, PermissionsAndroid, Alert, Linking, AppState} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Notification types for the app
@@ -40,6 +40,7 @@ class NotificationService {
   private tokenRefreshListener: (() => void) | null = null;
   private onNotificationCallback: ((message: NotificationMessage) => void) | null = null;
   private onNotificationOpenedCallback: ((message: NotificationMessage) => void) | null = null;
+  private isInitialized = false;
 
   private constructor() {}
 
@@ -51,21 +52,57 @@ class NotificationService {
   }
 
   /**
+   * Wait for app to be active (Activity attached)
+   */
+  private waitForAppReady(): Promise<void> {
+    return new Promise((resolve) => {
+      if (AppState.currentState === 'active') {
+        // Add small delay to ensure Activity is fully attached
+        setTimeout(resolve, 500);
+      } else {
+        const subscription = AppState.addEventListener('change', (nextState) => {
+          if (nextState === 'active') {
+            subscription.remove();
+            setTimeout(resolve, 500);
+          }
+        });
+        // Timeout fallback
+        setTimeout(() => {
+          subscription.remove();
+          resolve();
+        }, 3000);
+      }
+    });
+  }
+
+  /**
    * Initialize the notification service
    */
   async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      console.log('🔔 Notification Service already initialized');
+      return;
+    }
+
     try {
       console.log('🔔 Initializing Notification Service...');
+      
+      // Wait for app to be ready
+      await this.waitForAppReady();
       
       // Request permission
       const hasPermission = await this.requestPermission();
       if (!hasPermission) {
-        console.log('❌ Notification permission denied');
-        return;
+        console.log('⚠️ Notification permission not granted - continuing without notifications');
+        // Still set up listeners for when permission is granted later
       }
 
-      // Get FCM token
-      await this.getToken();
+      // Get FCM token (may fail without permission, but that's ok)
+      try {
+        await this.getToken();
+      } catch (tokenError) {
+        console.log('⚠️ Could not get FCM token:', tokenError);
+      }
 
       // Setup listeners
       this.setupForegroundListener();
@@ -75,9 +112,11 @@ class NotificationService {
       // Check if app was opened from notification
       await this.checkInitialNotification();
 
+      this.isInitialized = true;
       console.log('✅ Notification Service initialized');
     } catch (error) {
       console.error('❌ Error initializing notifications:', error);
+      // Don't throw - notifications are not critical
     }
   }
 
@@ -89,31 +128,41 @@ class NotificationService {
       if (Platform.OS === 'android') {
         // Android 13+ requires POST_NOTIFICATIONS permission
         if (Platform.Version >= 33) {
-          const granted = await PermissionsAndroid.request(
-            PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
-          );
-          if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
-            console.log('❌ POST_NOTIFICATIONS permission denied');
-            return false;
+          try {
+            const granted = await PermissionsAndroid.request(
+              PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+            );
+            if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+              console.log('⚠️ POST_NOTIFICATIONS permission denied');
+              // Don't return false - try Firebase permission anyway
+            }
+          } catch (permError) {
+            console.log('⚠️ Could not request POST_NOTIFICATIONS:', permError);
+            // Continue anyway
           }
         }
       }
 
       // Request Firebase messaging permission
-      const authStatus = await messaging().requestPermission();
-      const enabled =
-        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
-        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+      try {
+        const authStatus = await messaging().requestPermission();
+        const enabled =
+          authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+          authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 
-      if (enabled) {
-        console.log('✅ Notification permission granted:', authStatus);
-        await AsyncStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'granted');
-      } else {
-        console.log('❌ Notification permission denied');
-        await AsyncStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'denied');
+        if (enabled) {
+          console.log('✅ Notification permission granted:', authStatus);
+          await AsyncStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'granted');
+        } else {
+          console.log('⚠️ Notification permission denied');
+          await AsyncStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'denied');
+        }
+
+        return enabled;
+      } catch (firebaseError) {
+        console.log('⚠️ Firebase permission request failed:', firebaseError);
+        return false;
       }
-
-      return enabled;
     } catch (error) {
       console.error('❌ Error requesting notification permission:', error);
       return false;
@@ -126,18 +175,22 @@ class NotificationService {
   async getToken(): Promise<string | null> {
     try {
       // Check if messaging is supported
-      const isSupported = await messaging().isDeviceRegisteredForRemoteMessages;
-      if (!isSupported) {
-        await messaging().registerDeviceForRemoteMessages();
+      try {
+        const isSupported = await messaging().isDeviceRegisteredForRemoteMessages;
+        if (!isSupported) {
+          await messaging().registerDeviceForRemoteMessages();
+        }
+      } catch (regError) {
+        console.log('⚠️ Could not register for remote messages:', regError);
       }
 
       const token = await messaging().getToken();
       
       if (token) {
-        console.log('📱 FCM Token:', token);
+        console.log('📱 FCM Token:', token.substring(0, 30) + '...');
         await AsyncStorage.setItem(FCM_TOKEN_KEY, token);
         
-        // TODO: Send token to your backend server
+        // Send token to server
         await this.sendTokenToServer(token);
       }
 
@@ -153,15 +206,8 @@ class NotificationService {
    */
   private async sendTokenToServer(token: string): Promise<void> {
     try {
-      // TODO: Implement API call to send token to your backend
-      console.log('📤 Sending FCM token to server:', token.substring(0, 20) + '...');
-      
-      // Example API call:
-      // await fetch('https://your-api.com/api/notifications/register', {
-      //   method: 'POST',
-      //   headers: {'Content-Type': 'application/json'},
-      //   body: JSON.stringify({token, platform: Platform.OS}),
-      // });
+      console.log('📤 FCM token ready to send to server');
+      // Token will be sent when user logs in via authApi.updateFcmToken()
     } catch (error) {
       console.error('❌ Error sending token to server:', error);
     }
@@ -225,7 +271,7 @@ class NotificationService {
 
     // When token is refreshed
     this.tokenRefreshListener = messaging().onTokenRefresh(async token => {
-      console.log('🔄 FCM Token refreshed:', token);
+      console.log('🔄 FCM Token refreshed');
       await AsyncStorage.setItem(FCM_TOKEN_KEY, token);
       await this.sendTokenToServer(token);
     });
@@ -265,7 +311,6 @@ class NotificationService {
       if (!notification) return;
 
       // Using Notifee for better local notification control
-      // If Notifee is not available, show an Alert
       try {
         const notifee = require('@notifee/react-native').default;
         
@@ -429,6 +474,7 @@ class NotificationService {
       this.tokenRefreshListener();
       this.tokenRefreshListener = null;
     }
+    this.isInitialized = false;
   }
 }
 
