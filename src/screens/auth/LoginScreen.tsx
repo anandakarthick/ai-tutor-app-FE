@@ -11,16 +11,20 @@ import {
   Animated,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useAuth} from '../../context';
 import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
 export function LoginScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
+  const {sendOtp} = useAuth();
+  
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +36,6 @@ export function LoginScreen() {
   const textSecondary = useThemeColor({}, 'textSecondary');
   const textMuted = useThemeColor({}, 'textMuted');
   const primary = useThemeColor({}, 'primary');
-  const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const primaryBg = useThemeColor({}, 'primaryBackground');
 
@@ -51,18 +54,33 @@ export function LoginScreen() {
     ]).start();
   }, []);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (phone.length !== 10) {
       Alert.alert('Invalid Number', 'Please enter a valid 10-digit mobile number');
       return;
     }
 
     setLoading(true);
-    // Simulate sending OTP
-    setTimeout(() => {
+    try {
+      const result = await sendOtp(phone, 'login');
+      if (result.success) {
+        // In dev mode, show the OTP for testing
+        if (__DEV__ && result.otp) {
+          Alert.alert('Dev Mode', `Your OTP is: ${result.otp}`, [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('VerifyOTP', {phone, isLogin: true}),
+            },
+          ]);
+        } else {
+          navigation.navigate('VerifyOTP', {phone, isLogin: true});
+        }
+      }
+    } catch (error) {
+      console.log('Send OTP error:', error);
+    } finally {
       setLoading(false);
-      navigation.navigate('VerifyOTP', {phone, isLogin: true});
-    }, 1000);
+    }
   };
 
   const handleRegister = () => {
@@ -119,6 +137,7 @@ export function LoginScreen() {
                   keyboardType="phone-pad"
                   maxLength={10}
                   containerStyle={styles.inputContainer}
+                  editable={!loading}
                 />
               </View>
             </View>
@@ -132,10 +151,10 @@ export function LoginScreen() {
           {/* Continue Button */}
           <View style={styles.buttonContainer}>
             <Button
-              title="Get OTP 📱"
+              title={loading ? 'Sending OTP...' : 'Get OTP 📱'}
               onPress={handleContinue}
               loading={loading}
-              disabled={phone.length !== 10}
+              disabled={phone.length !== 10 || loading}
               fullWidth
               size="lg"
             />
@@ -155,7 +174,8 @@ export function LoginScreen() {
             </Text>
             <TouchableOpacity 
               style={[styles.registerButton, {backgroundColor: primaryBg, borderColor: primary}]}
-              onPress={handleRegister}>
+              onPress={handleRegister}
+              disabled={loading}>
               <Icon name="user" size={18} color={primary} />
               <Text style={[styles.registerButtonText, {color: primary}]}>
                 Register Now 📝

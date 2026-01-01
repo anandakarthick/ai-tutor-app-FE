@@ -1,5 +1,5 @@
 /**
- * Register Screen - Comprehensive Student Registration
+ * Register Screen - Comprehensive Student Registration with API
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -14,44 +14,36 @@ import {
   Animated,
   Alert,
   Modal,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useAuth} from '../../context';
+import {contentApi} from '../../services/api';
 import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
-
-// Board options
-const BOARDS = [
-  {id: 'cbse', name: 'CBSE', emoji: '📘'},
-  {id: 'icse', name: 'ICSE', emoji: '📗'},
-  {id: 'state', name: 'State Board', emoji: '📙'},
-  {id: 'ib', name: 'IB', emoji: '📕'},
-  {id: 'cambridge', name: 'Cambridge', emoji: '📓'},
-];
-
-// Class options
-const CLASSES = ['LKG', 'UKG', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+import type {Board, Class, Medium, Gender} from '../../types/api';
 
 // Medium options
-const MEDIUMS = [
-  {id: 'english', name: 'English', emoji: '🇬🇧'},
-  {id: 'hindi', name: 'Hindi', emoji: '🇮🇳'},
-  {id: 'tamil', name: 'Tamil', emoji: '🏛️'},
-  {id: 'telugu', name: 'Telugu', emoji: '🎭'},
-  {id: 'kannada', name: 'Kannada', emoji: '🪔'},
-  {id: 'malayalam', name: 'Malayalam', emoji: '🌴'},
-  {id: 'marathi', name: 'Marathi', emoji: '🏰'},
-  {id: 'bengali', name: 'Bengali', emoji: '🎨'},
-  {id: 'gujarati', name: 'Gujarati', emoji: '🦁'},
+const MEDIUMS: {id: Medium; name: string; emoji: string}[] = [
+  {id: 'english' as Medium, name: 'English', emoji: '🇬🇧'},
+  {id: 'hindi' as Medium, name: 'Hindi', emoji: '🇮🇳'},
+  {id: 'tamil' as Medium, name: 'Tamil', emoji: '🏛️'},
+  {id: 'telugu' as Medium, name: 'Telugu', emoji: '🎭'},
+  {id: 'kannada' as Medium, name: 'Kannada', emoji: '🪔'},
+  {id: 'malayalam' as Medium, name: 'Malayalam', emoji: '🌴'},
+  {id: 'marathi' as Medium, name: 'Marathi', emoji: '🏰'},
+  {id: 'bengali' as Medium, name: 'Bengali', emoji: '🎨'},
+  {id: 'gujarati' as Medium, name: 'Gujarati', emoji: '🦁'},
 ];
 
 // Gender options
-const GENDERS = [
-  {id: 'male', name: 'Male', emoji: '👦'},
-  {id: 'female', name: 'Female', emoji: '👧'},
-  {id: 'other', name: 'Other', emoji: '🧑'},
+const GENDERS: {id: Gender; name: string; emoji: string}[] = [
+  {id: 'male' as Gender, name: 'Male', emoji: '👦'},
+  {id: 'female' as Gender, name: 'Female', emoji: '👧'},
+  {id: 'other' as Gender, name: 'Other', emoji: '🧑'},
 ];
 
 // Learning style options
@@ -62,66 +54,49 @@ const LEARNING_STYLES = [
   {id: 'reading', name: 'Reading/Writing', emoji: '📖', desc: 'Learn by reading'},
 ];
 
-// Study time preferences
-const STUDY_TIMES = [
-  {id: 'morning', name: 'Morning', emoji: '🌅', time: '6 AM - 12 PM'},
-  {id: 'afternoon', name: 'Afternoon', emoji: '☀️', time: '12 PM - 5 PM'},
-  {id: 'evening', name: 'Evening', emoji: '🌆', time: '5 PM - 9 PM'},
-  {id: 'night', name: 'Night', emoji: '🌙', time: '9 PM - 12 AM'},
-];
-
 // Daily study hours
-const STUDY_HOURS = ['1', '2', '3', '4', '5', '6+'];
-
-// Target exams
-const TARGET_EXAMS = [
-  {id: 'none', name: 'School Exams Only', emoji: '📝'},
-  {id: 'jee', name: 'JEE (Engineering)', emoji: '⚙️'},
-  {id: 'neet', name: 'NEET (Medical)', emoji: '🏥'},
-  {id: 'upsc', name: 'UPSC', emoji: '🏛️'},
-  {id: 'cat', name: 'CAT (MBA)', emoji: '📊'},
-  {id: 'clat', name: 'CLAT (Law)', emoji: '⚖️'},
-  {id: 'nda', name: 'NDA (Defence)', emoji: '🎖️'},
-  {id: 'olympiad', name: 'Olympiads', emoji: '🏅'},
-];
-
-// Academic years
-const ACADEMIC_YEARS = ['2024-25', '2025-26'];
+const STUDY_HOURS = ['1', '2', '3', '4', '5', '6'];
 
 type Step = 1 | 2 | 3;
 
 export function RegisterScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Register'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'Register'>['route']>();
+  const {register, sendOtp} = useAuth();
   const {phone: initialPhone, isDirectRegistration} = route.params as {phone: string; isDirectRegistration?: boolean};
+
+  // API data
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loadingBoards, setLoadingBoards] = useState(true);
+  const [loadingClasses, setLoadingClasses] = useState(false);
 
   // Step state
   const [currentStep, setCurrentStep] = useState<Step>(1);
 
   // Required fields
   const [phone, setPhone] = useState(initialPhone || '');
+  const [fullName, setFullName] = useState('');
   const [studentName, setStudentName] = useState('');
   const [schoolName, setSchoolName] = useState('');
-  const [selectedBoard, setSelectedBoard] = useState('');
-  const [selectedClass, setSelectedClass] = useState('');
-  const [selectedMedium, setSelectedMedium] = useState('');
+  const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [selectedMedium, setSelectedMedium] = useState<Medium | null>(null);
 
   // Additional fields
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
-  const [gender, setGender] = useState('');
+  const [gender, setGender] = useState<Gender | null>(null);
   const [section, setSection] = useState('');
-  const [academicYear, setAcademicYear] = useState('2024-25');
 
   // Learning preferences
   const [learningStyle, setLearningStyle] = useState('');
-  const [dailyStudyHours, setDailyStudyHours] = useState('');
-  const [preferredStudyTime, setPreferredStudyTime] = useState<string[]>([]);
-  const [careerGoal, setCareerGoal] = useState('');
-  const [targetExam, setTargetExam] = useState('');
+  const [dailyStudyHours, setDailyStudyHours] = useState('2');
 
   const [loading, setLoading] = useState(false);
   const [showMediumModal, setShowMediumModal] = useState(false);
+  const [showClassModal, setShowClassModal] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -135,6 +110,21 @@ export function RegisterScreen() {
   const border = useThemeColor({}, 'border');
   const primaryBg = useThemeColor({}, 'primaryBackground');
   const success = useThemeColor({}, 'success');
+
+  // Load boards on mount
+  useEffect(() => {
+    loadBoards();
+  }, []);
+
+  // Load classes when board changes
+  useEffect(() => {
+    if (selectedBoard) {
+      loadClasses(selectedBoard.id);
+    } else {
+      setClasses([]);
+      setSelectedClass(null);
+    }
+  }, [selectedBoard]);
 
   useEffect(() => {
     Animated.parallel([
@@ -151,12 +141,48 @@ export function RegisterScreen() {
     ]).start();
   }, [currentStep]);
 
-  const toggleStudyTime = (timeId: string) => {
-    setPreferredStudyTime(prev => 
-      prev.includes(timeId) 
-        ? prev.filter(t => t !== timeId)
-        : [...prev, timeId]
-    );
+  const loadBoards = async () => {
+    try {
+      setLoadingBoards(true);
+      const response = await contentApi.boards.getAll();
+      if (response.success && response.data) {
+        setBoards(response.data);
+      }
+    } catch (error) {
+      console.log('Load boards error:', error);
+      // Use fallback boards if API fails
+      setBoards([
+        {id: 'cbse', name: 'CBSE', fullName: 'Central Board of Secondary Education', displayOrder: 1, isActive: true},
+        {id: 'icse', name: 'ICSE', fullName: 'Indian Certificate of Secondary Education', displayOrder: 2, isActive: true},
+        {id: 'state', name: 'State Board', fullName: 'State Board', displayOrder: 3, isActive: true},
+      ] as Board[]);
+    } finally {
+      setLoadingBoards(false);
+    }
+  };
+
+  const loadClasses = async (boardId: string) => {
+    try {
+      setLoadingClasses(true);
+      const response = await contentApi.boards.getClasses(boardId);
+      if (response.success && response.data) {
+        setClasses(response.data);
+      }
+    } catch (error) {
+      console.log('Load classes error:', error);
+      // Use fallback classes
+      const fallbackClasses = ['6th', '7th', '8th', '9th', '10th', '11th', '12th'].map((name, i) => ({
+        id: `class-${i + 6}`,
+        boardId,
+        className: name,
+        displayName: `Class ${name}`,
+        displayOrder: i + 1,
+        isActive: true,
+      })) as Class[];
+      setClasses(fallbackClasses);
+    } finally {
+      setLoadingClasses(false);
+    }
   };
 
   const validateStep1 = () => {
@@ -164,12 +190,12 @@ export function RegisterScreen() {
       Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
       return false;
     }
-    if (!studentName.trim()) {
-      Alert.alert('Error', 'Please enter student name');
+    if (!fullName.trim()) {
+      Alert.alert('Error', 'Please enter your full name');
       return false;
     }
-    if (!schoolName.trim()) {
-      Alert.alert('Error', 'Please enter school name');
+    if (!studentName.trim()) {
+      Alert.alert('Error', 'Please enter student name');
       return false;
     }
     if (!selectedBoard) {
@@ -205,46 +231,32 @@ export function RegisterScreen() {
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     setLoading(true);
 
-    // Collect all data
-    const registrationData = {
-      phone,
-      studentName,
-      schoolName,
-      board: selectedBoard,
-      classGrade: selectedClass,
-      medium: selectedMedium,
-      email,
-      dateOfBirth,
-      gender,
-      section,
-      academicYear,
-      learningStyle,
-      dailyStudyHours,
-      preferredStudyTime,
-      careerGoal,
-      targetExam,
-    };
+    try {
+      // First register the user
+      const registerSuccess = await register({
+        fullName,
+        phone,
+        email: email || undefined,
+        password: password || undefined,
+      });
 
-    console.log('Registration Data:', registrationData);
-
-    // Simulate registration
-    setTimeout(() => {
-      setLoading(false);
-      
-      if (isDirectRegistration) {
-        // Need to verify phone first
-        navigation.navigate('VerifyOTP', {phone, fromRegistration: true});
-      } else {
-        // Phone already verified, go to plan selection
+      if (registerSuccess) {
+        // User is now logged in, navigate to create student profile
+        // For now, go to plan selection
         navigation.reset({
           index: 0,
           routes: [{name: 'SelectPlan', params: {userId: phone}}],
         });
       }
-    }, 1500);
+    } catch (error: any) {
+      console.log('Registration error:', error);
+      Alert.alert('Registration Failed', error.message || 'Could not complete registration');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSkip = () => {
@@ -257,6 +269,17 @@ export function RegisterScreen() {
 
   const getStepProgress = () => {
     return (currentStep / 3) * 100;
+  };
+
+  const getBoardEmoji = (name: string) => {
+    const map: Record<string, string> = {
+      'CBSE': '📘',
+      'ICSE': '📗',
+      'State Board': '📙',
+      'IB': '📕',
+      'Cambridge': '📓',
+    };
+    return map[name] || '📚';
   };
 
   const renderStep1 = () => (
@@ -298,76 +321,95 @@ export function RegisterScreen() {
       )}
 
       <Input
-        label="Student Name *"
-        placeholder="Enter full name"
-        value={studentName}
-        onChangeText={setStudentName}
+        label="Your Full Name *"
+        placeholder="Enter your name (parent/guardian)"
+        value={fullName}
+        onChangeText={setFullName}
         leftIcon="user"
         autoCapitalize="words"
       />
 
       <Input
-        label="School Name *"
+        label="Student Name *"
+        placeholder="Enter student's full name"
+        value={studentName}
+        onChangeText={setStudentName}
+        leftIcon="users"
+        autoCapitalize="words"
+      />
+
+      <Input
+        label="School Name"
         placeholder="Enter school name"
         value={schoolName}
         onChangeText={setSchoolName}
-        leftIcon="school"
+        leftIcon="home"
       />
 
       {/* Board Selection */}
       <View style={styles.sectionContainer}>
         <Text style={[styles.fieldLabel, {color: text}]}>Board of Education *</Text>
-        <View style={styles.optionsGrid}>
-          {BOARDS.map(board => (
-            <TouchableOpacity
-              key={board.id}
-              style={[
-                styles.optionCard,
-                {
-                  backgroundColor: card,
-                  borderColor: selectedBoard === board.id ? primary : border,
-                  borderWidth: selectedBoard === board.id ? 2 : 1,
-                },
-                Shadows.sm,
-              ]}
-              onPress={() => setSelectedBoard(board.id)}>
-              <Text style={styles.optionEmoji}>{board.emoji}</Text>
-              <Text style={[styles.optionName, {color: selectedBoard === board.id ? primary : text}]}>
-                {board.name}
-              </Text>
-              {selectedBoard === board.id && (
-                <View style={[styles.checkBadge, {backgroundColor: primary}]}>
-                  <Icon name="check" size={10} color="#FFF" />
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+        {loadingBoards ? (
+          <ActivityIndicator size="small" color={primary} />
+        ) : (
+          <View style={styles.optionsGrid}>
+            {boards.map(board => (
+              <TouchableOpacity
+                key={board.id}
+                style={[
+                  styles.optionCard,
+                  {
+                    backgroundColor: card,
+                    borderColor: selectedBoard?.id === board.id ? primary : border,
+                    borderWidth: selectedBoard?.id === board.id ? 2 : 1,
+                  },
+                  Shadows.sm,
+                ]}
+                onPress={() => setSelectedBoard(board)}>
+                <Text style={styles.optionEmoji}>{getBoardEmoji(board.name)}</Text>
+                <Text style={[styles.optionName, {color: selectedBoard?.id === board.id ? primary : text}]}>
+                  {board.name}
+                </Text>
+                {selectedBoard?.id === board.id && (
+                  <View style={[styles.checkBadge, {backgroundColor: primary}]}>
+                    <Icon name="check" size={10} color="#FFF" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Class Selection */}
       <View style={styles.sectionContainer}>
         <Text style={[styles.fieldLabel, {color: text}]}>Class / Grade *</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.classRow}>
-            {CLASSES.map(cls => (
-              <TouchableOpacity
-                key={cls}
-                style={[
-                  styles.classChip,
-                  {
-                    backgroundColor: selectedClass === cls ? primary : card,
-                    borderColor: selectedClass === cls ? primary : border,
-                  },
-                ]}
-                onPress={() => setSelectedClass(cls)}>
-                <Text style={[styles.classText, {color: selectedClass === cls ? '#FFF' : text}]}>
-                  {cls}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
+        {!selectedBoard ? (
+          <Text style={[styles.helperText, {color: textMuted}]}>Please select a board first</Text>
+        ) : loadingClasses ? (
+          <ActivityIndicator size="small" color={primary} />
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.classRow}>
+              {classes.map(cls => (
+                <TouchableOpacity
+                  key={cls.id}
+                  style={[
+                    styles.classChip,
+                    {
+                      backgroundColor: selectedClass?.id === cls.id ? primary : card,
+                      borderColor: selectedClass?.id === cls.id ? primary : border,
+                    },
+                  ]}
+                  onPress={() => setSelectedClass(cls)}>
+                  <Text style={[styles.classText, {color: selectedClass?.id === cls.id ? '#FFF' : text}]}>
+                    {cls.displayName || cls.className}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        )}
       </View>
 
       {/* Medium Selection */}
@@ -414,16 +456,19 @@ export function RegisterScreen() {
       />
 
       <Input
+        label="Password (Optional)"
+        placeholder="Create a password"
+        value={password}
+        onChangeText={setPassword}
+        leftIcon="lock"
+        secureTextEntry
+      />
+
+      <Input
         label="Date of Birth (Optional)"
-        placeholder="DD/MM/YYYY"
+        placeholder="YYYY-MM-DD"
         value={dateOfBirth}
-        onChangeText={(val) => {
-          // Auto-format date
-          let formatted = val.replace(/\D/g, '');
-          if (formatted.length > 2) formatted = formatted.slice(0, 2) + '/' + formatted.slice(2);
-          if (formatted.length > 5) formatted = formatted.slice(0, 5) + '/' + formatted.slice(5, 9);
-          setDateOfBirth(formatted);
-        }}
+        onChangeText={setDateOfBirth}
         leftIcon="calendar"
         keyboardType="number-pad"
         maxLength={10}
@@ -453,41 +498,14 @@ export function RegisterScreen() {
         </View>
       </View>
 
-      <View style={styles.rowInputs}>
-        <View style={styles.halfInput}>
-          <Input
-            label="Section (Optional)"
-            placeholder="e.g., A, B, C"
-            value={section}
-            onChangeText={setSection}
-            autoCapitalize="characters"
-            maxLength={5}
-          />
-        </View>
-        <View style={styles.halfInput}>
-          <View style={styles.sectionContainer}>
-            <Text style={[styles.fieldLabel, {color: text}]}>Academic Year</Text>
-            <View style={styles.yearRow}>
-              {ACADEMIC_YEARS.map(year => (
-                <TouchableOpacity
-                  key={year}
-                  style={[
-                    styles.yearChip,
-                    {
-                      backgroundColor: academicYear === year ? primary : card,
-                      borderColor: academicYear === year ? primary : border,
-                    },
-                  ]}
-                  onPress={() => setAcademicYear(year)}>
-                  <Text style={[styles.yearText, {color: academicYear === year ? '#FFF' : text}]}>
-                    {year}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      </View>
+      <Input
+        label="Section (Optional)"
+        placeholder="e.g., A, B, C"
+        value={section}
+        onChangeText={setSection}
+        autoCapitalize="characters"
+        maxLength={5}
+      />
     </Animated.View>
   );
 
@@ -540,77 +558,24 @@ export function RegisterScreen() {
               ]}
               onPress={() => setDailyStudyHours(hour)}>
               <Text style={[styles.hourText, {color: dailyStudyHours === hour ? '#FFF' : text}]}>
-                {hour} hr{hour !== '1' && hour !== '6+' ? 's' : ''}
+                {hour} hr{hour !== '1' ? 's' : ''}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
       </View>
 
-      {/* Preferred Study Time */}
-      <View style={styles.sectionContainer}>
-        <Text style={[styles.fieldLabel, {color: text}]}>Preferred study time (select multiple)</Text>
-        <View style={styles.studyTimeGrid}>
-          {STUDY_TIMES.map(time => (
-            <TouchableOpacity
-              key={time.id}
-              style={[
-                styles.studyTimeCard,
-                {
-                  backgroundColor: preferredStudyTime.includes(time.id) ? primaryBg : card,
-                  borderColor: preferredStudyTime.includes(time.id) ? primary : border,
-                },
-              ]}
-              onPress={() => toggleStudyTime(time.id)}>
-              <Text style={styles.studyTimeEmoji}>{time.emoji}</Text>
-              <Text style={[styles.studyTimeName, {color: preferredStudyTime.includes(time.id) ? primary : text}]}>
-                {time.name}
-              </Text>
-              <Text style={[styles.studyTimeRange, {color: textMuted}]}>{time.time}</Text>
-              {preferredStudyTime.includes(time.id) && (
-                <View style={[styles.checkBadgeSmall, {backgroundColor: primary}]}>
-                  <Icon name="check" size={8} color="#FFF" />
-                </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </View>
+      {/* Summary */}
+      <View style={[styles.summaryCard, {backgroundColor: primaryBg, borderColor: primary}]}>
+        <Text style={[styles.summaryTitle, {color: primary}]}>📋 Registration Summary</Text>
+        <Text style={[styles.summaryText, {color: text}]}>
+          <Text style={styles.summaryLabel}>Name:</Text> {fullName}{'\n'}
+          <Text style={styles.summaryLabel}>Student:</Text> {studentName}{'\n'}
+          <Text style={styles.summaryLabel}>Board:</Text> {selectedBoard?.name}{'\n'}
+          <Text style={styles.summaryLabel}>Class:</Text> {selectedClass?.displayName || selectedClass?.className}{'\n'}
+          <Text style={styles.summaryLabel}>Medium:</Text> {MEDIUMS.find(m => m.id === selectedMedium)?.name}
+        </Text>
       </View>
-
-      {/* Target Exam */}
-      <View style={styles.sectionContainer}>
-        <Text style={[styles.fieldLabel, {color: text}]}>Target competitive exam</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.examRow}>
-            {TARGET_EXAMS.map(exam => (
-              <TouchableOpacity
-                key={exam.id}
-                style={[
-                  styles.examChip,
-                  {
-                    backgroundColor: targetExam === exam.id ? primary : card,
-                    borderColor: targetExam === exam.id ? primary : border,
-                  },
-                ]}
-                onPress={() => setTargetExam(exam.id)}>
-                <Text style={styles.examEmoji}>{exam.emoji}</Text>
-                <Text style={[styles.examText, {color: targetExam === exam.id ? '#FFF' : text}]}>
-                  {exam.name}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Career Goal */}
-      <Input
-        label="Career Goal / Aspiration (Optional)"
-        placeholder="e.g., Doctor, Engineer, IAS Officer"
-        value={careerGoal}
-        onChangeText={setCareerGoal}
-        leftIcon="target"
-      />
     </Animated.View>
   );
 
@@ -621,7 +586,7 @@ export function RegisterScreen() {
         style={styles.keyboardView}>
         {/* Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBack} disabled={loading}>
             <Icon name="chevron-left" size={24} color={text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
@@ -629,7 +594,7 @@ export function RegisterScreen() {
             <Text style={[styles.headerStep, {color: textMuted}]}>Step {currentStep} of 3</Text>
           </View>
           {currentStep > 1 && (
-            <TouchableOpacity onPress={handleSkip}>
+            <TouchableOpacity onPress={handleSkip} disabled={loading}>
               <Text style={[styles.skipText, {color: primary}]}>Skip</Text>
             </TouchableOpacity>
           )}
@@ -658,9 +623,10 @@ export function RegisterScreen() {
         {/* Bottom Button */}
         <View style={[styles.bottomContainer, {backgroundColor: background}]}>
           <Button
-            title={currentStep === 3 ? (isDirectRegistration ? 'Verify Phone 📱' : 'Complete Registration ✅') : 'Continue →'}
+            title={loading ? 'Creating Account...' : (currentStep === 3 ? 'Complete Registration ✅' : 'Continue →')}
             onPress={handleNext}
             loading={loading}
+            disabled={loading}
             fullWidth
             size="lg"
           />
@@ -806,6 +772,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: Spacing.md,
   },
+  helperText: {
+    fontSize: FontSizes.sm,
+    fontStyle: 'italic',
+  },
   optionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -835,16 +805,6 @@ const styles = StyleSheet.create({
     width: 18,
     height: 18,
     borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  checkBadgeSmall: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -904,27 +864,6 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '600',
   },
-  rowInputs: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-  },
-  halfInput: {
-    flex: 1,
-  },
-  yearRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  yearChip: {
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-  },
-  yearText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
   learningGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -967,49 +906,22 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '600',
   },
-  studyTimeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  studyTimeCard: {
-    width: '47%',
-    padding: Spacing.base,
+  summaryCard: {
+    padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
     borderWidth: 1.5,
-    alignItems: 'center',
-    position: 'relative',
+    marginTop: Spacing.lg,
   },
-  studyTimeEmoji: {
-    fontSize: 24,
-    marginBottom: Spacing.xs,
+  summaryTitle: {
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+    marginBottom: Spacing.md,
   },
-  studyTimeName: {
+  summaryText: {
     fontSize: FontSizes.sm,
-    fontWeight: '600',
+    lineHeight: 22,
   },
-  studyTimeRange: {
-    fontSize: FontSizes.xs,
-    marginTop: 2,
-  },
-  examRow: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-  },
-  examChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: Spacing.base,
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 1,
-    gap: Spacing.sm,
-  },
-  examEmoji: {
-    fontSize: 16,
-  },
-  examText: {
-    fontSize: FontSizes.sm,
+  summaryLabel: {
     fontWeight: '600',
   },
   bottomContainer: {

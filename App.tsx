@@ -1,10 +1,10 @@
 /**
  * AI Tutor App
- * Main entry point with Push Notifications
+ * Main entry point with Push Notifications and API integration
  */
 
 import React, {useEffect} from 'react';
-import {StatusBar, useColorScheme, Alert, Platform} from 'react-native';
+import {StatusBar, useColorScheme} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -13,7 +13,7 @@ import {
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {AppNavigator} from './src/navigation/AppNavigator';
-import {AuthProvider} from './src/context/AuthContext';
+import {AuthProvider, StudentProvider} from './src/context';
 import {Colors} from './src/constants/theme';
 import NotificationService from './src/services/NotificationService';
 
@@ -64,13 +64,11 @@ function App(): React.JSX.Element {
         // Set up foreground notification handler
         NotificationService.onNotification((message) => {
           console.log('📬 Foreground notification in App:', message);
-          // The notification will be displayed by the service
         });
 
         // Set up notification opened handler
         NotificationService.onNotificationOpened((message) => {
           console.log('🔓 Notification opened in App:', message);
-          // Navigation will be handled by useNotification hook in screens
         });
 
         console.log('✅ Push Notifications initialized successfully');
@@ -81,7 +79,6 @@ function App(): React.JSX.Element {
 
     initializeNotifications();
 
-    // Cleanup on unmount
     return () => {
       NotificationService.cleanup();
     };
@@ -90,16 +87,18 @@ function App(): React.JSX.Element {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <StatusBar
-          barStyle={isDark ? 'light-content' : 'dark-content'}
-          backgroundColor={
-            isDark ? Colors.dark.background : Colors.light.background
-          }
-          translucent={false}
-        />
-        <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
-          <AppNavigator />
-        </NavigationContainer>
+        <StudentProvider>
+          <StatusBar
+            barStyle={isDark ? 'light-content' : 'dark-content'}
+            backgroundColor={
+              isDark ? Colors.dark.background : Colors.light.background
+            }
+            translucent={false}
+          />
+          <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
+            <AppNavigator />
+          </NavigationContainer>
+        </StudentProvider>
       </AuthProvider>
     </SafeAreaProvider>
   );

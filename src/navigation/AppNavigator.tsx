@@ -1,23 +1,42 @@
 /**
  * App Navigator
- * Root navigation container
+ * Root navigation container with auth state handling
  */
 
 import React from 'react';
+import {View, ActivityIndicator, StyleSheet} from 'react-native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
-import {useAuth} from '../context/AuthContext';
+import {useAuth} from '../context';
 import {AuthNavigator} from './AuthNavigator';
 import {MainTabNavigator} from './MainTabNavigator';
 import {DoubtScreen} from '../screens/main/DoubtScreen';
 import {SubjectDetailScreen, ChapterScreen, LessonScreen} from '../screens/learn';
 import {NotificationSettingsScreen} from '../screens/settings';
+import {useThemeColor} from '../hooks/useThemeColor';
 import type {RootStackParamList} from '../types/navigation';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Loading screen component
+function LoadingScreen() {
+  const background = useThemeColor({}, 'background');
+  const primary = useThemeColor({}, 'primary');
+  
+  return (
+    <View style={[styles.loadingContainer, {backgroundColor: background}]}>
+      <ActivityIndicator size="large" color={primary} />
+    </View>
+  );
+}
+
 export function AppNavigator() {
-  const {isAuthenticated} = useAuth();
+  const {isAuthenticated, isLoading} = useAuth();
+
+  // Show loading screen while checking auth state
+  if (isLoading) {
+    return <LoadingScreen />;
+  }
 
   return (
     <Stack.Navigator
@@ -70,3 +89,11 @@ export function AppNavigator() {
     </Stack.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});

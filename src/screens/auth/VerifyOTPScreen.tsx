@@ -1,6 +1,6 @@
 /**
  * Verify OTP Screen
- * Default OTP: 242526
+ * OTP verification with real API integration
  */
 
 import React, {useState, useRef, useEffect} from 'react';
@@ -19,18 +19,15 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {useAuth} from '../../context/AuthContext';
+import {useAuth} from '../../context';
 import {Button, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
-// Default OTP for testing
-const DEFAULT_OTP = '242526';
-
 export function VerifyOTPScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'VerifyOTP'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'VerifyOTP'>['route']>();
-  const {login} = useAuth();
+  const {login, sendOtp} = useAuth();
   
   const {phone, isLogin, fromRegistration} = route.params as {
     phone: string; 
@@ -64,7 +61,6 @@ export function VerifyOTPScreen() {
       useNativeDriver: true,
     }).start();
     
-    // Focus first input
     setTimeout(() => inputRefs.current[0]?.focus(), 300);
   }, []);
 
@@ -88,7 +84,6 @@ export function VerifyOTPScreen() {
     setError('');
     
     if (value.length > 1) {
-      // Handle paste
       const pastedOtp = value.slice(0, 6).split('');
       const newOtp = [...otp];
       pastedOtp.forEach((digit, i) => {
@@ -106,7 +101,6 @@ export function VerifyOTPScreen() {
     newOtp[index] = value;
     setOtp(newOtp);
 
-    // Auto-advance to next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
@@ -127,27 +121,20 @@ export function VerifyOTPScreen() {
       return;
     }
 
-    if (enteredOtp !== DEFAULT_OTP) {
-      setError('Invalid OTP. Please try again.');
-      shakeError();
-      setOtp(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
-      return;
-    }
-
     setLoading(true);
+    setError('');
     
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
-      
-      // If login flow - go directly to Dashboard
+    try {
+      // If login flow - authenticate with API
       if (isLogin) {
-        login({
-          phone,
-          name: 'Student',
-        });
-        // Navigation will automatically switch to Main app
+        const success = await login(phone, enteredOtp);
+        if (!success) {
+          setError('Invalid OTP. Please try again.');
+          shakeError();
+          setOtp(['', '', '', '', '', '']);
+          inputRefs.current[0]?.focus();
+        }
+        // If success, AuthContext will update and navigation will switch automatically
         return;
       }
       
@@ -160,19 +147,35 @@ export function VerifyOTPScreen() {
         return;
       }
       
-      // Default - go to dashboard
-      login({
-        phone,
-        name: 'Student',
-      });
-    }, 1000);
+      // Default - try login
+      const success = await login(phone, enteredOtp);
+      if (!success) {
+        setError('Invalid OTP. Please try again.');
+        shakeError();
+        setOtp(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      }
+    } catch (err: any) {
+      setError(err.message || 'Verification failed. Please try again.');
+      shakeError();
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     setResendTimer(30);
     setOtp(['', '', '', '', '', '']);
     setError('');
-    Alert.alert('OTP Sent', `New OTP sent to +91 ${phone}\n\nHint: Use 242526 🔥`);
+    
+    const result = await sendOtp(phone, 'login');
+    if (result.success) {
+      if (__DEV__ && result.otp) {
+        Alert.alert('OTP Sent', `New OTP sent to +91 ${phone}\n\nDev OTP: ${result.otp}`);
+      } else {
+        Alert.alert('OTP Sent', `New OTP sent to +91 ${phone}`);
+      }
+    }
   };
 
   const isOtpComplete = otp.every(digit => digit !== '');
@@ -209,13 +212,15 @@ export function VerifyOTPScreen() {
             </Text>
           </Animated.View>
 
-          {/* Hint */}
-          <View style={[styles.hintContainer, {backgroundColor: `${success}15`}]}>
-            <Icon name="info" size={16} color={success} />
-            <Text style={[styles.hintText, {color: success}]}>
-              Demo OTP: 242526
-            </Text>
-          </View>
+          {/* Dev Hint */}
+          {__DEV__ && (
+            <View style={[styles.hintContainer, {backgroundColor: `${success}15`}]}>
+              <Icon name="info" size={16} color={success} />
+              <Text style={[styles.hintText, {color: success}]}>
+                Check console for OTP (dev mode)
+              </Text>
+            </View>
+          )}
 
           {/* OTP Input */}
           <Animated.View
@@ -245,6 +250,7 @@ export function VerifyOTPScreen() {
                 keyboardType="number-pad"
                 maxLength={6}
                 selectTextOnFocus
+                editable={!loading}
               />
             ))}
           </Animated.View>
@@ -261,7 +267,7 @@ export function VerifyOTPScreen() {
                 Resend OTP in {resendTimer}s
               </Text>
             ) : (
-              <TouchableOpacity onPress={handleResend}>
+              <TouchableOpacity onPress={handleResend} disabled={loading}>
                 <Text style={[styles.resendLink, {color: primary}]}>
                   Resend OTP 📩
                 </Text>
@@ -272,10 +278,10 @@ export function VerifyOTPScreen() {
           {/* Verify Button */}
           <View style={styles.buttonContainer}>
             <Button
-              title="Verify & Continue ✅"
+              title={loading ? 'Verifying...' : 'Verify & Continue ✅'}
               onPress={handleVerify}
               loading={loading}
-              disabled={!isOtpComplete}
+              disabled={!isOtpComplete || loading}
               fullWidth
               size="lg"
             />
@@ -284,7 +290,8 @@ export function VerifyOTPScreen() {
           {/* Change Number */}
           <TouchableOpacity
             style={styles.changeNumber}
-            onPress={() => navigation.goBack()}>
+            onPress={() => navigation.goBack()}
+            disabled={loading}>
             <Text style={[styles.changeNumberText, {color: textSecondary}]}>
               Wrong number?{' '}
               <Text style={{color: primary, fontWeight: '600'}}>Change</Text>

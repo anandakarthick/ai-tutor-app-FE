@@ -1,6 +1,5 @@
 /**
- * Doubt Screen - Modern Design
- * AI-powered doubt resolution with beautiful chat UI
+ * Doubt Screen - AI-powered doubt resolution
  */
 
 import React, {useState, useRef, useEffect} from 'react';
@@ -16,10 +15,12 @@ import {
   Animated,
   Dimensions,
   Keyboard,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useDoubts} from '../../hooks';
 import {Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 
@@ -37,7 +38,7 @@ const INITIAL_MESSAGES: Message[] = [
     id: '1',
     message: "Hello! 👋 I'm your AI tutor. Ask me anything about your studies - Math, Science, English, or any subject. I'm here to help you understand better!",
     sender: 'ai',
-    timestamp: '10:00 AM',
+    timestamp: 'Now',
   },
 ];
 
@@ -45,7 +46,7 @@ const QUICK_QUESTIONS = [
   {id: '1', text: 'Explain Pythagorean theorem', emoji: '📐'},
   {id: '2', text: 'What is photosynthesis?', emoji: '🌱'},
   {id: '3', text: 'Help with quadratic equations', emoji: '🔢'},
-  {id: '4', text: 'Explain Newton\'s laws', emoji: '🚀'},
+  {id: '4', text: "Explain Newton's laws", emoji: '🚀'},
 ];
 
 const SUBJECT_CHIPS = [
@@ -57,13 +58,15 @@ const SUBJECT_CHIPS = [
 
 export function DoubtScreen() {
   const navigation = useNavigation();
+  const {createDoubt, creating} = useDoubts();
+  
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  
   const flatListRef = useRef<FlatList>(null);
-  const inputRef = useRef<TextInput>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const typingDot1 = useRef(new Animated.Value(0.3)).current;
   const typingDot2 = useRef(new Animated.Value(0.3)).current;
@@ -86,21 +89,13 @@ export function DoubtScreen() {
       useNativeDriver: true,
     }).start();
 
-    // Keyboard listeners
     const keyboardDidShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => {
-        setKeyboardVisible(true);
-        setTimeout(() => {
-          flatListRef.current?.scrollToEnd({animated: true});
-        }, 100);
-      }
+      () => setKeyboardVisible(true)
     );
     const keyboardDidHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
-      () => {
-        setKeyboardVisible(false);
-      }
+      () => setKeyboardVisible(false)
     );
 
     return () => {
@@ -111,44 +106,35 @@ export function DoubtScreen() {
 
   // Typing animation
   useEffect(() => {
-    let animation: Animated.CompositeAnimation;
+    if (!isTyping) return;
     
-    if (isTyping) {
-      animation = Animated.loop(
+    const animate = () => {
+      Animated.sequence([
+        Animated.timing(typingDot1, {toValue: 1, duration: 300, useNativeDriver: true}),
+        Animated.timing(typingDot1, {toValue: 0.3, duration: 300, useNativeDriver: true}),
+      ]).start();
+      
+      setTimeout(() => {
         Animated.sequence([
-          Animated.timing(typingDot1, {toValue: 1, duration: 400, useNativeDriver: true}),
-          Animated.timing(typingDot1, {toValue: 0.3, duration: 400, useNativeDriver: true}),
-        ]),
-      );
-      animation.start();
+          Animated.timing(typingDot2, {toValue: 1, duration: 300, useNativeDriver: true}),
+          Animated.timing(typingDot2, {toValue: 0.3, duration: 300, useNativeDriver: true}),
+        ]).start();
+      }, 100);
       
       setTimeout(() => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(typingDot2, {toValue: 1, duration: 400, useNativeDriver: true}),
-            Animated.timing(typingDot2, {toValue: 0.3, duration: 400, useNativeDriver: true}),
-          ]),
-        ).start();
-      }, 150);
-      
-      setTimeout(() => {
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(typingDot3, {toValue: 1, duration: 400, useNativeDriver: true}),
-            Animated.timing(typingDot3, {toValue: 0.3, duration: 400, useNativeDriver: true}),
-          ]),
-        ).start();
-      }, 300);
-    }
-    
-    return () => {
-      if (animation) {
-        animation.stop();
-      }
+        Animated.sequence([
+          Animated.timing(typingDot3, {toValue: 1, duration: 300, useNativeDriver: true}),
+          Animated.timing(typingDot3, {toValue: 0.3, duration: 300, useNativeDriver: true}),
+        ]).start();
+      }, 200);
     };
+    
+    animate();
+    const interval = setInterval(animate, 900);
+    return () => clearInterval(interval);
   }, [isTyping]);
 
-  const handleSend = (customMessage?: string) => {
+  const handleSend = async (customMessage?: string) => {
     const messageText = customMessage || inputText.trim();
     if (!messageText) return;
 
@@ -156,49 +142,41 @@ export function DoubtScreen() {
       id: Date.now().toString(),
       message: messageText,
       sender: 'user',
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
     };
 
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
     setIsTyping(true);
     
-    setTimeout(() => {
-      flatListRef.current?.scrollToEnd({animated: true});
-    }, 100);
+    setTimeout(() => flatListRef.current?.scrollToEnd({animated: true}), 100);
 
-    // Simulate AI response
-    setTimeout(() => {
-      const responses = [
-        "Great question! Let me break this down for you step by step. 📚\n\nFirst, let's understand the core concept...",
-        "I'd be happy to help you with this! 🎯\n\nHere's a simple explanation...",
-        "That's an interesting topic! Let me explain it in a way that's easy to understand. ✨",
-        "Perfect! This is a common question. Let me guide you through it. 🚀",
-      ];
+    try {
+      // Create doubt via API
+      const doubt = await createDoubt(messageText);
       
+      // Add AI response
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
-        message: responses[Math.floor(Math.random() * responses.length)],
+        message: doubt?.aiAnswer || "I'm processing your question. Let me think about this... 🤔\n\nThis is a great question! Here's what you need to know...",
         sender: 'ai',
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
+        timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      // Fallback response
+      const aiMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        message: "I understand your question! Let me help you with this. 📚\n\nCould you provide more details so I can give you a better explanation?",
+        sender: 'ai',
+        timestamp: new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}),
       };
       setMessages(prev => [...prev, aiMessage]);
+    } finally {
       setIsTyping(false);
-      
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({animated: true});
-      }, 100);
-    }, 2000);
-  };
-
-  const handleQuickQuestion = (question: string) => {
-    handleSend(question);
+      setTimeout(() => flatListRef.current?.scrollToEnd({animated: true}), 100);
+    }
   };
 
   const renderMessage = ({item, index}: {item: Message; index: number}) => {
@@ -206,17 +184,12 @@ export function DoubtScreen() {
     const isFirst = index === 0 || messages[index - 1].sender !== item.sender;
     
     return (
-      <Animated.View
-        style={[
-          styles.messageWrapper,
-          isUser ? styles.userMessageWrapper : styles.aiMessageWrapper,
-        ]}>
+      <View style={[styles.messageWrapper, isUser ? styles.userMessageWrapper : styles.aiMessageWrapper]}>
         {!isUser && isFirst && (
           <View style={styles.aiAvatarContainer}>
             <View style={[styles.aiAvatar, {backgroundColor: primary}]}>
               <Text style={styles.aiAvatarEmoji}>🤖</Text>
             </View>
-            <View style={[styles.onlineIndicator, {backgroundColor: '#22C55E'}]} />
           </View>
         )}
         {!isUser && !isFirst && <View style={styles.avatarSpacer} />}
@@ -224,23 +197,14 @@ export function DoubtScreen() {
         <View
           style={[
             styles.messageBubble,
-            isUser
-              ? [styles.userBubble, {backgroundColor: primary}]
-              : [styles.aiBubble, {backgroundColor: card, borderColor: border}],
-            isFirst && (isUser ? styles.userBubbleFirst : styles.aiBubbleFirst),
+            isUser ? [styles.userBubble, {backgroundColor: primary}] : [styles.aiBubble, {backgroundColor: card, borderColor: border}],
           ]}>
-          <Text style={[styles.messageText, {color: isUser ? '#FFF' : text}]}>
-            {item.message}
-          </Text>
-          <Text
-            style={[
-              styles.timestamp,
-              {color: isUser ? 'rgba(255,255,255,0.7)' : textMuted},
-            ]}>
+          <Text style={[styles.messageText, {color: isUser ? '#FFF' : text}]}>{item.message}</Text>
+          <Text style={[styles.timestamp, {color: isUser ? 'rgba(255,255,255,0.7)' : textMuted}]}>
             {item.timestamp}
           </Text>
         </View>
-      </Animated.View>
+      </View>
     );
   };
 
@@ -253,24 +217,9 @@ export function DoubtScreen() {
       </View>
       <View style={[styles.typingBubble, {backgroundColor: card, borderColor: border}]}>
         <View style={styles.typingDots}>
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {backgroundColor: primary, opacity: typingDot1},
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {backgroundColor: primary, opacity: typingDot2},
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.typingDot,
-              {backgroundColor: primary, opacity: typingDot3},
-            ]}
-          />
+          <Animated.View style={[styles.typingDot, {backgroundColor: primary, opacity: typingDot1}]} />
+          <Animated.View style={[styles.typingDot, {backgroundColor: primary, opacity: typingDot2}]} />
+          <Animated.View style={[styles.typingDot, {backgroundColor: primary, opacity: typingDot3}]} />
         </View>
         <Text style={[styles.typingText, {color: textMuted}]}>AI is thinking...</Text>
       </View>
@@ -280,46 +229,31 @@ export function DoubtScreen() {
   const showQuickActions = messages.length <= 1 && !keyboardVisible;
 
   return (
-    <SafeAreaView
-      style={[styles.container, {backgroundColor: background}]}
-      edges={['top']}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
       <KeyboardAvoidingView 
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}>
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         
         {/* Header */}
-        <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
-          <View style={[styles.headerGradient, {backgroundColor: primary}]}>
-            <View style={styles.headerDecor1} />
-            <View style={styles.headerDecor2} />
-            
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}>
-              <Icon name="chevron-left" size={24} color="#FFF" />
-            </TouchableOpacity>
-            
-            <View style={styles.headerContent}>
-              <View style={styles.headerTitleRow}>
-                <Text style={styles.headerTitle}>AI Tutor</Text>
-                <View style={styles.onlineBadge}>
-                  <View style={styles.onlineDot} />
-                  <Text style={styles.onlineText}>Online</Text>
-                </View>
-              </View>
-              <Text style={styles.headerSubtitle}>Ask any doubt, anytime! 🚀</Text>
+        <View style={[styles.header, {backgroundColor: primary}]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Icon name="chevron-left" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>AI Tutor</Text>
+            <View style={styles.onlineBadge}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>Online</Text>
             </View>
-            
-            <TouchableOpacity style={styles.headerAction}>
-              <Icon name="more-vertical" size={24} color="#FFF" />
-            </TouchableOpacity>
           </View>
-        </Animated.View>
+          <TouchableOpacity style={styles.headerAction}>
+            <Icon name="more-vertical" size={24} color="#FFF" />
+          </TouchableOpacity>
+        </View>
 
-        {/* Subject Chips - Hide when keyboard is visible */}
+        {/* Subject Chips */}
         {!keyboardVisible && (
-          <Animated.View style={[styles.subjectContainer, {opacity: fadeAnim}]}>
+          <View style={[styles.subjectContainer, {borderBottomColor: border}]}>
             <FlatList
               horizontal
               data={SUBJECT_CHIPS}
@@ -335,21 +269,15 @@ export function DoubtScreen() {
                       borderColor: selectedSubject === item.id ? item.color : border,
                     },
                   ]}
-                  onPress={() => setSelectedSubject(
-                    selectedSubject === item.id ? null : item.id
-                  )}>
+                  onPress={() => setSelectedSubject(selectedSubject === item.id ? null : item.id)}>
                   <Text style={styles.subjectEmoji}>{item.emoji}</Text>
-                  <Text
-                    style={[
-                      styles.subjectName,
-                      {color: selectedSubject === item.id ? '#FFF' : text},
-                    ]}>
+                  <Text style={[styles.subjectName, {color: selectedSubject === item.id ? '#FFF' : text}]}>
                     {item.name}
                   </Text>
                 </TouchableOpacity>
               )}
             />
-          </Animated.View>
+          </View>
         )}
 
         {/* Messages */}
@@ -359,12 +287,6 @@ export function DoubtScreen() {
           renderItem={renderMessage}
           keyExtractor={item => item.id}
           contentContainerStyle={styles.messagesContent}
-          onContentSizeChange={() => {
-            if (keyboardVisible) {
-              flatListRef.current?.scrollToEnd({animated: true});
-            }
-          }}
-          onLayout={() => flatListRef.current?.scrollToEnd({animated: false})}
           keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             <>
@@ -372,14 +294,14 @@ export function DoubtScreen() {
               {showQuickActions && (
                 <View style={styles.quickActionsContainer}>
                   <Text style={[styles.quickActionsTitle, {color: textSecondary}]}>
-                    Quick questions to get started 💡
+                    Quick questions 💡
                   </Text>
                   <View style={styles.quickActionsGrid}>
                     {QUICK_QUESTIONS.map(q => (
                       <TouchableOpacity
                         key={q.id}
                         style={[styles.quickAction, {backgroundColor: card, borderColor: border}]}
-                        onPress={() => handleQuickQuestion(q.text)}>
+                        onPress={() => handleSend(q.text)}>
                         <Text style={styles.quickActionEmoji}>{q.emoji}</Text>
                         <Text style={[styles.quickActionText, {color: text}]} numberOfLines={2}>
                           {q.text}
@@ -389,51 +311,44 @@ export function DoubtScreen() {
                   </View>
                 </View>
               )}
-              <View style={{height: Spacing.md}} />
             </>
           }
         />
 
         {/* Input */}
         <View style={[styles.inputContainer, {backgroundColor: card, borderTopColor: border}]}>
-          <TouchableOpacity
-            style={[styles.attachButton, {backgroundColor: primaryBg}]}>
+          <TouchableOpacity style={[styles.attachButton, {backgroundColor: primaryBg}]}>
             <Icon name="image" size={20} color={primary} />
           </TouchableOpacity>
           
           <View style={[styles.inputWrapper, {backgroundColor: backgroundSecondary}]}>
             <TextInput
-              ref={inputRef}
               style={[styles.input, {color: text}]}
-              placeholder="Type your doubt here..."
+              placeholder="Type your doubt..."
               placeholderTextColor={textMuted}
               value={inputText}
               onChangeText={setInputText}
               multiline
               maxLength={500}
-              textAlignVertical="center"
+              editable={!creating}
             />
           </View>
           
           <TouchableOpacity
             style={[
               styles.sendButton,
-              {
-                backgroundColor: inputText.trim() ? primary : backgroundSecondary,
-              },
-              inputText.trim() && Shadows.md,
+              {backgroundColor: inputText.trim() ? primary : backgroundSecondary},
             ]}
             onPress={() => handleSend()}
-            disabled={!inputText.trim()}>
-            <Icon
-              name={inputText.trim() ? 'send' : 'mic'}
-              size={20}
-              color={inputText.trim() ? '#FFF' : primary}
-            />
+            disabled={!inputText.trim() || creating}>
+            {creating ? (
+              <ActivityIndicator size="small" color="#FFF" />
+            ) : (
+              <Icon name="send" size={20} color={inputText.trim() ? '#FFF' : primary} />
+            )}
           </TouchableOpacity>
         </View>
         
-        {/* Extra padding for bottom safe area */}
         <SafeAreaView edges={['bottom']} style={{backgroundColor: card}} />
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -443,97 +358,26 @@ export function DoubtScreen() {
 const styles = StyleSheet.create({
   container: {flex: 1},
   keyboardAvoid: {flex: 1},
-  
-  // Header
   header: {
-    overflow: 'hidden',
-  },
-  headerGradient: {
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.base,
     flexDirection: 'row',
     alignItems: 'center',
-    position: 'relative',
-    overflow: 'hidden',
   },
-  headerDecor1: {
-    position: 'absolute',
-    top: -30,
-    right: -30,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  headerDecor2: {
-    position: 'absolute',
-    bottom: -20,
-    left: '30%',
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  backButton: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
   headerContent: {flex: 1, marginLeft: Spacing.sm},
-  headerTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-  },
-  headerTitle: {
-    fontSize: FontSizes.xl,
-    fontWeight: '700',
-    color: '#FFF',
-  },
+  headerTitle: {fontSize: FontSizes.xl, fontWeight: '700', color: '#FFF'},
   onlineBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    borderRadius: BorderRadius.full,
+    marginTop: 2,
     gap: 4,
   },
-  onlineDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#4ADE80',
-  },
-  onlineText: {
-    fontSize: FontSizes.xs,
-    color: '#FFF',
-    fontWeight: '500',
-  },
-  headerSubtitle: {
-    fontSize: FontSizes.sm,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
-  headerAction: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  
-  // Subject Chips
-  subjectContainer: {
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  subjectList: {
-    paddingHorizontal: Spacing.base,
-    gap: Spacing.sm,
-  },
+  onlineDot: {width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ADE80'},
+  onlineText: {fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.8)'},
+  headerAction: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
+  subjectContainer: {paddingVertical: Spacing.md, borderBottomWidth: 1},
+  subjectList: {paddingHorizontal: Spacing.base, gap: Spacing.sm},
   subjectChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -544,93 +388,22 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     marginRight: Spacing.sm,
   },
-  subjectEmoji: {
-    fontSize: 14,
-  },
-  subjectName: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  
-  // Messages
-  messagesContent: {
-    padding: Spacing.base,
-    flexGrow: 1,
-  },
-  messageWrapper: {
-    flexDirection: 'row',
-    marginBottom: Spacing.sm,
-    alignItems: 'flex-end',
-  },
-  userMessageWrapper: {
-    justifyContent: 'flex-end',
-  },
-  aiMessageWrapper: {
-    justifyContent: 'flex-start',
-  },
-  aiAvatarContainer: {
-    position: 'relative',
-    marginRight: Spacing.sm,
-  },
-  avatarSpacer: {
-    width: 40,
-    marginRight: Spacing.sm,
-  },
-  aiAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  aiAvatarEmoji: {
-    fontSize: 20,
-  },
-  onlineIndicator: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 2,
-    borderColor: '#FFF',
-  },
-  messageBubble: {
-    maxWidth: '75%',
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.base,
-    borderRadius: BorderRadius.xl,
-  },
-  userBubble: {
-    borderBottomRightRadius: BorderRadius.xs,
-  },
-  aiBubble: {
-    borderWidth: 1,
-    borderBottomLeftRadius: BorderRadius.xs,
-  },
-  userBubbleFirst: {
-    borderBottomRightRadius: BorderRadius.xs,
-  },
-  aiBubbleFirst: {
-    borderBottomLeftRadius: BorderRadius.xs,
-  },
-  messageText: {
-    fontSize: FontSizes.base,
-    lineHeight: 22,
-  },
-  timestamp: {
-    fontSize: FontSizes.xs,
-    marginTop: Spacing.xs,
-    textAlign: 'right',
-  },
-  
-  // Typing Indicator
-  typingWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginBottom: Spacing.sm,
-  },
+  subjectEmoji: {fontSize: 14},
+  subjectName: {fontSize: FontSizes.sm, fontWeight: '600'},
+  messagesContent: {padding: Spacing.base, flexGrow: 1},
+  messageWrapper: {flexDirection: 'row', marginBottom: Spacing.sm, alignItems: 'flex-end'},
+  userMessageWrapper: {justifyContent: 'flex-end'},
+  aiMessageWrapper: {justifyContent: 'flex-start'},
+  aiAvatarContainer: {marginRight: Spacing.sm},
+  avatarSpacer: {width: 40, marginRight: Spacing.sm},
+  aiAvatar: {width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
+  aiAvatarEmoji: {fontSize: 20},
+  messageBubble: {maxWidth: '75%', paddingVertical: Spacing.md, paddingHorizontal: Spacing.base, borderRadius: BorderRadius.xl},
+  userBubble: {borderBottomRightRadius: BorderRadius.xs},
+  aiBubble: {borderWidth: 1, borderBottomLeftRadius: BorderRadius.xs},
+  messageText: {fontSize: FontSizes.base, lineHeight: 22},
+  timestamp: {fontSize: FontSizes.xs, marginTop: Spacing.xs, textAlign: 'right'},
+  typingWrapper: {flexDirection: 'row', alignItems: 'flex-end', marginBottom: Spacing.sm},
   typingBubble: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -640,34 +413,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     gap: Spacing.sm,
   },
-  typingDots: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  typingText: {
-    fontSize: FontSizes.sm,
-  },
-  
-  // Quick Actions
-  quickActionsContainer: {
-    marginTop: Spacing.xl,
-    paddingTop: Spacing.lg,
-  },
-  quickActionsTitle: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    marginBottom: Spacing.md,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
+  typingDots: {flexDirection: 'row', gap: 4},
+  typingDot: {width: 8, height: 8, borderRadius: 4},
+  typingText: {fontSize: FontSizes.sm},
+  quickActionsContainer: {marginTop: Spacing.xl, paddingTop: Spacing.lg},
+  quickActionsTitle: {fontSize: FontSizes.sm, fontWeight: '600', marginBottom: Spacing.md},
+  quickActionsGrid: {flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md},
   quickAction: {
     width: (width - Spacing.base * 2 - Spacing.md) / 2 - Spacing.md,
     padding: Spacing.base,
@@ -676,16 +427,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  quickActionEmoji: {
-    fontSize: 24,
-  },
-  quickActionText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-  
-  // Input
+  quickActionEmoji: {fontSize: 24},
+  quickActionText: {fontSize: FontSizes.sm, fontWeight: '500', textAlign: 'center'},
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
@@ -694,33 +437,14 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     gap: Spacing.sm,
   },
-  attachButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  attachButton: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
   inputWrapper: {
     flex: 1,
     borderRadius: BorderRadius.xl,
     paddingHorizontal: Spacing.base,
     minHeight: 44,
-    maxHeight: 120,
     justifyContent: 'center',
   },
-  input: {
-    fontSize: FontSizes.base,
-    maxHeight: 100,
-    minHeight: 44,
-    paddingTop: Platform.OS === 'ios' ? 12 : 10,
-    paddingBottom: Platform.OS === 'ios' ? 12 : 10,
-  },
-  sendButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  input: {fontSize: FontSizes.base, maxHeight: 100, minHeight: 44, paddingVertical: 12},
+  sendButton: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
 });
