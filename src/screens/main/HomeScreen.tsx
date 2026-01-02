@@ -1,6 +1,6 @@
 /**
  * Home Screen / Dashboard
- * Student's main dashboard with API integration
+ * Student's main dashboard with full API integration
  */
 
 import React, {useEffect, useRef, useState, useCallback} from 'react';
@@ -25,7 +25,8 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
-import {useDashboard, useProgress} from '../../hooks';
+import {useDashboard, useProgress, useSubjects} from '../../hooks';
+import {progressApi} from '../../services/api';
 import {
   Avatar,
   Badge,
@@ -51,6 +52,14 @@ interface CastDevice {
   isConnected: boolean;
 }
 
+interface SubjectProgressData {
+  subjectId: string;
+  subjectName: string;
+  totalTopics: number;
+  completedTopics: number;
+  avgProgress: number;
+}
+
 export function HomeScreen() {
   const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -61,9 +70,11 @@ export function HomeScreen() {
   const {currentStudent, dashboardStats, loadDashboard} = useStudent();
   const {todayPlan, leaderboard, achievements, loading: dashboardLoading, refresh: refreshDashboard} = useDashboard();
   const {streak, loading: progressLoading} = useProgress();
+  const {subjects, loading: subjectsLoading} = useSubjects(currentStudent?.classId);
 
   // Local state
   const [refreshing, setRefreshing] = useState(false);
+  const [subjectProgress, setSubjectProgress] = useState<SubjectProgressData[]>([]);
 
   // Cast state
   const [showCastModal, setShowCastModal] = useState(false);
@@ -82,6 +93,22 @@ export function HomeScreen() {
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
   const errorColor = useThemeColor({}, 'error');
+
+  // Load subject progress
+  useEffect(() => {
+    const loadSubjectProgress = async () => {
+      if (!currentStudent) return;
+      try {
+        const response = await progressApi.getOverall(currentStudent.id);
+        if (response.success && response.data?.subjectProgress) {
+          setSubjectProgress(response.data.subjectProgress);
+        }
+      } catch (err) {
+        console.log('Load subject progress error:', err);
+      }
+    };
+    loadSubjectProgress();
+  }, [currentStudent]);
 
   useEffect(() => {
     Animated.parallel([
@@ -149,8 +176,21 @@ export function HomeScreen() {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await Promise.all([loadDashboard(), refreshDashboard()]);
+    
+    // Reload subject progress
+    if (currentStudent) {
+      try {
+        const response = await progressApi.getOverall(currentStudent.id);
+        if (response.success && response.data?.subjectProgress) {
+          setSubjectProgress(response.data.subjectProgress);
+        }
+      } catch (err) {
+        console.log('Refresh subject progress error:', err);
+      }
+    }
+    
     setRefreshing(false);
-  }, [loadDashboard, refreshDashboard]);
+  }, [loadDashboard, refreshDashboard, currentStudent]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -171,12 +211,17 @@ export function HomeScreen() {
   const todayItems = todayPlan?.todayItems || [];
   const continueLearning = todayPlan?.continueLearning;
 
-  // Mock subjects for now (will be replaced with API)
-  const SUBJECTS = [
-    {subject: 'Mathematics', chaptersCompleted: 3, totalChapters: 15, progress: 20},
-    {subject: 'Science', chaptersCompleted: 2, totalChapters: 16, progress: 12},
-    {subject: 'English', chaptersCompleted: 4, totalChapters: 12, progress: 33},
-  ];
+  // Combine subjects with progress
+  const subjectsWithProgress = subjects.slice(0, 3).map(subject => {
+    const progress = subjectProgress.find(sp => sp.subjectId === subject.id);
+    return {
+      subject: subject.displayName,
+      subjectId: subject.id,
+      chaptersCompleted: progress?.completedTopics || 0,
+      totalChapters: subject.totalChapters || progress?.totalTopics || 10,
+      progress: Math.round(progress?.avgProgress || 0),
+    };
+  });
 
   const requestPermissions = async (): Promise<boolean> => {
     if (Platform.OS !== 'android') return true;
@@ -254,6 +299,13 @@ export function HomeScreen() {
     } catch (err) {
       console.log('Disconnect error:', err);
     }
+  };
+
+  const handleSubjectPress = (subjectId: string, subjectName: string) => {
+    navigation.navigate('SubjectDetail', {
+      subject: subjectName,
+      subjectId: subjectId,
+    });
   };
 
   const isLoading = dashboardLoading || progressLoading;
@@ -464,16 +516,29 @@ export function HomeScreen() {
               <Text style={[styles.seeAll, {color: primary}]}>View All</Text>
             </TouchableOpacity>
           </View>
-          {SUBJECTS.map((subject) => (
-            <SubjectCard
-              key={subject.subject}
-              subject={subject.subject}
-              chaptersCompleted={subject.chaptersCompleted}
-              totalChapters={subject.totalChapters}
-              progress={subject.progress}
-              onPress={() => navigation.navigate('Learn')}
-            />
-          ))}
+          
+          {subjectsLoading ? (
+            <ActivityIndicator size="small" color={primary} />
+          ) : subjectsWithProgress.length > 0 ? (
+            subjectsWithProgress.map((subject) => (
+              <SubjectCard
+                key={subject.subjectId}
+                subject={subject.subject}
+                chaptersCompleted={subject.chaptersCompleted}
+                totalChapters={subject.totalChapters}
+                progress={subject.progress}
+                onPress={() => handleSubjectPress(subject.subjectId, subject.subject)}
+              />
+            ))
+          ) : (
+            <View style={[styles.emptyCard, {backgroundColor: card}]}>
+              <Text style={styles.emptyEmoji}>📚</Text>
+              <Text style={[styles.emptyText, {color: text}]}>No subjects available</Text>
+              <Text style={[styles.emptySubtext, {color: textMuted}]}>
+                Subjects will appear here
+              </Text>
+            </View>
+          )}
         </Animated.View>
 
         {/* Quick Actions */}

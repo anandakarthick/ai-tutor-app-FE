@@ -1,9 +1,9 @@
 /**
  * Chapter Screen
- * Shows lessons list for a chapter with search
+ * Shows lessons/topics list for a chapter - API Integrated
  */
 
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -12,63 +12,31 @@ import {
   TouchableOpacity,
   Animated,
   TextInput,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useStudent} from '../../context';
+import {contentApi} from '../../services/api';
 import {Icon, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
-
-// Mock lessons data
-const LESSONS_DATA: Record<string, any[]> = {
-  'Real Numbers': [
-    {id: '1', title: 'Introduction to Real Numbers', duration: '15 min', type: 'video', isCompleted: true},
-    {id: '2', title: 'Euclid\'s Division Lemma', duration: '20 min', type: 'video', isCompleted: true},
-    {id: '3', title: 'The Fundamental Theorem of Arithmetic', duration: '25 min', type: 'video', isCompleted: true},
-    {id: '4', title: 'Practice Problems', duration: '10 min', type: 'quiz', isCompleted: true},
-    {id: '5', title: 'Revisiting Irrational Numbers', duration: '18 min', type: 'video', isCompleted: true},
-    {id: '6', title: 'Revisiting Rational Numbers', duration: '15 min', type: 'video', isCompleted: true},
-    {id: '7', title: 'Summary & Key Points', duration: '10 min', type: 'notes', isCompleted: true},
-    {id: '8', title: 'Chapter Test', duration: '30 min', type: 'quiz', isCompleted: true},
-  ],
-  'Pair of Linear Equations': [
-    {id: '1', title: 'Introduction to Linear Equations', duration: '15 min', type: 'video', isCompleted: true},
-    {id: '2', title: 'Graphical Method of Solution', duration: '22 min', type: 'video', isCompleted: true},
-    {id: '3', title: 'Algebraic Methods', duration: '25 min', type: 'video', isCompleted: true},
-    {id: '4', title: 'Substitution Method', duration: '20 min', type: 'video', isCompleted: true},
-    {id: '5', title: 'Elimination Method', duration: '18 min', type: 'video', isCurrent: true},
-    {id: '6', title: 'Cross-Multiplication Method', duration: '20 min', type: 'video', isLocked: false},
-    {id: '7', title: 'Practice Problems', duration: '15 min', type: 'quiz', isLocked: false},
-    {id: '8', title: 'Equations Reducible to Linear Form', duration: '22 min', type: 'video', isLocked: false},
-    {id: '9', title: 'Summary & Key Points', duration: '10 min', type: 'notes', isLocked: false},
-    {id: '10', title: 'Chapter Test', duration: '30 min', type: 'quiz', isLocked: true},
-  ],
-  'Chemical Reactions and Equations': [
-    {id: '1', title: 'Introduction to Chemical Reactions', duration: '18 min', type: 'video', isCompleted: true},
-    {id: '2', title: 'Chemical Equations', duration: '20 min', type: 'video', isCompleted: true},
-    {id: '3', title: 'Writing Chemical Equations', duration: '22 min', type: 'video', isCompleted: true},
-    {id: '4', title: 'Balancing Chemical Equations', duration: '25 min', type: 'video', isCurrent: true},
-    {id: '5', title: 'Types of Chemical Reactions', duration: '30 min', type: 'video', isLocked: false},
-    {id: '6', title: 'Practice Problems', duration: '15 min', type: 'quiz', isLocked: false},
-  ],
-};
-
-const getDefaultLessons = (chapterTitle: string) => [
-  {id: '1', title: `Introduction to ${chapterTitle}`, duration: '15 min', type: 'video', isCompleted: true},
-  {id: '2', title: 'Key Concepts Explained', duration: '20 min', type: 'video', isCompleted: true},
-  {id: '3', title: 'Detailed Analysis', duration: '25 min', type: 'video', isCurrent: true},
-  {id: '4', title: 'Practice Problems', duration: '15 min', type: 'quiz', isLocked: false},
-  {id: '5', title: 'Summary & Notes', duration: '10 min', type: 'notes', isLocked: false},
-  {id: '6', title: 'Chapter Test', duration: '30 min', type: 'quiz', isLocked: true},
-];
+import type {Topic} from '../../types/api';
 
 export function ChapterScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const {subject, chapter, chapterId, subjectColor} = route.params;
+  const {currentStudent} = useStudent();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [topics, setTopics] = useState<Topic[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentTopicId, setCurrentTopicId] = useState<string | null>(null);
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const background = useThemeColor({}, 'background');
@@ -79,13 +47,30 @@ export function ChapterScreen() {
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
 
-  const lessons = LESSONS_DATA[chapter] || getDefaultLessons(chapter);
+  // Load topics from API
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await contentApi.topics.getByChapter(chapterId);
+      if (response.success && response.data) {
+        setTopics(response.data);
+        
+        // Find first incomplete topic
+        const firstIncomplete = response.data.find((t: Topic) => !t.isCompleted);
+        if (firstIncomplete) {
+          setCurrentTopicId(firstIncomplete.id);
+        }
+      }
+    } catch (err) {
+      console.log('Load topics error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [chapterId]);
 
-  // Filter lessons based on search
-  const filteredLessons = lessons.filter((lesson: any) =>
-    lesson.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    lesson.type.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -95,22 +80,35 @@ export function ChapterScreen() {
     }).start();
   }, []);
 
-  const completedLessons = lessons.filter((l: any) => l.isCompleted).length;
-  const progress = Math.round((completedLessons / lessons.length) * 100);
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
 
-  const handleLessonPress = (lesson: any) => {
-    if (lesson.isLocked) return;
+  // Filter topics based on search
+  const filteredTopics = topics.filter((topic) =>
+    topic.topicTitle.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const completedTopics = topics.filter(t => t.isCompleted).length;
+  const progress = topics.length > 0 
+    ? Math.round((completedTopics / topics.length) * 100) 
+    : 0;
+
+  const handleTopicPress = (topic: Topic) => {
     navigation.navigate('Lesson', {
       subject,
       chapter,
-      lesson: lesson.title,
-      lessonId: lesson.id,
+      lesson: topic.topicTitle,
+      lessonId: topic.id,
+      topicId: topic.id,
       subjectColor,
-      lessonType: lesson.type,
+      lessonType: topic.contentType || 'lesson',
     });
   };
 
-  const getTypeIcon = (type: string) => {
+  const getTypeIcon = (type?: string) => {
     switch (type) {
       case 'video': return 'play';
       case 'quiz': return 'file-text';
@@ -119,7 +117,7 @@ export function ChapterScreen() {
     }
   };
 
-  const getTypeLabel = (type: string) => {
+  const getTypeLabel = (type?: string) => {
     switch (type) {
       case 'video': return 'Lesson';
       case 'quiz': return 'Quiz';
@@ -127,6 +125,17 @@ export function ChapterScreen() {
       default: return 'Lesson';
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={subjectColor || '#F97316'} />
+          <Text style={[styles.loadingText, {color: textMuted}]}>Loading lessons...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
@@ -151,7 +160,10 @@ export function ChapterScreen() {
       <ScrollView 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[subjectColor]} />
+        }>
         
         {/* Progress Card */}
         <Animated.View style={[styles.progressCard, {backgroundColor: subjectColor, opacity: fadeAnim}]}>
@@ -162,7 +174,7 @@ export function ChapterScreen() {
             <View style={styles.progressLeft}>
               <Text style={styles.progressTitle}>Chapter Progress</Text>
               <Text style={styles.progressSubtitle}>
-                {completedLessons} of {lessons.length} lessons completed
+                {completedTopics} of {topics.length} lessons completed
               </Text>
             </View>
             <View style={styles.progressCircle}>
@@ -177,10 +189,13 @@ export function ChapterScreen() {
           </View>
           
           {/* Continue Button */}
-          {lessons.find((l: any) => l.isCurrent) && (
+          {currentTopicId && (
             <TouchableOpacity 
               style={styles.continueButton}
-              onPress={() => handleLessonPress(lessons.find((l: any) => l.isCurrent))}>
+              onPress={() => {
+                const currentTopic = topics.find(t => t.id === currentTopicId);
+                if (currentTopic) handleTopicPress(currentTopic);
+              }}>
               <Icon name="play" size={16} color={subjectColor} />
               <Text style={[styles.continueText, {color: subjectColor}]}>Continue Learning</Text>
             </TouchableOpacity>
@@ -214,100 +229,99 @@ export function ChapterScreen() {
           </View>
           {searchQuery.length > 0 && (
             <Text style={[styles.searchResult, {color: textMuted}]}>
-              {filteredLessons.length} lesson{filteredLessons.length !== 1 ? 's' : ''} found
+              {filteredTopics.length} lesson{filteredTopics.length !== 1 ? 's' : ''} found
             </Text>
           )}
         </View>
 
-        {/* Lessons List */}
+        {/* Topics List */}
         <Text style={[styles.sectionTitle, {color: text}]}>
           Lessons 📖
         </Text>
 
-        {filteredLessons.length === 0 ? (
+        {filteredTopics.length === 0 ? (
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyEmoji}>🔍</Text>
             <Text style={[styles.emptyText, {color: textMuted}]}>
-              No lessons found for "{searchQuery}"
+              {searchQuery ? `No lessons found for "${searchQuery}"` : 'No lessons available'}
             </Text>
           </View>
         ) : (
-          filteredLessons.map((lesson: any, index: number) => (
-            <Animated.View key={lesson.id} style={{opacity: fadeAnim}}>
-              <TouchableOpacity
-                style={[
-                  styles.lessonCard,
-                  {
-                    backgroundColor: card,
-                    borderColor: lesson.isCurrent ? subjectColor : border,
-                    borderWidth: lesson.isCurrent ? 2 : 1,
-                    opacity: lesson.isLocked ? 0.5 : 1,
-                  },
-                  Shadows.sm,
-                ]}
-                onPress={() => handleLessonPress(lesson)}
-                disabled={lesson.isLocked}>
-                
-                {/* Lesson Number/Icon */}
-                <View
+          filteredTopics.map((topic, index) => {
+            const isCompleted = topic.isCompleted;
+            const isCurrent = topic.id === currentTopicId;
+            
+            return (
+              <Animated.View key={topic.id} style={{opacity: fadeAnim}}>
+                <TouchableOpacity
                   style={[
-                    styles.lessonIcon,
+                    styles.lessonCard,
                     {
-                      backgroundColor: lesson.isCompleted
-                        ? success
-                        : lesson.isCurrent
-                        ? subjectColor
-                        : `${subjectColor}15`,
+                      backgroundColor: card,
+                      borderColor: isCurrent ? subjectColor : border,
+                      borderWidth: isCurrent ? 2 : 1,
                     },
-                  ]}>
-                  {lesson.isCompleted ? (
-                    <Icon name="check" size={14} color="#FFF" />
-                  ) : lesson.isLocked ? (
-                    <Icon name="lock" size={12} color={textMuted} />
-                  ) : (
-                    <Icon
-                      name={getTypeIcon(lesson.type)}
-                      size={14}
-                      color={lesson.isCurrent ? '#FFF' : subjectColor}
-                    />
-                  )}
-                </View>
-
-                {/* Lesson Info */}
-                <View style={styles.lessonInfo}>
-                  <View style={styles.lessonTitleRow}>
-                    <Text style={[styles.lessonTitle, {color: text}]} numberOfLines={2}>
-                      {lesson.title}
-                    </Text>
+                    Shadows.sm,
+                  ]}
+                  onPress={() => handleTopicPress(topic)}>
+                  
+                  {/* Lesson Number/Icon */}
+                  <View
+                    style={[
+                      styles.lessonIcon,
+                      {
+                        backgroundColor: isCompleted
+                          ? success
+                          : isCurrent
+                          ? subjectColor
+                          : `${subjectColor}15`,
+                      },
+                    ]}>
+                    {isCompleted ? (
+                      <Icon name="check" size={14} color="#FFF" />
+                    ) : (
+                      <Icon
+                        name={getTypeIcon(topic.contentType)}
+                        size={14}
+                        color={isCurrent ? '#FFF' : subjectColor}
+                      />
+                    )}
                   </View>
-                  <View style={styles.lessonMeta}>
-                    <Badge 
-                      label={getTypeLabel(lesson.type)} 
-                      variant={lesson.type === 'quiz' ? 'info' : lesson.type === 'notes' ? 'success' : 'primary'} 
-                      size="sm" 
-                    />
-                    <View style={styles.durationBadge}>
-                      <Icon name="clock" size={10} color={textMuted} />
-                      <Text style={[styles.durationText, {color: textMuted}]}>
-                        {lesson.duration}
+
+                  {/* Lesson Info */}
+                  <View style={styles.lessonInfo}>
+                    <View style={styles.lessonTitleRow}>
+                      <Text style={[styles.lessonTitle, {color: text}]} numberOfLines={2}>
+                        {topic.topicTitle}
                       </Text>
                     </View>
+                    <View style={styles.lessonMeta}>
+                      <Badge 
+                        label={getTypeLabel(topic.contentType)} 
+                        variant={topic.contentType === 'quiz' ? 'info' : topic.contentType === 'notes' ? 'success' : 'primary'} 
+                        size="sm" 
+                      />
+                      <View style={styles.durationBadge}>
+                        <Icon name="clock" size={10} color={textMuted} />
+                        <Text style={[styles.durationText, {color: textMuted}]}>
+                          {topic.estimatedDuration || 15} min
+                        </Text>
+                      </View>
+                    </View>
                   </View>
-                </View>
 
-                {/* Play/Status Icon */}
-                {!lesson.isLocked && (
+                  {/* Play/Status Icon */}
                   <View style={[styles.playButton, {backgroundColor: `${subjectColor}15`}]}>
                     <Icon 
-                      name={lesson.isCompleted ? 'refresh-cw' : 'play'} 
+                      name={isCompleted ? 'refresh-cw' : 'play'} 
                       size={14} 
                       color={subjectColor} 
                     />
                   </View>
-                )}
-              </TouchableOpacity>
-            </Animated.View>
-          ))
+                </TouchableOpacity>
+              </Animated.View>
+            );
+          })
         )}
 
         <View style={{height: Spacing['2xl']}} />
@@ -318,6 +332,15 @@ export function ChapterScreen() {
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.sm,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

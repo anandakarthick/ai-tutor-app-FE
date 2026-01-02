@@ -1,9 +1,9 @@
 /**
  * Learn Screen
- * Browse subjects and chapters
+ * Browse subjects and chapters - API Integrated
  */
 
-import React, {useEffect, useRef} from 'react';
+import React, {useEffect, useRef, useCallback} from 'react';
 import {
   View,
   Text,
@@ -12,10 +12,15 @@ import {
   TouchableOpacity,
   Animated,
   useColorScheme,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useStudent} from '../../context';
+import {useSubjects} from '../../hooks/useApi';
+import {progressApi} from '../../services/api';
 import {Icon, ProgressBar} from '../../components/ui';
 import {
   BorderRadius,
@@ -24,27 +29,75 @@ import {
   Spacing,
   getSubjectTheme,
 } from '../../constants/theme';
+import type {Subject} from '../../types/api';
 
-const SUBJECTS = [
-  {id: '1', name: 'Mathematics', icon: 'function', progress: 20, chapters: 15, emoji: '📐'},
-  {id: '2', name: 'Science', icon: 'flask', progress: 12, chapters: 16, emoji: '🔬'},
-  {id: '3', name: 'English', icon: 'book', progress: 33, chapters: 12, emoji: '📖'},
-  {id: '4', name: 'Social Science', icon: 'globe', progress: 4, chapters: 24, emoji: '🌍'},
-  {id: '5', name: 'Hindi', icon: 'book', progress: 20, chapters: 10, emoji: '📚'},
-  {id: '6', name: 'Physics', icon: 'atom', progress: 15, chapters: 12, emoji: '⚛️'},
-];
+// Subject emoji mapping
+const SUBJECT_EMOJI: Record<string, string> = {
+  Mathematics: '📐',
+  Science: '🔬',
+  English: '📖',
+  Hindi: '📚',
+  'Social Science': '🌍',
+  Physics: '⚛️',
+  Chemistry: '🧪',
+  Biology: '🧬',
+  History: '📜',
+  Geography: '🗺️',
+  default: '📘',
+};
+
+// Subject icon mapping
+const SUBJECT_ICON: Record<string, string> = {
+  Mathematics: 'function',
+  Science: 'flask',
+  English: 'book',
+  Hindi: 'book',
+  'Social Science': 'globe',
+  Physics: 'atom',
+  Chemistry: 'flask',
+  Biology: 'heart',
+  History: 'clock',
+  Geography: 'map',
+  default: 'book-open',
+};
 
 export function LearnScreen() {
   const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
+  const {currentStudent} = useStudent();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+
+  // Fetch subjects based on student's class
+  const {subjects, loading, error, refresh} = useSubjects(currentStudent?.classId);
+  const [subjectProgress, setSubjectProgress] = React.useState<Record<string, number>>({});
+  const [refreshing, setRefreshing] = React.useState(false);
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const card = useThemeColor({}, 'card');
   const primary = useThemeColor({}, 'primary');
+
+  // Load progress for each subject
+  useEffect(() => {
+    const loadProgress = async () => {
+      if (!currentStudent) return;
+      try {
+        const response = await progressApi.getOverall(currentStudent.id);
+        if (response.success && response.data?.subjectProgress) {
+          const progressMap: Record<string, number> = {};
+          response.data.subjectProgress.forEach(sp => {
+            progressMap[sp.subjectId] = sp.avgProgress || 0;
+          });
+          setSubjectProgress(progressMap);
+        }
+      } catch (err) {
+        console.log('Load progress error:', err);
+      }
+    };
+    loadProgress();
+  }, [currentStudent, subjects]);
 
   useEffect(() => {
     Animated.parallel([
@@ -61,9 +114,32 @@ export function LearnScreen() {
     ]).start();
   }, []);
 
-  const handleSubjectPress = (subjectName: string) => {
-    navigation.navigate('SubjectDetail', {subject: subjectName});
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
+
+  const handleSubjectPress = (subject: Subject) => {
+    navigation.navigate('SubjectDetail', {
+      subject: subject.displayName,
+      subjectId: subject.id,
+    });
   };
+
+  const getEmoji = (name: string) => SUBJECT_EMOJI[name] || SUBJECT_EMOJI.default;
+  const getIcon = (name: string) => SUBJECT_ICON[name] || SUBJECT_ICON.default;
+
+  if (loading && subjects.length === 0) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={primary} />
+          <Text style={[styles.loadingText, {color: textSecondary}]}>Loading subjects...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView
@@ -78,7 +154,7 @@ export function LearnScreen() {
           <View>
             <Text style={[styles.title, {color: text}]}>Learn 📚</Text>
             <Text style={[styles.subtitle, {color: textSecondary}]}>
-              Pick a subject to start
+              {currentStudent?.class?.displayName || 'Pick a subject to start'}
             </Text>
           </View>
           <TouchableOpacity
@@ -90,32 +166,48 @@ export function LearnScreen() {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-        <Animated.View
-          style={[
-            styles.subjectsGrid,
-            {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
-          ]}>
-          {SUBJECTS.map((subject, index) => {
-            const subjectTheme = getSubjectTheme(subject.name, colorScheme);
-            return (
-              <SubjectGridCard
-                key={subject.id}
-                name={subject.name}
-                icon={subject.icon}
-                emoji={subject.emoji}
-                progress={subject.progress}
-                chapters={subject.chapters}
-                theme={subjectTheme}
-                cardColor={card}
-                textColor={text}
-                textSecondary={textSecondary}
-                delay={index * 50}
-                onPress={() => handleSubjectPress(subject.name)}
-              />
-            );
-          })}
-        </Animated.View>
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+        }>
+        {subjects.length === 0 && !loading ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyEmoji}>📭</Text>
+            <Text style={[styles.emptyText, {color: textSecondary}]}>
+              No subjects available for your class
+            </Text>
+            <TouchableOpacity onPress={handleRefresh}>
+              <Text style={[styles.retryText, {color: primary}]}>Tap to retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <Animated.View
+            style={[
+              styles.subjectsGrid,
+              {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
+            ]}>
+            {subjects.map((subject, index) => {
+              const subjectTheme = getSubjectTheme(subject.displayName, colorScheme);
+              const progress = subjectProgress[subject.id] || 0;
+              return (
+                <SubjectGridCard
+                  key={subject.id}
+                  name={subject.displayName}
+                  icon={getIcon(subject.displayName)}
+                  emoji={getEmoji(subject.displayName)}
+                  progress={Math.round(progress)}
+                  chapters={subject.totalChapters || 0}
+                  theme={subjectTheme}
+                  cardColor={card}
+                  textColor={text}
+                  textSecondary={textSecondary}
+                  delay={index * 50}
+                  onPress={() => handleSubjectPress(subject)}
+                />
+              );
+            })}
+          </Animated.View>
+        )}
         <View style={{height: Spacing.xl}} />
       </ScrollView>
     </SafeAreaView>
@@ -219,6 +311,15 @@ function SubjectGridCard({
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.sm,
+  },
   header: {
     paddingHorizontal: Spacing.lg,
     paddingTop: Spacing.md,
@@ -245,6 +346,23 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: Spacing.lg,
     paddingTop: 0,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing['3xl'],
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.base,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  retryText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
   },
   subjectsGrid: {
     flexDirection: 'row',

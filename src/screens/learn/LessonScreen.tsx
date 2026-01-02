@@ -1,9 +1,9 @@
 /**
- * Lesson Screen - Textbook Content with Audio Narration
- * Like Udemy learning experience
+ * Lesson Screen - Topic Content with Audio Narration
+ * API Integrated
  */
 
-import React, {useState, useRef, useEffect} from 'react';
+import React, {useState, useRef, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -11,151 +11,33 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
-  Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useStudent} from '../../context';
+import {contentApi, learningApi} from '../../services/api';
 import {Icon, Badge, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
-
-const {width} = Dimensions.get('window');
-
-// Mock textbook content
-const LESSON_CONTENT: Record<string, any> = {
-  'Elimination Method': {
-    title: 'Elimination Method',
-    subtitle: 'Solving Pair of Linear Equations',
-    duration: '18 min',
-    sections: [
-      {
-        type: 'heading',
-        content: '📚 What is Elimination Method?',
-      },
-      {
-        type: 'paragraph',
-        content: 'The elimination method is an algebraic technique used to solve a system of linear equations. In this method, we eliminate one variable by adding or subtracting the equations, making it easier to find the value of the remaining variable.',
-      },
-      {
-        type: 'highlight',
-        content: '💡 Key Idea: We multiply one or both equations by suitable numbers so that the coefficients of one variable become equal (or negative of each other), then add or subtract to eliminate that variable.',
-      },
-      {
-        type: 'heading',
-        content: '📝 Steps to Solve',
-      },
-      {
-        type: 'list',
-        items: [
-          'Step 1: Write both equations in standard form (ax + by = c)',
-          'Step 2: Multiply equations to make coefficients of one variable equal',
-          'Step 3: Add or subtract equations to eliminate one variable',
-          'Step 4: Solve for the remaining variable',
-          'Step 5: Substitute back to find the other variable',
-          'Step 6: Verify your solution in both original equations',
-        ],
-      },
-      {
-        type: 'heading',
-        content: '✏️ Solved Example',
-      },
-      {
-        type: 'example',
-        title: 'Example 1',
-        problem: 'Solve the following system of equations:\n2x + 3y = 8  ... (1)\n4x + y = 14  ... (2)',
-        solution: [
-          'Multiply equation (2) by 3:\n12x + 3y = 42  ... (3)',
-          'Subtract equation (1) from (3):\n12x + 3y - 2x - 3y = 42 - 8\n10x = 34\nx = 3.4',
-          'Substitute x = 3.4 in equation (1):\n2(3.4) + 3y = 8\n6.8 + 3y = 8\n3y = 1.2\ny = 0.4',
-          'Solution: x = 3.4, y = 0.4',
-        ],
-      },
-      {
-        type: 'heading',
-        content: '🎯 Practice Problem',
-      },
-      {
-        type: 'practice',
-        content: 'Try solving this yourself:\n\n3x + 2y = 12\nx + y = 5\n\nTap "Show Answer" when you\'re ready!',
-        answer: 'Solution: x = 2, y = 3\n\nMultiply eq(2) by 2: 2x + 2y = 10\nSubtract from eq(1): x = 2\nSubstitute: y = 3',
-      },
-      {
-        type: 'heading',
-        content: '📌 Key Points to Remember',
-      },
-      {
-        type: 'keypoints',
-        points: [
-          'Always check your solution in both equations',
-          'Choose which variable to eliminate based on easier calculations',
-          'If coefficients are already equal, directly add or subtract',
-          'Watch out for sign errors when subtracting equations',
-        ],
-      },
-    ],
-  },
-  'default': {
-    title: 'Lesson Content',
-    subtitle: 'Study Material',
-    duration: '15 min',
-    sections: [
-      {
-        type: 'heading',
-        content: '📚 Introduction',
-      },
-      {
-        type: 'paragraph',
-        content: 'This lesson covers important concepts that will help you understand the topic better. Pay attention to the key points and examples provided.',
-      },
-      {
-        type: 'highlight',
-        content: '💡 Remember: Understanding the basics is crucial before moving to advanced topics.',
-      },
-      {
-        type: 'heading',
-        content: '📝 Main Content',
-      },
-      {
-        type: 'paragraph',
-        content: 'The main concepts of this lesson include various aspects that are essential for your understanding. Each concept builds upon the previous one, so make sure to follow along carefully.',
-      },
-      {
-        type: 'list',
-        items: [
-          'Concept 1: Foundation principles',
-          'Concept 2: Application methods',
-          'Concept 3: Problem-solving techniques',
-          'Concept 4: Real-world examples',
-        ],
-      },
-      {
-        type: 'heading',
-        content: '📌 Summary',
-      },
-      {
-        type: 'keypoints',
-        points: [
-          'Review the key concepts regularly',
-          'Practice with examples',
-          'Ask doubts if anything is unclear',
-          'Test your understanding with quizzes',
-        ],
-      },
-    ],
-  },
-};
+import type {Topic, ContentBlock} from '../../types/api';
 
 export function LessonScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const {subject, chapter, lesson, lessonId, subjectColor} = route.params;
+  const {subject, chapter, lesson, topicId, subjectColor} = route.params;
+  const {currentStudent} = useStudent();
   
+  const [topic, setTopic] = useState<Topic | null>(null);
+  const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
+  const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(180); // 3 minutes demo
+  const [totalDuration, setTotalDuration] = useState(180);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [showAnswer, setShowAnswer] = useState(false);
+  const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
   const [isCompleted, setIsCompleted] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollViewRef = useRef<ScrollView>(null);
@@ -167,8 +49,50 @@ export function LessonScreen() {
   const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
+  const primary = useThemeColor({}, 'primary');
 
-  const lessonData = LESSON_CONTENT[lesson] || LESSON_CONTENT['default'];
+  // Load topic and content from API
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // Get topic details
+      const topicRes = await contentApi.topics.getById(topicId);
+      if (topicRes.success && topicRes.data) {
+        setTopic(topicRes.data);
+        setTotalDuration((topicRes.data.estimatedDuration || 15) * 60);
+      }
+      
+      // Get content blocks
+      const contentRes = await contentApi.topics.getContent(topicId);
+      if (contentRes.success && contentRes.data) {
+        setContentBlocks(contentRes.data);
+      }
+      
+      // Start learning session
+      if (currentStudent) {
+        const sessionRes = await learningApi.startSession(currentStudent.id, topicId);
+        if (sessionRes.success && sessionRes.data) {
+          setSessionId(sessionRes.data.id);
+        }
+      }
+    } catch (err) {
+      console.log('Load lesson error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [topicId, currentStudent]);
+
+  useEffect(() => {
+    loadData();
+    
+    return () => {
+      // End session on unmount
+      if (sessionId) {
+        learningApi.endSession(sessionId, 10).catch(console.log);
+      }
+    };
+  }, [loadData]);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -219,7 +143,16 @@ export function LessonScreen() {
     setPlaybackSpeed(speeds[nextIndex]);
   };
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    if (sessionId) {
+      await learningApi.endSession(sessionId, 20);
+    }
+    
+    // Update progress
+    if (currentStudent) {
+      await learningApi.updateProgress(currentStudent.id, topicId, 100);
+    }
+    
     setIsCompleted(true);
     setTimeout(() => {
       navigation.goBack();
@@ -228,35 +161,40 @@ export function LessonScreen() {
 
   const progress = (currentTime / totalDuration) * 100;
 
-  const renderSection = (section: any, index: number) => {
-    switch (section.type) {
+  const renderContentBlock = (block: ContentBlock, index: number) => {
+    switch (block.blockType) {
       case 'heading':
         return (
           <Text key={index} style={[styles.sectionHeading, {color: text}]}>
-            {section.content}
+            {block.content}
           </Text>
         );
       
       case 'paragraph':
+      case 'text':
         return (
           <Text key={index} style={[styles.paragraph, {color: textSecondary}]}>
-            {section.content}
+            {block.content}
           </Text>
         );
       
       case 'highlight':
+      case 'important':
         return (
           <View key={index} style={[styles.highlightBox, {backgroundColor: `${subjectColor}15`, borderLeftColor: subjectColor}]}>
             <Text style={[styles.highlightText, {color: text}]}>
-              {section.content}
+              💡 {block.content}
             </Text>
           </View>
         );
       
       case 'list':
+        const items = typeof block.content === 'string' 
+          ? block.content.split('\n').filter(Boolean)
+          : Array.isArray(block.content) ? block.content : [];
         return (
           <View key={index} style={styles.listContainer}>
-            {section.items.map((item: string, i: number) => (
+            {items.map((item: string, i: number) => (
               <View key={i} style={styles.listItem}>
                 <View style={[styles.listBullet, {backgroundColor: subjectColor}]} />
                 <Text style={[styles.listText, {color: textSecondary}]}>{item}</Text>
@@ -270,49 +208,50 @@ export function LessonScreen() {
           <View key={index} style={[styles.exampleBox, {backgroundColor: card, borderColor: border}]}>
             <View style={[styles.exampleHeader, {backgroundColor: subjectColor}]}>
               <Icon name="file-text" size={16} color="#FFF" />
-              <Text style={styles.exampleTitle}>{section.title}</Text>
+              <Text style={styles.exampleTitle}>Example</Text>
             </View>
             <View style={styles.exampleContent}>
               <Text style={[styles.exampleProblem, {color: text}]}>
-                {section.problem}
+                {block.content}
               </Text>
-              <View style={[styles.solutionDivider, {backgroundColor: border}]} />
-              <Text style={[styles.solutionLabel, {color: subjectColor}]}>Solution:</Text>
-              {section.solution.map((step: string, i: number) => (
-                <Text key={i} style={[styles.solutionStep, {color: textSecondary}]}>
-                  {step}
-                </Text>
-              ))}
             </View>
           </View>
         );
       
       case 'practice':
+      case 'question':
+        const blockId = block.id || String(index);
         return (
           <View key={index} style={[styles.practiceBox, {backgroundColor: `${success}10`, borderColor: success}]}>
             <Text style={[styles.practiceText, {color: text}]}>
-              {section.content}
+              🎯 {block.content}
             </Text>
-            {!showAnswer ? (
-              <TouchableOpacity 
-                style={[styles.showAnswerButton, {backgroundColor: success}]}
-                onPress={() => setShowAnswer(true)}>
-                <Text style={styles.showAnswerText}>Show Answer 👀</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.answerBox, {backgroundColor: '#FFF', borderColor: success}]}>
-                <Text style={[styles.answerText, {color: textSecondary}]}>
-                  {section.answer}
-                </Text>
-              </View>
+            {block.answer && (
+              !showAnswer[blockId] ? (
+                <TouchableOpacity 
+                  style={[styles.showAnswerButton, {backgroundColor: success}]}
+                  onPress={() => setShowAnswer(prev => ({...prev, [blockId]: true}))}>
+                  <Text style={styles.showAnswerText}>Show Answer 👀</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={[styles.answerBox, {backgroundColor: '#FFF', borderColor: success}]}>
+                  <Text style={[styles.answerText, {color: textSecondary}]}>
+                    {block.answer}
+                  </Text>
+                </View>
+              )
             )}
           </View>
         );
       
       case 'keypoints':
+      case 'summary':
+        const points = typeof block.content === 'string'
+          ? block.content.split('\n').filter(Boolean)
+          : Array.isArray(block.content) ? block.content : [];
         return (
           <View key={index} style={styles.keypointsContainer}>
-            {section.points.map((point: string, i: number) => (
+            {points.map((point: string, i: number) => (
               <View key={i} style={[styles.keypointItem, {backgroundColor: `${subjectColor}10`}]}>
                 <Text style={styles.keypointIcon}>✓</Text>
                 <Text style={[styles.keypointText, {color: text}]}>{point}</Text>
@@ -322,9 +261,24 @@ export function LessonScreen() {
         );
       
       default:
-        return null;
+        return (
+          <Text key={index} style={[styles.paragraph, {color: textSecondary}]}>
+            {typeof block.content === 'string' ? block.content : JSON.stringify(block.content)}
+          </Text>
+        );
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={subjectColor || primary} />
+          <Text style={[styles.loadingText, {color: textMuted}]}>Loading lesson...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
@@ -340,7 +294,7 @@ export function LessonScreen() {
             {chapter}
           </Text>
           <Text style={[styles.headerLesson, {color: text}]} numberOfLines={1}>
-            {lessonData.title}
+            {topic?.topicTitle || lesson}
           </Text>
         </View>
         <TouchableOpacity style={styles.bookmarkButton}>
@@ -359,17 +313,32 @@ export function LessonScreen() {
           <View style={styles.lessonTitleDecor1} />
           <View style={styles.lessonTitleDecor2} />
           <Text style={styles.lessonTitleEmoji}>📖</Text>
-          <Text style={styles.lessonTitleText}>{lessonData.title}</Text>
-          <Text style={styles.lessonSubtitleText}>{lessonData.subtitle}</Text>
+          <Text style={styles.lessonTitleText}>{topic?.topicTitle || lesson}</Text>
+          <Text style={styles.lessonSubtitleText}>{subject}</Text>
           <View style={styles.lessonMeta}>
-            <Badge label={`⏱️ ${lessonData.duration}`} variant="default" size="sm" />
+            <Badge label={`⏱️ ${topic?.estimatedDuration || 15} min`} variant="default" size="sm" />
           </View>
         </Animated.View>
 
         {/* Content Sections */}
         <View style={styles.contentContainer}>
-          {lessonData.sections.map((section: any, index: number) => 
-            renderSection(section, index)
+          {contentBlocks.length > 0 ? (
+            contentBlocks.map((block, index) => renderContentBlock(block, index))
+          ) : (
+            // Default content if no blocks
+            <>
+              <Text style={[styles.sectionHeading, {color: text}]}>
+                📚 {topic?.topicTitle || lesson}
+              </Text>
+              <Text style={[styles.paragraph, {color: textSecondary}]}>
+                {topic?.description || 'Content for this lesson is being prepared. Please check back later or contact your instructor.'}
+              </Text>
+              <View style={[styles.highlightBox, {backgroundColor: `${subjectColor}15`, borderLeftColor: subjectColor}]}>
+                <Text style={[styles.highlightText, {color: text}]}>
+                  💡 This lesson is part of {chapter}. Complete all lessons to master this chapter.
+                </Text>
+              </View>
+            </>
           )}
         </View>
 
@@ -450,6 +419,15 @@ export function LessonScreen() {
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.sm,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -597,23 +575,6 @@ const styles = StyleSheet.create({
   exampleProblem: {
     fontSize: FontSizes.sm,
     lineHeight: 20,
-    fontFamily: 'monospace',
-    marginBottom: Spacing.sm,
-  },
-  solutionDivider: {
-    height: 1,
-    marginVertical: Spacing.sm,
-  },
-  solutionLabel: {
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
-    marginBottom: Spacing.xs,
-  },
-  solutionStep: {
-    fontSize: FontSizes.xs,
-    lineHeight: 18,
-    marginBottom: Spacing.xs,
-    fontFamily: 'monospace',
   },
   practiceBox: {
     padding: Spacing.sm,
@@ -646,7 +607,6 @@ const styles = StyleSheet.create({
   answerText: {
     fontSize: FontSizes.xs,
     lineHeight: 18,
-    fontFamily: 'monospace',
   },
   keypointsContainer: {
     marginBottom: Spacing.sm,
@@ -684,7 +644,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#FFF',
   },
-  // Audio Player - Compact
   audioPlayer: {
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.sm,

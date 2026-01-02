@@ -1,9 +1,9 @@
 /**
  * Select Plan Screen
- * Subscription plan selection
+ * Subscription plan selection - API Integrated
  */
 
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View,
   Text,
@@ -11,74 +11,38 @@ import {
   ScrollView,
   TouchableOpacity,
   Animated,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {subscriptionsApi} from '../../services/api';
 import {Button, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
+import type {SubscriptionPlan} from '../../types/api';
 
-// Mock Plans Data
-const PLANS = [
-  {
-    id: 'free',
-    name: 'Free Trial',
-    price: 0,
-    duration: '7 days',
-    popular: false,
-    features: [
-      'Access to 2 subjects',
-      'Limited AI doubt solving',
-      '5 quizzes per day',
-      'Basic progress tracking',
-    ],
-    emoji: '🆓',
-    color: '#22C55E',
-  },
-  {
-    id: 'monthly',
-    name: 'Monthly',
-    price: 299,
-    duration: '/month',
-    popular: true,
-    features: [
-      'All subjects unlocked',
-      'Unlimited AI doubt solving',
-      'Unlimited quizzes',
-      'Detailed analytics',
-      'Personalized study plan',
-      'Download lessons offline',
-    ],
-    emoji: '⭐',
-    color: '#F97316',
-  },
-  {
-    id: 'yearly',
-    name: 'Yearly',
-    price: 1999,
-    originalPrice: 3588,
-    duration: '/year',
-    popular: false,
-    features: [
-      'Everything in Monthly',
-      'Priority support',
-      'Parent dashboard',
-      'Live doubt sessions',
-      'Certificate on completion',
-      'Save 44%',
-    ],
-    emoji: '👑',
-    color: '#8B5CF6',
-  },
-];
+// Plan emoji and color mapping
+const PLAN_STYLES: Record<string, {emoji: string; color: string}> = {
+  free: {emoji: '🆓', color: '#22C55E'},
+  trial: {emoji: '🎁', color: '#22C55E'},
+  monthly: {emoji: '⭐', color: '#F97316'},
+  quarterly: {emoji: '💎', color: '#3B82F6'},
+  yearly: {emoji: '👑', color: '#8B5CF6'},
+  annual: {emoji: '👑', color: '#8B5CF6'},
+};
 
 export function SelectPlanScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'SelectPlan'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'SelectPlan'>['route']>();
   const {userId} = route.params;
 
-  const [selectedPlan, setSelectedPlan] = useState('monthly');
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
@@ -91,6 +55,34 @@ export function SelectPlanScreen() {
   const border = useThemeColor({}, 'border');
   const primaryBg = useThemeColor({}, 'primaryBackground');
   const success = useThemeColor({}, 'success');
+
+  // Load plans from API
+  const loadPlans = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await subscriptionsApi.getPlans();
+      if (response.success && response.data) {
+        // Sort plans by price
+        const sortedPlans = response.data.sort((a, b) => a.price - b.price);
+        setPlans(sortedPlans);
+        
+        // Select recommended/popular plan by default, or first plan
+        const popularPlan = sortedPlans.find(p => p.isPopular);
+        const defaultPlan = popularPlan || sortedPlans.find(p => p.price > 0) || sortedPlans[0];
+        if (defaultPlan) {
+          setSelectedPlan(defaultPlan.id);
+        }
+      }
+    } catch (err) {
+      console.log('Load plans error:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPlans();
+  }, [loadPlans]);
 
   useEffect(() => {
     Animated.parallel([
@@ -107,8 +99,14 @@ export function SelectPlanScreen() {
     ]).start();
   }, []);
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadPlans();
+    setRefreshing(false);
+  };
+
   const handleContinue = () => {
-    const plan = PLANS.find(p => p.id === selectedPlan);
+    const plan = plans.find(p => p.id === selectedPlan);
     if (!plan) return;
 
     if (plan.price === 0) {
@@ -120,20 +118,65 @@ export function SelectPlanScreen() {
     } else {
       navigation.navigate('Payment', {
         planId: plan.id,
-        planName: plan.name,
+        planName: plan.planName,
         price: plan.price,
         userId,
       });
     }
   };
 
-  const getSelectedPlan = () => PLANS.find(p => p.id === selectedPlan);
+  const getSelectedPlan = () => plans.find(p => p.id === selectedPlan);
+  
+  const getPlanStyle = (plan: SubscriptionPlan) => {
+    const key = plan.planName.toLowerCase();
+    return PLAN_STYLES[key] || PLAN_STYLES.monthly;
+  };
+
+  const formatDuration = (plan: SubscriptionPlan) => {
+    if (plan.durationDays <= 7) return `${plan.durationDays} days`;
+    if (plan.durationDays <= 31) return '/month';
+    if (plan.durationDays <= 100) return '/quarter';
+    return '/year';
+  };
+
+  const parseFeatures = (plan: SubscriptionPlan): string[] => {
+    if (plan.features) {
+      if (Array.isArray(plan.features)) return plan.features;
+      if (typeof plan.features === 'string') {
+        try {
+          const parsed = JSON.parse(plan.features);
+          return Array.isArray(parsed) ? parsed : [];
+        } catch {
+          return plan.features.split(',').map(f => f.trim());
+        }
+      }
+    }
+    // Default features based on plan type
+    if (plan.price === 0) {
+      return ['Limited access', '5 doubts per day', 'Basic quizzes'];
+    }
+    return ['All subjects', 'Unlimited AI doubts', 'Full quiz access', 'Progress tracking'];
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={primary} />
+          <Text style={[styles.loadingText, {color: textSecondary}]}>Loading plans...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+        }>
         {/* Header */}
         <Animated.View
           style={[
@@ -152,82 +195,94 @@ export function SelectPlanScreen() {
             styles.plansContainer,
             {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
           ]}>
-          {PLANS.map((plan, index) => {
-            const isSelected = selectedPlan === plan.id;
-            return (
-              <TouchableOpacity
-                key={plan.id}
-                style={[
-                  styles.planCard,
-                  {
-                    backgroundColor: card,
-                    borderColor: isSelected ? plan.color : border,
-                    borderWidth: isSelected ? 2 : 1,
-                  },
-                  Shadows.md,
-                ]}
-                onPress={() => setSelectedPlan(plan.id)}
-                activeOpacity={0.8}>
-                {plan.popular && (
-                  <View
-                    style={[styles.popularBadge, {backgroundColor: plan.color}]}>
-                    <Text style={styles.popularText}>MOST POPULAR 🔥</Text>
-                  </View>
-                )}
+          {plans.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyEmoji}>📭</Text>
+              <Text style={[styles.emptyText, {color: textSecondary}]}>
+                No plans available at the moment
+              </Text>
+            </View>
+          ) : (
+            plans.map((plan) => {
+              const isSelected = selectedPlan === plan.id;
+              const style = getPlanStyle(plan);
+              const features = parseFeatures(plan);
+              
+              return (
+                <TouchableOpacity
+                  key={plan.id}
+                  style={[
+                    styles.planCard,
+                    {
+                      backgroundColor: card,
+                      borderColor: isSelected ? style.color : border,
+                      borderWidth: isSelected ? 2 : 1,
+                    },
+                    Shadows.md,
+                  ]}
+                  onPress={() => setSelectedPlan(plan.id)}
+                  activeOpacity={0.8}>
+                  {plan.isPopular && (
+                    <View
+                      style={[styles.popularBadge, {backgroundColor: style.color}]}>
+                      <Text style={styles.popularText}>MOST POPULAR 🔥</Text>
+                    </View>
+                  )}
 
-                <View style={styles.planHeader}>
-                  <View style={styles.planHeaderLeft}>
-                    <Text style={styles.planEmoji}>{plan.emoji}</Text>
-                    <View>
-                      <Text style={[styles.planName, {color: text}]}>
-                        {plan.name}
-                      </Text>
-                      {plan.originalPrice && (
-                        <Text
-                          style={[styles.originalPrice, {color: textMuted}]}>
-                          ₹{plan.originalPrice}
+                  <View style={styles.planHeader}>
+                    <View style={styles.planHeaderLeft}>
+                      <Text style={styles.planEmoji}>{style.emoji}</Text>
+                      <View>
+                        <Text style={[styles.planName, {color: text}]}>
+                          {plan.planName}
                         </Text>
+                        {plan.originalPrice && plan.originalPrice > plan.price && (
+                          <Text
+                            style={[styles.originalPrice, {color: textMuted}]}>
+                            ₹{plan.originalPrice}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.planPriceContainer}>
+                      {plan.price === 0 ? (
+                        <Text style={[styles.planPrice, {color: success}]}>
+                          FREE
+                        </Text>
+                      ) : (
+                        <>
+                          <Text style={[styles.planPrice, {color: style.color}]}>
+                            ₹{plan.price}
+                          </Text>
+                          <Text style={[styles.planDuration, {color: textMuted}]}>
+                            {formatDuration(plan)}
+                          </Text>
+                        </>
                       )}
                     </View>
                   </View>
-                  <View style={styles.planPriceContainer}>
-                    {plan.price === 0 ? (
-                      <Text style={[styles.planPrice, {color: success}]}>
-                        FREE
-                      </Text>
-                    ) : (
-                      <>
-                        <Text style={[styles.planPrice, {color: plan.color}]}>
-                          ₹{plan.price}
-                        </Text>
-                        <Text style={[styles.planDuration, {color: textMuted}]}>
-                          {plan.duration}
-                        </Text>
-                      </>
-                    )}
-                  </View>
-                </View>
 
-                <View style={styles.featuresContainer}>
-                  {plan.features.map((feature, fIndex) => (
-                    <View key={fIndex} style={styles.featureRow}>
-                      <Icon name="check-circle" size={16} color={success} />
-                      <Text style={[styles.featureText, {color: textSecondary}]}>
-                        {feature}
-                      </Text>
+                  <View style={styles.featuresContainer}>
+                    {features.map((feature, fIndex) => (
+                      <View key={fIndex} style={styles.featureRow}>
+                        <Icon name="check-circle" size={16} color={success} />
+                        <Text style={[styles.featureText, {color: textSecondary}]}>
+                          {feature}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {isSelected && (
+                    <View
+                      style={[styles.selectedCheck, {backgroundColor: style.color}]}>
+                      <Icon name="check" size={16} color="#FFF" />
                     </View>
-                  ))}
-                </View>
-
-                {isSelected && (
-                  <View
-                    style={[styles.selectedCheck, {backgroundColor: plan.color}]}>
-                    <Icon name="check" size={16} color="#FFF" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })}
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
         </Animated.View>
 
         {/* Benefits */}
@@ -264,26 +319,28 @@ export function SelectPlanScreen() {
         </Animated.View>
 
         {/* Bottom Button */}
-        <Animated.View style={[styles.bottomContainer, {opacity: fadeAnim}]}>
-          <View style={[styles.selectedPlanInfo, {backgroundColor: primaryBg, borderRadius: BorderRadius.lg}]}>
-            <Text style={[styles.selectedLabel, {color: textMuted}]}>
-              Selected:
-            </Text>
-            <Text style={[styles.selectedName, {color: text}]}>
-              {getSelectedPlan()?.emoji} {getSelectedPlan()?.name}
-            </Text>
-          </View>
-          <Button
-            title={
-              getSelectedPlan()?.price === 0
-                ? 'Start Free Trial 🎉'
-                : `Pay ₹${getSelectedPlan()?.price} 💳`
-            }
-            onPress={handleContinue}
-            fullWidth
-            size="lg"
-          />
-        </Animated.View>
+        {selectedPlan && (
+          <Animated.View style={[styles.bottomContainer, {opacity: fadeAnim}]}>
+            <View style={[styles.selectedPlanInfo, {backgroundColor: primaryBg, borderRadius: BorderRadius.lg}]}>
+              <Text style={[styles.selectedLabel, {color: textMuted}]}>
+                Selected:
+              </Text>
+              <Text style={[styles.selectedName, {color: text}]}>
+                {getPlanStyle(getSelectedPlan()!).emoji} {getSelectedPlan()?.planName}
+              </Text>
+            </View>
+            <Button
+              title={
+                getSelectedPlan()?.price === 0
+                  ? 'Start Free Trial 🎉'
+                  : `Pay ₹${getSelectedPlan()?.price} 💳`
+              }
+              onPress={handleContinue}
+              fullWidth
+              size="lg"
+            />
+          </Animated.View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -308,6 +365,15 @@ function BenefitItem({
 
 const styles = StyleSheet.create({
   container: {flex: 1},
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.sm,
+  },
   scrollContent: {
     padding: Spacing.lg,
     paddingBottom: Spacing.xl,
@@ -322,6 +388,18 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: FontSizes.base,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: Spacing['2xl'],
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.base,
+    textAlign: 'center',
   },
   plansContainer: {
     gap: Spacing.lg,
