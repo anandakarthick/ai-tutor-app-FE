@@ -18,7 +18,7 @@ import {
   TextInput,
   Platform,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
@@ -80,6 +80,7 @@ const calendarStyles = StyleSheet.create({
 
 export function StudyPlanScreen() {
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const {currentStudent} = useStudent();
   const {plans, loading, generate, refresh} = useStudyPlans();
   
@@ -235,6 +236,9 @@ export function StudyPlanScreen() {
     });
   };
 
+  // Calculate FAB bottom position based on safe area
+  const fabBottomPosition = Math.max(insets.bottom + 70, 90);
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
@@ -250,11 +254,16 @@ export function StudyPlanScreen() {
     <View style={[styles.container, {backgroundColor: background}]}>
       <SafeAreaView style={styles.flex1} edges={['top']}>
         {/* Header */}
-        <View style={[styles.header, {borderBottomColor: border, backgroundColor: background}]}>
+        <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Icon name="chevron-left" size={24} color={text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, {color: text}]}>Study Plan</Text>
+          <View style={styles.headerCenter}>
+            <Text style={[styles.headerTitle, {color: text}]}>Study Plan 📅</Text>
+            <Text style={[styles.headerSubtitle, {color: textSecondary}]}>
+              Organize your learning
+            </Text>
+          </View>
           <View style={styles.headerRight}>
             <TodayCalendarIcon size={36} color={primary} />
           </View>
@@ -267,42 +276,63 @@ export function StudyPlanScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
           }>
           
+          {/* Stats Cards */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
+              <Icon name="calendar" size={24} color={primary} />
+              <Text style={[styles.statValue, {color: text}]}>{plans.length}</Text>
+              <Text style={[styles.statLabel, {color: textSecondary}]}>Plans</Text>
+            </View>
+            <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
+              <Icon name="check-circle" size={24} color={success} />
+              <Text style={[styles.statValue, {color: text}]}>{planItems.filter(i => i.status === 'completed').length}</Text>
+              <Text style={[styles.statLabel, {color: textSecondary}]}>Completed</Text>
+            </View>
+            <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
+              <Icon name="target" size={24} color={warning} />
+              <Text style={[styles.statValue, {color: text}]}>{calculateProgress()}%</Text>
+              <Text style={[styles.statLabel, {color: textSecondary}]}>Progress</Text>
+            </View>
+          </View>
+
           {plans.length === 0 ? (
-            // Empty State
-            <Animated.View style={[styles.emptyContainer, {opacity: fadeAnim}]}>
-              <TodayCalendarIcon size={80} color={primary} />
-              <Text style={[styles.emptyTitle, {color: text}]}>No Study Plans Yet</Text>
-              <Text style={[styles.emptyDate, {color: primary}]}>{getTodayFormatted()}</Text>
-              <Text style={[styles.emptyText, {color: textSecondary}]}>
-                Create an AI-powered study plan to organize your learning journey and achieve your goals
-              </Text>
-              <View style={styles.emptyFeatures}>
-                <View style={styles.emptyFeatureRow}>
-                  <Icon name="check-circle" size={16} color={success} />
-                  <Text style={[styles.emptyFeatureText, {color: textSecondary}]}>
-                    Personalized daily schedule
-                  </Text>
-                </View>
-                <View style={styles.emptyFeatureRow}>
-                  <Icon name="check-circle" size={16} color={success} />
-                  <Text style={[styles.emptyFeatureText, {color: textSecondary}]}>
-                    AI-optimized learning path
-                  </Text>
-                </View>
-                <View style={styles.emptyFeatureRow}>
-                  <Icon name="check-circle" size={16} color={success} />
-                  <Text style={[styles.emptyFeatureText, {color: textSecondary}]}>
-                    Track your progress
-                  </Text>
-                </View>
+            // Empty State - Colorful like Quizzes
+            <View style={[styles.emptyCard, {backgroundColor: card}]}>
+              <View style={[styles.emptyIcon, {backgroundColor: primaryBg}]}>
+                <TodayCalendarIcon size={50} color={primary} />
               </View>
-              <TouchableOpacity 
-                style={[styles.createButton, {backgroundColor: primary}]}
+              <Text style={[styles.emptyTitle, {color: text}]}>
+                No Study Plans Yet
+              </Text>
+              <Text style={[styles.emptyText, {color: textSecondary}]}>
+                Create an AI-powered study plan to organize your learning journey and achieve your academic goals!
+              </Text>
+              <TouchableOpacity
+                style={[styles.actionButton, {backgroundColor: primary}]}
                 onPress={() => setShowCreateModal(true)}>
-                <Icon name="plus" size={20} color="#FFF" />
-                <Text style={styles.createButtonText}>Create Study Plan</Text>
+                <Icon name="plus" size={18} color="#FFF" />
+                <Text style={styles.actionButtonText}>Create Study Plan</Text>
               </TouchableOpacity>
-            </Animated.View>
+              
+              {/* Tips Box */}
+              <View style={[styles.tipsBox, {backgroundColor: background, borderColor: border}]}>
+                <Text style={[styles.tipsTitle, {color: text}]}>
+                  💡 Benefits of Study Plans:
+                </Text>
+                <Text style={[styles.tipItem, {color: textSecondary}]}>
+                  • Personalized daily learning schedule
+                </Text>
+                <Text style={[styles.tipItem, {color: textSecondary}]}>
+                  • AI-optimized for better results
+                </Text>
+                <Text style={[styles.tipItem, {color: textSecondary}]}>
+                  • Track your progress easily
+                </Text>
+                <Text style={[styles.tipItem, {color: textSecondary}]}>
+                  • Stay consistent with reminders
+                </Text>
+              </View>
+            </View>
           ) : (
             <>
               {/* Plan Selector */}
@@ -412,7 +442,9 @@ export function StudyPlanScreen() {
                     ))
                   ) : (
                     <View style={[styles.noItemsCard, {backgroundColor: card}]}>
-                      <TodayCalendarIcon size={50} color={primary} />
+                      <View style={[styles.emptyIcon, {backgroundColor: primaryBg}]}>
+                        <TodayCalendarIcon size={40} color={primary} />
+                      </View>
                       <Text style={[styles.noItemsText, {color: text}]}>No topics scheduled</Text>
                       <Text style={[styles.noItemsSubtext, {color: textMuted}]}>
                         Topics will appear here when you create a plan
@@ -424,16 +456,23 @@ export function StudyPlanScreen() {
             </>
           )}
           
-          <View style={{height: 120}} />
+          <View style={{height: 140}} />
         </ScrollView>
       </SafeAreaView>
 
-      {/* Floating Action Button - Always visible */}
+      {/* Floating Action Button - Rounded Rectangle with Text */}
       <TouchableOpacity
-        style={[styles.fab, {backgroundColor: primary}]}
+        style={[
+          styles.fab, 
+          {
+            backgroundColor: primary,
+            bottom: fabBottomPosition,
+          }
+        ]}
         onPress={() => setShowCreateModal(true)}
         activeOpacity={0.8}>
-        <Icon name="plus" size={28} color="#FFF" />
+        <Icon name="plus" size={20} color="#FFF" />
+        <Text style={styles.fabText}>Add Plan</Text>
       </TouchableOpacity>
 
       {/* Create Plan Modal */}
@@ -561,10 +600,8 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    borderBottomWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
   },
   backButton: {
     width: 40, 
@@ -572,68 +609,107 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     justifyContent: 'center',
   },
+  headerCenter: {
+    flex: 1,
+    marginLeft: 8,
+  },
   headerTitle: {
-    fontSize: FontSizes.lg, 
+    fontSize: 24, 
     fontWeight: '700',
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    marginTop: 2,
   },
   headerRight: {
     marginRight: Spacing.xs,
   },
   content: {
-    padding: Spacing.lg,
+    padding: 20,
+    paddingTop: 8,
     flexGrow: 1,
   },
-  emptyContainer: {
+  
+  // Stats Cards
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 24,
+  },
+  statCard: {
     flex: 1,
+    padding: 12,
+    borderRadius: 12,
     alignItems: 'center',
-    paddingVertical: Spacing['2xl'],
-    paddingHorizontal: Spacing.lg,
   },
-  emptyTitle: {
-    fontSize: FontSizes.xl, 
-    fontWeight: '700', 
-    marginTop: Spacing.lg,
-    marginBottom: Spacing.xs,
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 8,
   },
-  emptyDate: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-    marginBottom: Spacing.md,
+  statLabel: {
+    fontSize: 11,
+    marginTop: 2,
   },
-  emptyText: {
-    fontSize: FontSizes.base, 
-    textAlign: 'center', 
-    marginBottom: Spacing.lg,
-    lineHeight: 22,
-  },
-  emptyFeatures: {
-    alignSelf: 'stretch',
-    marginBottom: Spacing.xl,
-    paddingHorizontal: Spacing.lg,
-  },
-  emptyFeatureRow: {
-    flexDirection: 'row',
+  
+  // Empty State - Colorful like Quizzes
+  emptyCard: {
+    borderRadius: 16,
+    padding: 24,
     alignItems: 'center',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
   },
-  emptyFeatureText: {
-    fontSize: FontSizes.sm,
-  },
-  createButton: {
-    flexDirection: 'row',
+  emptyIcon: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.xl,
-    gap: Spacing.sm,
+    marginBottom: 16,
   },
-  createButtonText: {
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 28,
+    borderRadius: 14,
+    gap: 10,
+    marginBottom: 24,
+  },
+  actionButtonText: {
     color: '#FFF',
-    fontSize: FontSizes.base,
+    fontSize: 16,
     fontWeight: '700',
   },
+  tipsBox: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1.5,
+  },
+  tipsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  tipItem: {
+    fontSize: 13,
+    lineHeight: 24,
+  },
+  
+  // No items card
   noItemsCard: {
     padding: Spacing.xl,
     borderRadius: BorderRadius.lg,
@@ -650,6 +726,8 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     textAlign: 'center',
   },
+  
+  // Plan Selector
   planSelector: {
     paddingBottom: Spacing.lg, 
     gap: Spacing.sm,
@@ -670,6 +748,8 @@ const styles = StyleSheet.create({
     marginTop: 2, 
     textTransform: 'capitalize',
   },
+  
+  // Progress Card
   progressCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
@@ -719,6 +799,8 @@ const styles = StyleSheet.create({
   progressStat: {
     fontSize: FontSizes.sm,
   },
+  
+  // Date Section
   dateSection: {
     marginBottom: Spacing.lg,
   },
@@ -727,6 +809,8 @@ const styles = StyleSheet.create({
     fontWeight: '700', 
     marginBottom: Spacing.md,
   },
+  
+  // Item Card
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -764,21 +848,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  
+  // FAB - Rounded Rectangle with Text
   fab: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 40 : 24,
     right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 16,
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
   },
+  fabText: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  
+  // Modal
   modalOverlay: {
     flex: 1, 
     backgroundColor: 'rgba(0,0,0,0.5)', 
