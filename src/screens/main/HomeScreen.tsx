@@ -60,6 +60,58 @@ interface SubjectProgressData {
   avgProgress: number;
 }
 
+// Custom Calendar Icon Component that shows today's date
+function TodayCalendarIcon({ size = 40, color = '#6366F1' }: { size?: number; color?: string }) {
+  const today = new Date();
+  const day = today.getDate();
+  const month = today.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  
+  const iconSize = size;
+  const fontSize = size * 0.35;
+  const monthFontSize = size * 0.2;
+  
+  return (
+    <View style={[calendarStyles.container, { width: iconSize, height: iconSize }]}>
+      {/* Calendar top bar */}
+      <View style={[calendarStyles.topBar, { backgroundColor: color }]}>
+        <Text style={[calendarStyles.month, { fontSize: monthFontSize }]}>{month}</Text>
+      </View>
+      {/* Calendar body */}
+      <View style={calendarStyles.body}>
+        <Text style={[calendarStyles.day, { fontSize: fontSize, color }]}>{day}</Text>
+      </View>
+    </View>
+  );
+}
+
+const calendarStyles = StyleSheet.create({
+  container: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+  },
+  topBar: {
+    height: '30%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  month: {
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  day: {
+    fontWeight: '800',
+  },
+});
+
 export function HomeScreen() {
   const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -500,11 +552,18 @@ export function HomeScreen() {
             ))
           ) : (
             <View style={[styles.emptyCard, {backgroundColor: card}]}>
-              <Text style={styles.emptyEmoji}>📅</Text>
-              <Text style={[styles.emptyText, {color: text}]}>No study plan for today</Text>
+              {/* Custom Calendar Icon showing today's date */}
+              <TodayCalendarIcon size={50} color={primary} />
+              <Text style={[styles.emptyText, {color: text, marginTop: Spacing.md}]}>No study plan for today</Text>
               <Text style={[styles.emptySubtext, {color: textMuted}]}>
                 Create a study plan to get started
               </Text>
+              <TouchableOpacity 
+                style={[styles.createPlanButton, {backgroundColor: primary}]}
+                onPress={() => navigation.navigate('StudyPlan')}>
+                <Icon name="plus" size={16} color="#FFF" />
+                <Text style={styles.createPlanText}>Create Plan</Text>
+              </TouchableOpacity>
             </View>
           )}
         </Animated.View>
@@ -623,7 +682,7 @@ export function HomeScreen() {
               {castError && (
                 <View style={[styles.errorContainer, {backgroundColor: `${errorColor}15`}]}>
                   <Icon name="alert-circle" size={16} color={errorColor} />
-                  <Text style={[styles.errorText, {color: errorColor}]}>{castError}</Text>
+                  <Text style={[styles.errorTextStyle, {color: errorColor}]}>{castError}</Text>
                 </View>
               )}
 
@@ -814,7 +873,21 @@ const styles = StyleSheet.create({
   },
   emptyEmoji: {fontSize: 40, marginBottom: Spacing.md},
   emptyText: {fontSize: FontSizes.base, fontWeight: '600', marginBottom: Spacing.xs},
-  emptySubtext: {fontSize: FontSizes.sm, textAlign: 'center'},
+  emptySubtext: {fontSize: FontSizes.sm, textAlign: 'center', marginBottom: Spacing.md},
+  createPlanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.lg,
+    gap: Spacing.xs,
+    marginTop: Spacing.sm,
+  },
+  createPlanText: {
+    color: '#FFF',
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+  },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -868,7 +941,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginBottom: Spacing.md,
   },
-  errorText: {fontSize: FontSizes.sm, flex: 1},
+  errorTextStyle: {fontSize: FontSizes.sm, flex: 1},
   scanningContainer: {alignItems: 'center', paddingVertical: Spacing.xl},
   scanningText: {fontSize: FontSizes.sm, marginTop: Spacing.md},
   devicesList: {marginTop: Spacing.sm},
