@@ -21,14 +21,8 @@ import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
-// ============================================================
-// TO ADD YOUR LOGO:
-// 1. Place your logo file at: src/assets/images/logo.png
-// 2. Uncomment the line below:
-// import Logo from '../../assets/images/logo.png';
-// 3. Set USE_LOGO to true
-// ============================================================
-const USE_LOGO = false; // Set to true after adding logo.png
+// Import logo image
+const Logo = require('../../assets/images/logo.png');
 
 export function LoginScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
@@ -76,12 +70,10 @@ export function LoginScreen() {
       console.log('📱 SendOtp result:', result);
       
       if (result.success) {
-        // In dev mode, log the OTP for testing
         if (__DEV__ && result.otp) {
           console.log('🔑 Dev OTP:', result.otp);
         }
         
-        // Navigate to OTP screen
         console.log('📱 Navigating to VerifyOTP...');
         navigation.navigate('VerifyOTP', {phone, isLogin: true});
       } else {
@@ -122,23 +114,14 @@ export function LoginScreen() {
           ]}>
           {/* Header with Logo */}
           <View style={styles.header}>
-            {/* Logo - Using icon as placeholder. Replace with Image when logo is ready */}
-            <View style={[styles.logoContainer, Shadows.glow]}>
-              <View style={[styles.logoInner, {backgroundColor: primary}]}>
-                <Icon name="book-open" size={40} color="#FFF" />
-              </View>
-            </View>
-            
-            {/* 
-              TO USE CUSTOM LOGO IMAGE:
-              1. Add logo.png to src/assets/images/
-              2. Replace the View above with:
+            {/* Round Logo Image */}
+            <View style={[styles.logoContainer, {borderColor: `${primary}30`}]}>
               <Image 
-                source={require('../../assets/images/logo.png')}
+                source={Logo}
                 style={styles.logoImage}
-                resizeMode="contain"
+                resizeMode="cover"
               />
-            */}
+            </View>
             
             <Text style={[styles.appName, {color: primary}]}>AI Tutor</Text>
             <Text style={[styles.title, {color: text}]}>Welcome Back!</Text>
@@ -220,6 +203,8 @@ export function LoginScreen() {
   );
 }
 
+const LOGO_SIZE = 110;
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -262,19 +247,24 @@ const styles = StyleSheet.create({
     marginBottom: Spacing['2xl'],
   },
   logoContainer: {
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+    borderRadius: LOGO_SIZE / 2, // Perfect circle
+    overflow: 'hidden',
     marginBottom: Spacing.md,
-  },
-  logoInner: {
-    width: 90,
-    height: 90,
-    borderRadius: BorderRadius['2xl'],
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderWidth: 3,
+    backgroundColor: '#FFF',
+    // Shadow for iOS
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    // Shadow for Android
+    elevation: 8,
   },
   logoImage: {
-    width: 100,
-    height: 100,
-    borderRadius: BorderRadius['2xl'],
+    width: '100%',
+    height: '100%',
   },
   appName: {
     fontSize: FontSizes.xl,
