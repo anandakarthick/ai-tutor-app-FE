@@ -460,7 +460,7 @@ export function StudyPlanScreen() {
         </ScrollView>
       </SafeAreaView>
 
-      {/* Floating Action Button - Rounded Rectangle with Text */}
+      {/* Floating Action Button - Plus Icon Only */}
       <TouchableOpacity
         style={[
           styles.fab, 
@@ -471,8 +471,7 @@ export function StudyPlanScreen() {
         ]}
         onPress={() => setShowCreateModal(true)}
         activeOpacity={0.8}>
-        <Icon name="plus" size={20} color="#FFF" />
-        <Text style={styles.fabText}>Add Plan</Text>
+        <Icon name="plus" size={28} color="#FFF" />
       </TouchableOpacity>
 
       {/* Create Plan Modal */}
@@ -849,26 +848,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   
-  // FAB - Rounded Rectangle with Text
+  // FAB - Plus Icon Only (Rounded Square)
   fab: {
     position: 'absolute',
     right: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    width: 56,
+    height: 56,
     borderRadius: 16,
-    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowColor: '#000',
     shadowOffset: {width: 0, height: 4},
     shadowOpacity: 0.3,
     shadowRadius: 6,
     elevation: 8,
-  },
-  fabText: {
-    color: '#FFF',
-    fontSize: 15,
-    fontWeight: '700',
   },
   
   // Modal
