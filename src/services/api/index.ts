@@ -7,7 +7,14 @@
 export {API_CONFIG, ENDPOINTS} from './config';
 
 // Client
-export {default as apiClient, STORAGE_KEYS, setAuthTokens, clearAuthTokens, isAuthenticated} from './client';
+export {
+  default as apiClient,
+  STORAGE_KEYS,
+  setAuthTokens,
+  clearAuthTokens,
+  isAuthenticated,
+  setSessionTerminatedCallback,
+} from './client';
 
 // Encrypted Client
 export {encryptedApiClient} from './encryptedClient';

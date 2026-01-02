@@ -1,6 +1,7 @@
 /**
  * Auth Context
  * Authentication state management with API integration
+ * Supports single device login and FCM token management
  */
 
 import React, {
@@ -9,16 +10,19 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from 'react';
-import {Alert} from 'react-native';
+import {Alert, AppState, AppStateStatus} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {authApi, STORAGE_KEYS} from '../services/api';
+import messaging from '@react-native-firebase/messaging';
+import {authApi, STORAGE_KEYS, setSessionTerminatedCallback} from '../services/api';
 import type {User, RegisterData} from '../types/api';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   user: User | null;
+  sessionTerminated: boolean;
   login: (phone: string, otp: string) => Promise<boolean>;
   loginWithPassword: (email: string, password: string) => Promise<boolean>;
   register: (data: RegisterData) => Promise<boolean>;
@@ -28,6 +32,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   updateFcmToken: (token: string) => Promise<void>;
   updateLocalUser: (userData: Partial<User>) => void;
+  clearSessionTerminated: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -36,11 +41,80 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [sessionTerminated, setSessionTerminated] = useState(false);
+  const appState = useRef(AppState.currentState);
+
+  // Handle session terminated from API client
+  const handleSessionTerminated = useCallback(() => {
+    console.log('[AuthContext] Session terminated - logging out');
+    setSessionTerminated(true);
+    setUser(null);
+    setIsAuthenticated(false);
+    
+    Alert.alert(
+      'Session Ended',
+      'You have been logged out because you signed in on another device. Only one device can be active at a time.',
+      [{text: 'OK', onPress: () => setSessionTerminated(false)}]
+    );
+  }, []);
+
+  // Set the callback for session terminated
+  useEffect(() => {
+    setSessionTerminatedCallback(handleSessionTerminated);
+  }, [handleSessionTerminated]);
+
+  // Get FCM token
+  const getFcmToken = async (): Promise<string | null> => {
+    try {
+      // Request permission first
+      const authStatus = await messaging().requestPermission();
+      const enabled =
+        authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
+        authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+
+      if (enabled) {
+        const token = await messaging().getToken();
+        console.log('[AuthContext] FCM Token:', token);
+        return token;
+      }
+      console.log('[AuthContext] FCM permission not granted');
+      return null;
+    } catch (error) {
+      console.log('[AuthContext] FCM token error:', error);
+      return null;
+    }
+  };
 
   // Check authentication status on mount
   useEffect(() => {
     checkAuth();
   }, []);
+
+  // Handle app state changes - validate session when app comes to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, [isAuthenticated]);
+
+  const handleAppStateChange = async (nextAppState: AppStateStatus) => {
+    if (
+      appState.current.match(/inactive|background/) &&
+      nextAppState === 'active' &&
+      isAuthenticated
+    ) {
+      // App came to foreground - validate session
+      console.log('[AuthContext] App came to foreground - validating session');
+      try {
+        const response = await authApi.validateSession();
+        if (response.success && response.data && !response.data.valid) {
+          handleSessionTerminated();
+        }
+      } catch (error) {
+        console.log('[AuthContext] Session validation error:', error);
+      }
+    }
+    appState.current = nextAppState;
+  };
 
   const checkAuth = async () => {
     try {
@@ -58,8 +132,13 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
           if (response.success && response.data) {
             setUser(response.data.user);
           }
-        } catch (error) {
-          console.log('Failed to refresh user:', error);
+        } catch (error: any) {
+          // Check if session was terminated
+          if (error.response?.data?.code === 'SESSION_TERMINATED') {
+            handleSessionTerminated();
+          } else {
+            console.log('Failed to refresh user:', error);
+          }
         }
       }
     } catch (error) {
@@ -92,33 +171,37 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       return response.success && response.data?.verified;
     } catch (error: any) {
       console.log('Verify OTP error:', error);
-      // Don't show alert here - let the screen handle it
       return false;
     }
   }, []);
 
   const login = useCallback(async (phone: string, otp: string) => {
     try {
-      const response = await authApi.loginWithOtp(phone, otp);
+      // Get FCM token before login
+      const fcmToken = await getFcmToken();
+      
+      const response = await authApi.loginWithOtp(phone, otp, fcmToken || undefined);
       if (response.success && response.data) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        
+        // Show info if previous session was terminated
+        if (response.data.previousSessionTerminated) {
+          console.log('[AuthContext] Previous session was terminated');
+        }
+        
         return true;
       }
       return false;
     } catch (error: any) {
       console.log('Login error:', error);
       
-      // Extract error info
       const errorCode = error.response?.data?.code || '';
       const errorMessage = error.response?.data?.message || 'Login failed';
       
-      // Create custom error with code attached
       const customError = new Error(errorMessage);
       (customError as any).code = errorCode;
       
-      // Throw error so screen can handle it
-      // This includes USER_NOT_FOUND, INVALID_OTP, OTP_EXPIRED, etc.
       throw customError;
     }
   }, []);
@@ -126,10 +209,18 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   const loginWithPassword = useCallback(
     async (email: string, password: string) => {
       try {
-        const response = await authApi.loginWithPassword(email, password);
+        // Get FCM token before login
+        const fcmToken = await getFcmToken();
+        
+        const response = await authApi.loginWithPassword(email, password, fcmToken || undefined);
         if (response.success && response.data) {
           setUser(response.data.user);
           setIsAuthenticated(true);
+          
+          if (response.data.previousSessionTerminated) {
+            console.log('[AuthContext] Previous session was terminated');
+          }
+          
           return true;
         }
         return false;
@@ -147,7 +238,10 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
   const register = useCallback(async (data: RegisterData) => {
     try {
-      const response = await authApi.register(data);
+      // Get FCM token before registration
+      const fcmToken = await getFcmToken();
+      
+      const response = await authApi.register({...data, fcmToken: fcmToken || undefined});
       if (response.success && response.data) {
         setUser(response.data.user);
         setIsAuthenticated(true);
@@ -172,6 +266,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     } finally {
       setUser(null);
       setIsAuthenticated(false);
+      setSessionTerminated(false);
     }
   }, []);
 
@@ -183,12 +278,15 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         console.log('[AuthContext] User refreshed:', response.data.user);
         setUser(response.data.user);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('[AuthContext] Refresh user error:', error);
+      // Check if session was terminated
+      if (error.response?.data?.code === 'SESSION_TERMINATED') {
+        handleSessionTerminated();
+      }
     }
-  }, []);
+  }, [handleSessionTerminated]);
 
-  // Update local user state (for immediate UI updates after profile save)
   const updateLocalUser = useCallback((userData: Partial<User>) => {
     console.log('[AuthContext] Updating local user:', userData);
     setUser(prev => prev ? {...prev, ...userData} : null);
@@ -197,9 +295,14 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   const updateFcmToken = useCallback(async (token: string) => {
     try {
       await authApi.updateFcmToken(token);
+      await AsyncStorage.setItem(STORAGE_KEYS.FCM_TOKEN, token);
     } catch (error) {
       console.log('Update FCM token error:', error);
     }
+  }, []);
+
+  const clearSessionTerminated = useCallback(() => {
+    setSessionTerminated(false);
   }, []);
 
   return (
@@ -208,6 +311,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         isAuthenticated,
         isLoading,
         user,
+        sessionTerminated,
         login,
         loginWithPassword,
         register,
@@ -217,6 +321,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         refreshUser,
         updateFcmToken,
         updateLocalUser,
+        clearSessionTerminated,
       }}>
       {children}
     </AuthContext.Provider>

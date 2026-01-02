@@ -215,6 +215,8 @@ export interface AuthTokens {
 export interface LoginResponse {
   user: User;
   tokens: AuthTokens;
+  sessionId?: string;
+  previousSessionTerminated?: boolean;
 }
 
 export interface RegisterData {
@@ -222,6 +224,7 @@ export interface RegisterData {
   phone: string;
   email?: string;
   password?: string;
+  fcmToken?: string;
 }
 
 // ==================== Student Types ====================

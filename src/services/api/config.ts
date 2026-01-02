@@ -34,6 +34,7 @@ export const ENDPOINTS = {
     LOGOUT: '/auth/logout',
     ME: '/auth/me',
     FCM_TOKEN: '/auth/fcm-token',
+    VALIDATE_SESSION: '/auth/validate-session',
   },
 
   // Users
@@ -162,5 +163,13 @@ export const ENDPOINTS = {
     TODAY: '/dashboard/today',
     LEADERBOARD: '/dashboard/leaderboard',
     ACHIEVEMENTS: '/dashboard/achievements',
+  },
+
+  // Settings
+  SETTINGS: {
+    NOTIFICATION_PREFERENCES: '/settings/notification-preferences',
+    FAQS: '/settings/faqs',
+    CONTACT_INFO: '/settings/contact-info',
+    APP_INFO: '/settings/app-info',
   },
 };

@@ -1,8 +1,10 @@
 /**
  * Authentication API Service
+ * With FCM token support and single device login
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {Platform} from 'react-native';
 import apiClient, {setAuthTokens, clearAuthTokens, STORAGE_KEYS} from './client';
 import {ENDPOINTS} from './config';
 import type {
@@ -12,6 +14,11 @@ import type {
   RegisterData,
   AuthTokens,
 } from '../../types/api';
+
+// Get device info for tracking (simple version without external dependency)
+const getDeviceInfo = (): string => {
+  return `${Platform.OS} ${Platform.Version}`;
+};
 
 export const authApi = {
   /**
@@ -39,16 +46,24 @@ export const authApi = {
   /**
    * Register new user
    */
-  register: async (data: RegisterData) => {
+  register: async (data: RegisterData & {fcmToken?: string}) => {
+    const deviceInfo = getDeviceInfo();
+    
     const response = await apiClient.post<ApiResponse<LoginResponse>>(
       ENDPOINTS.AUTH.REGISTER,
-      data
+      {
+        ...data,
+        deviceInfo,
+      }
     );
     
     if (response.data.success && response.data.data) {
-      const {tokens, user} = response.data.data;
+      const {tokens, user, sessionId} = response.data.data;
       await setAuthTokens(tokens.accessToken, tokens.refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      if (sessionId) {
+        await AsyncStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+      }
     }
     
     return response.data;
@@ -57,16 +72,26 @@ export const authApi = {
   /**
    * Login with phone and OTP
    */
-  loginWithOtp: async (phone: string, otp: string) => {
+  loginWithOtp: async (phone: string, otp: string, fcmToken?: string) => {
+    const deviceInfo = getDeviceInfo();
+    
     const response = await apiClient.post<ApiResponse<LoginResponse>>(
       ENDPOINTS.AUTH.LOGIN,
-      {phone, otp}
+      {
+        phone,
+        otp,
+        fcmToken,
+        deviceInfo,
+      }
     );
     
     if (response.data.success && response.data.data) {
-      const {tokens, user} = response.data.data;
+      const {tokens, user, sessionId} = response.data.data;
       await setAuthTokens(tokens.accessToken, tokens.refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      if (sessionId) {
+        await AsyncStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+      }
     }
     
     return response.data;
@@ -75,19 +100,53 @@ export const authApi = {
   /**
    * Login with email and password
    */
-  loginWithPassword: async (email: string, password: string) => {
+  loginWithPassword: async (email: string, password: string, fcmToken?: string) => {
+    const deviceInfo = getDeviceInfo();
+    
     const response = await apiClient.post<ApiResponse<LoginResponse>>(
       ENDPOINTS.AUTH.LOGIN_PASSWORD,
-      {email, password}
+      {
+        email,
+        password,
+        fcmToken,
+        deviceInfo,
+      }
     );
     
     if (response.data.success && response.data.data) {
-      const {tokens, user} = response.data.data;
+      const {tokens, user, sessionId} = response.data.data;
       await setAuthTokens(tokens.accessToken, tokens.refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+      if (sessionId) {
+        await AsyncStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+      }
     }
     
     return response.data;
+  },
+
+  /**
+   * Validate session - check if current session is still active
+   */
+  validateSession: async () => {
+    try {
+      const response = await apiClient.post<ApiResponse<{valid: boolean; reason?: string}>>(
+        ENDPOINTS.AUTH.VALIDATE_SESSION
+      );
+      return response.data;
+    } catch (error: any) {
+      // If we get SESSION_TERMINATED error, return invalid
+      if (error.response?.data?.code === 'SESSION_TERMINATED') {
+        return {
+          success: true,
+          data: {
+            valid: false,
+            reason: 'SESSION_TERMINATED_ON_OTHER_DEVICE',
+          },
+        };
+      }
+      throw error;
+    }
   },
 
   /**
@@ -113,7 +172,7 @@ export const authApi = {
    * Get current user
    */
   getCurrentUser: async () => {
-    const response = await apiClient.get<ApiResponse<{user: User}>>(
+    const response = await apiClient.get<ApiResponse<{user: User; sessionId?: string}>>(
       ENDPOINTS.AUTH.ME
     );
     
@@ -139,6 +198,7 @@ export const authApi = {
       console.log('Logout API error:', error);
     } finally {
       await clearAuthTokens();
+      await AsyncStorage.removeItem(STORAGE_KEYS.SESSION_ID);
     }
   },
 
@@ -167,6 +227,13 @@ export const authApi = {
   getStoredUser: async (): Promise<User | null> => {
     const userStr = await AsyncStorage.getItem(STORAGE_KEYS.USER);
     return userStr ? JSON.parse(userStr) : null;
+  },
+
+  /**
+   * Get stored session ID
+   */
+  getStoredSessionId: async (): Promise<string | null> => {
+    return AsyncStorage.getItem(STORAGE_KEYS.SESSION_ID);
   },
 
   /**

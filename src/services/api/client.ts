@@ -1,6 +1,7 @@
 /**
  * API Client
  * Axios instance with interceptors for authentication
+ * Supports single device login with session management
  */
 
 import axios, {AxiosInstance, AxiosError, InternalAxiosRequestConfig} from 'axios';
@@ -13,6 +14,15 @@ export const STORAGE_KEYS = {
   REFRESH_TOKEN: '@ai_tutor_refresh_token',
   USER: '@ai_tutor_user',
   STUDENT: '@ai_tutor_current_student',
+  SESSION_ID: '@ai_tutor_session_id',
+  FCM_TOKEN: '@ai_tutor_fcm_token',
+};
+
+// Session terminated callback - set by AuthContext
+let onSessionTerminated: (() => void) | null = null;
+
+export const setSessionTerminatedCallback = (callback: () => void) => {
+  onSessionTerminated = callback;
 };
 
 // Create axios instance
@@ -62,7 +72,7 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Response interceptor - Handle token refresh
+// Response interceptor - Handle token refresh and session termination
 apiClient.interceptors.response.use(
   (response) => {
     if (__DEV__) {
@@ -70,7 +80,7 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  async (error: AxiosError) => {
+  async (error: AxiosError<{code?: string; message?: string}>) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & {_retry?: boolean};
 
     if (__DEV__) {
@@ -78,8 +88,35 @@ apiClient.interceptors.response.use(
       console.log('Error details:', error.response?.data);
     }
 
-    // Handle 401 - Token expired
+    // Handle SESSION_TERMINATED - User logged in on another device
+    if (error.response?.status === 401 && error.response?.data?.code === 'SESSION_TERMINATED') {
+      console.log('🚫 Session terminated - logged in on another device');
+      
+      // Clear all auth data
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.ACCESS_TOKEN,
+        STORAGE_KEYS.REFRESH_TOKEN,
+        STORAGE_KEYS.USER,
+        STORAGE_KEYS.STUDENT,
+        STORAGE_KEYS.SESSION_ID,
+      ]);
+      
+      // Notify the app about session termination
+      if (onSessionTerminated) {
+        onSessionTerminated();
+      }
+      
+      return Promise.reject(error);
+    }
+
+    // Handle 401 - Token expired (not session terminated)
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // Skip refresh for certain error codes
+      const skipRefreshCodes = ['SESSION_TERMINATED', 'INVALID_TOKEN', 'NO_TOKEN'];
+      if (skipRefreshCodes.includes(error.response?.data?.code || '')) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         // Wait for token refresh
         return new Promise((resolve, reject) => {
@@ -123,8 +160,15 @@ apiClient.interceptors.response.use(
         }
         
         return apiClient(originalRequest);
-      } catch (refreshError) {
+      } catch (refreshError: any) {
         processQueue(refreshError, null);
+        
+        // Check if refresh failed due to session termination
+        if (refreshError.response?.data?.code === 'SESSION_TERMINATED') {
+          if (onSessionTerminated) {
+            onSessionTerminated();
+          }
+        }
         
         // Clear all auth data
         await AsyncStorage.multiRemove([
@@ -132,6 +176,7 @@ apiClient.interceptors.response.use(
           STORAGE_KEYS.REFRESH_TOKEN,
           STORAGE_KEYS.USER,
           STORAGE_KEYS.STUDENT,
+          STORAGE_KEYS.SESSION_ID,
         ]);
         
         return Promise.reject(refreshError);
@@ -157,6 +202,7 @@ export const clearAuthTokens = async () => {
     STORAGE_KEYS.REFRESH_TOKEN,
     STORAGE_KEYS.USER,
     STORAGE_KEYS.STUDENT,
+    STORAGE_KEYS.SESSION_ID,
   ]);
 };
 
