@@ -16,6 +16,7 @@ import {
   Alert,
   Modal,
   TextInput,
+  Platform,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -26,6 +27,56 @@ import {studyPlansApi} from '../../services/api';
 import {Icon, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {StudyPlan, StudyPlanItem} from '../../types/api';
+
+// Custom Calendar Icon Component that shows today's date
+function TodayCalendarIcon({ size = 40, color = '#6366F1' }: { size?: number; color?: string }) {
+  const today = new Date();
+  const day = today.getDate();
+  const month = today.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+  
+  const iconSize = size;
+  const fontSize = size * 0.35;
+  const monthFontSize = size * 0.2;
+  
+  return (
+    <View style={[calendarStyles.container, { width: iconSize, height: iconSize }]}>
+      <View style={[calendarStyles.topBar, { backgroundColor: color }]}>
+        <Text style={[calendarStyles.month, { fontSize: monthFontSize }]}>{month}</Text>
+      </View>
+      <View style={calendarStyles.body}>
+        <Text style={[calendarStyles.day, { fontSize: fontSize, color }]}>{day}</Text>
+      </View>
+    </View>
+  );
+}
+
+const calendarStyles = StyleSheet.create({
+  container: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+  },
+  topBar: {
+    height: '30%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  month: {
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  body: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#FFF',
+  },
+  day: {
+    fontWeight: '800',
+  },
+});
 
 export function StudyPlanScreen() {
   const navigation = useNavigation<any>();
@@ -173,6 +224,17 @@ export function StudyPlanScreen() {
     return acc;
   }, {} as Record<string, StudyPlanItem[]>);
 
+  // Get today's formatted date
+  const getTodayFormatted = () => {
+    const today = new Date();
+    return today.toLocaleDateString('en-US', { 
+      weekday: 'long',
+      month: 'long', 
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
@@ -185,161 +247,210 @@ export function StudyPlanScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, {borderBottomColor: border}]}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Icon name="chevron-left" size={24} color={text} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, {color: text}]}>Study Plan 📅</Text>
-        <TouchableOpacity 
-          style={[styles.addButton, {backgroundColor: primary}]}
-          onPress={() => setShowCreateModal(true)}>
-          <Icon name="plus" size={20} color="#FFF" />
-        </TouchableOpacity>
-      </View>
+    <View style={[styles.container, {backgroundColor: background}]}>
+      <SafeAreaView style={styles.flex1} edges={['top']}>
+        {/* Header */}
+        <View style={[styles.header, {borderBottomColor: border, backgroundColor: background}]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Icon name="chevron-left" size={24} color={text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, {color: text}]}>Study Plan</Text>
+          <View style={styles.headerRight}>
+            <TodayCalendarIcon size={36} color={primary} />
+          </View>
+        </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
-        }>
-        
-        {plans.length === 0 ? (
-          // Empty State
-          <Animated.View style={[styles.emptyContainer, {opacity: fadeAnim}]}>
-            <Text style={styles.emptyEmoji}>📋</Text>
-            <Text style={[styles.emptyTitle, {color: text}]}>No Study Plans Yet</Text>
-            <Text style={[styles.emptyText, {color: textSecondary}]}>
-              Create an AI-powered study plan to organize your learning journey
-            </Text>
-            <Button
-              title="Create Study Plan 🚀"
-              onPress={() => setShowCreateModal(true)}
-              size="lg"
-            />
-          </Animated.View>
-        ) : (
-          <>
-            {/* Plan Selector */}
-            <Animated.View style={{opacity: fadeAnim}}>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.planSelector}>
-                {plans.map(plan => (
-                  <TouchableOpacity
-                    key={plan.id}
-                    style={[
-                      styles.planTab,
-                      {
-                        backgroundColor: selectedPlan?.id === plan.id ? primary : card,
-                        borderColor: selectedPlan?.id === plan.id ? primary : border,
-                      },
-                    ]}
-                    onPress={() => setSelectedPlan(plan)}>
-                    <Text style={[
-                      styles.planTabText,
-                      {color: selectedPlan?.id === plan.id ? '#FFF' : text},
-                    ]}>
-                      {plan.planName || 'Study Plan'}
-                    </Text>
-                    <Text style={[
-                      styles.planTabStatus,
-                      {color: selectedPlan?.id === plan.id ? 'rgba(255,255,255,0.8)' : textMuted},
-                    ]}>
-                      {plan.status}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+          }>
+          
+          {plans.length === 0 ? (
+            // Empty State
+            <Animated.View style={[styles.emptyContainer, {opacity: fadeAnim}]}>
+              <TodayCalendarIcon size={80} color={primary} />
+              <Text style={[styles.emptyTitle, {color: text}]}>No Study Plans Yet</Text>
+              <Text style={[styles.emptyDate, {color: primary}]}>{getTodayFormatted()}</Text>
+              <Text style={[styles.emptyText, {color: textSecondary}]}>
+                Create an AI-powered study plan to organize your learning journey and achieve your goals
+              </Text>
+              <View style={styles.emptyFeatures}>
+                <View style={styles.emptyFeatureRow}>
+                  <Icon name="check-circle" size={16} color={success} />
+                  <Text style={[styles.emptyFeatureText, {color: textSecondary}]}>
+                    Personalized daily schedule
+                  </Text>
+                </View>
+                <View style={styles.emptyFeatureRow}>
+                  <Icon name="check-circle" size={16} color={success} />
+                  <Text style={[styles.emptyFeatureText, {color: textSecondary}]}>
+                    AI-optimized learning path
+                  </Text>
+                </View>
+                <View style={styles.emptyFeatureRow}>
+                  <Icon name="check-circle" size={16} color={success} />
+                  <Text style={[styles.emptyFeatureText, {color: textSecondary}]}>
+                    Track your progress
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={[styles.createButton, {backgroundColor: primary}]}
+                onPress={() => setShowCreateModal(true)}>
+                <Icon name="plus" size={20} color="#FFF" />
+                <Text style={styles.createButtonText}>Create Study Plan</Text>
+              </TouchableOpacity>
             </Animated.View>
-
-            {/* Progress Card */}
-            {selectedPlan && (
-              <Animated.View style={[styles.progressCard, {backgroundColor: primaryBg, opacity: fadeAnim}]}>
-                <View style={styles.progressHeader}>
-                  <Text style={[styles.progressTitle, {color: primary}]}>Progress</Text>
-                  <Text style={[styles.progressPercent, {color: primary}]}>{calculateProgress()}%</Text>
-                </View>
-                <View style={[styles.progressBar, {backgroundColor: border}]}>
-                  <View 
-                    style={[styles.progressFill, {backgroundColor: primary, width: `${calculateProgress()}%`}]} 
-                  />
-                </View>
-                <View style={styles.progressStats}>
-                  <Text style={[styles.progressStat, {color: textSecondary}]}>
-                    {planItems.filter(i => i.status === 'completed').length} / {planItems.length} topics
-                  </Text>
-                  <Text style={[styles.progressStat, {color: textSecondary}]}>
-                    {selectedPlan.dailyTargetMinutes || 60} min/day
-                  </Text>
-                </View>
-              </Animated.View>
-            )}
-
-            {/* Plan Items */}
-            {loadingItems ? (
-              <ActivityIndicator size="small" color={primary} style={{marginTop: Spacing.xl}} />
-            ) : (
+          ) : (
+            <>
+              {/* Plan Selector */}
               <Animated.View style={{opacity: fadeAnim}}>
-                {Object.entries(groupedItems).map(([date, items]) => (
-                  <View key={date} style={styles.dateSection}>
-                    <Text style={[styles.dateHeader, {color: text}]}>
-                      {formatDate(date)}
-                    </Text>
-                    {items.map(item => (
-                      <TouchableOpacity
-                        key={item.id}
-                        style={[styles.itemCard, {backgroundColor: card, borderColor: border}, Shadows.sm]}
-                        onPress={() => {
-                          if (item.topicId) {
-                            navigation.navigate('Lesson', {topicId: item.topicId});
-                          }
-                        }}>
-                        <View style={[styles.itemStatus, {backgroundColor: `${getStatusColor(item.status)}15`}]}>
-                          <Text style={styles.itemStatusEmoji}>{getStatusEmoji(item.status)}</Text>
-                        </View>
-                        <View style={styles.itemContent}>
-                          <Text style={[styles.itemTitle, {color: text}]} numberOfLines={1}>
-                            {item.topic?.topicTitle || 'Topic'}
-                          </Text>
-                          <Text style={[styles.itemSubject, {color: textMuted}]} numberOfLines={1}>
-                            {item.topic?.chapter?.book?.subject?.subjectName || 'Subject'} • {item.estimatedMinutes || 30} min
-                          </Text>
-                        </View>
-                        {item.status !== 'completed' && (
-                          <TouchableOpacity
-                            style={[styles.completeButton, {backgroundColor: success}]}
-                            onPress={() => handleCompleteItem(item.id)}>
-                            <Icon name="check" size={16} color="#FFF" />
-                          </TouchableOpacity>
-                        )}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                ))}
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.planSelector}>
+                  {plans.map(plan => (
+                    <TouchableOpacity
+                      key={plan.id}
+                      style={[
+                        styles.planTab,
+                        {
+                          backgroundColor: selectedPlan?.id === plan.id ? primary : card,
+                          borderColor: selectedPlan?.id === plan.id ? primary : border,
+                        },
+                      ]}
+                      onPress={() => setSelectedPlan(plan)}>
+                      <Text style={[
+                        styles.planTabText,
+                        {color: selectedPlan?.id === plan.id ? '#FFF' : text},
+                      ]}>
+                        {plan.planName || 'Study Plan'}
+                      </Text>
+                      <Text style={[
+                        styles.planTabStatus,
+                        {color: selectedPlan?.id === plan.id ? 'rgba(255,255,255,0.8)' : textMuted},
+                      ]}>
+                        {plan.status}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </Animated.View>
-            )}
-          </>
-        )}
-        
-        <View style={{height: Spacing['2xl']}} />
-      </ScrollView>
+
+              {/* Progress Card */}
+              {selectedPlan && (
+                <Animated.View style={[styles.progressCard, {backgroundColor: primaryBg, opacity: fadeAnim}]}>
+                  <View style={styles.progressHeader}>
+                    <View style={styles.progressHeaderLeft}>
+                      <TodayCalendarIcon size={32} color={primary} />
+                      <View style={styles.progressHeaderText}>
+                        <Text style={[styles.progressTitle, {color: primary}]}>Today's Progress</Text>
+                        <Text style={[styles.progressDate, {color: textMuted}]}>{getTodayFormatted()}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.progressPercent, {color: primary}]}>{calculateProgress()}%</Text>
+                  </View>
+                  <View style={[styles.progressBar, {backgroundColor: border}]}>
+                    <View 
+                      style={[styles.progressFill, {backgroundColor: primary, width: `${calculateProgress()}%`}]} 
+                    />
+                  </View>
+                  <View style={styles.progressStats}>
+                    <Text style={[styles.progressStat, {color: textSecondary}]}>
+                      ✅ {planItems.filter(i => i.status === 'completed').length} / {planItems.length} topics
+                    </Text>
+                    <Text style={[styles.progressStat, {color: textSecondary}]}>
+                      ⏱️ {selectedPlan.dailyTargetMinutes || 60} min/day
+                    </Text>
+                  </View>
+                </Animated.View>
+              )}
+
+              {/* Plan Items */}
+              {loadingItems ? (
+                <ActivityIndicator size="small" color={primary} style={{marginTop: Spacing.xl}} />
+              ) : (
+                <Animated.View style={{opacity: fadeAnim}}>
+                  {Object.entries(groupedItems).length > 0 ? (
+                    Object.entries(groupedItems).map(([date, items]) => (
+                      <View key={date} style={styles.dateSection}>
+                        <Text style={[styles.dateHeader, {color: text}]}>
+                          {formatDate(date)}
+                        </Text>
+                        {items.map(item => (
+                          <TouchableOpacity
+                            key={item.id}
+                            style={[styles.itemCard, {backgroundColor: card, borderColor: border}, Shadows.sm]}
+                            onPress={() => {
+                              if (item.topicId) {
+                                navigation.navigate('Lesson', {topicId: item.topicId});
+                              }
+                            }}>
+                            <View style={[styles.itemStatus, {backgroundColor: `${getStatusColor(item.status)}15`}]}>
+                              <Text style={styles.itemStatusEmoji}>{getStatusEmoji(item.status)}</Text>
+                            </View>
+                            <View style={styles.itemContent}>
+                              <Text style={[styles.itemTitle, {color: text}]} numberOfLines={1}>
+                                {item.topic?.topicTitle || 'Topic'}
+                              </Text>
+                              <Text style={[styles.itemSubject, {color: textMuted}]} numberOfLines={1}>
+                                {item.topic?.chapter?.book?.subject?.subjectName || 'Subject'} • {item.estimatedMinutes || 30} min
+                              </Text>
+                            </View>
+                            {item.status !== 'completed' && (
+                              <TouchableOpacity
+                                style={[styles.completeButton, {backgroundColor: success}]}
+                                onPress={() => handleCompleteItem(item.id)}>
+                                <Icon name="check" size={16} color="#FFF" />
+                              </TouchableOpacity>
+                            )}
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    ))
+                  ) : (
+                    <View style={[styles.noItemsCard, {backgroundColor: card}]}>
+                      <TodayCalendarIcon size={50} color={primary} />
+                      <Text style={[styles.noItemsText, {color: text}]}>No topics scheduled</Text>
+                      <Text style={[styles.noItemsSubtext, {color: textMuted}]}>
+                        Topics will appear here when you create a plan
+                      </Text>
+                    </View>
+                  )}
+                </Animated.View>
+              )}
+            </>
+          )}
+          
+          <View style={{height: 120}} />
+        </ScrollView>
+      </SafeAreaView>
+
+      {/* Floating Action Button - Always visible */}
+      <TouchableOpacity
+        style={[styles.fab, {backgroundColor: primary}]}
+        onPress={() => setShowCreateModal(true)}
+        activeOpacity={0.8}>
+        <Icon name="plus" size={28} color="#FFF" />
+      </TouchableOpacity>
 
       {/* Create Plan Modal */}
       <Modal visible={showCreateModal} transparent animationType="slide">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, {backgroundColor: card}]}>
             <View style={[styles.modalHeader, {borderBottomColor: border}]}>
-              <Text style={[styles.modalTitle, {color: text}]}>Create Study Plan 📋</Text>
+              <View style={styles.modalHeaderLeft}>
+                <TodayCalendarIcon size={32} color={primary} />
+                <Text style={[styles.modalTitle, {color: text}]}>Create Study Plan</Text>
+              </View>
               <TouchableOpacity onPress={() => setShowCreateModal(false)}>
                 <Icon name="x" size={24} color={textMuted} />
               </TouchableOpacity>
             </View>
             
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
               <Text style={[styles.inputLabel, {color: text}]}>Daily Study Hours</Text>
               <View style={styles.hoursRow}>
                 {['1', '2', '3', '4', '5'].map(hour => (
@@ -388,24 +499,33 @@ export function StudyPlanScreen() {
               />
 
               <View style={styles.modalButtons}>
-                <Button
-                  title="Cancel"
-                  variant="outline"
+                <TouchableOpacity 
+                  style={[styles.cancelButton, {borderColor: border}]}
                   onPress={() => setShowCreateModal(false)}
-                  disabled={creating}
-                />
-                <Button
-                  title={creating ? 'Creating...' : 'Generate Plan 🎯'}
+                  disabled={creating}>
+                  <Text style={[styles.cancelButtonText, {color: text}]}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.generateButton, {backgroundColor: primary, opacity: creating ? 0.7 : 1}]}
                   onPress={handleCreatePlan}
-                  loading={creating}
-                  disabled={creating}
-                />
+                  disabled={creating}>
+                  {creating ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <>
+                      <Icon name="zap" size={18} color="#FFF" />
+                      <Text style={styles.generateButtonText}>Generate Plan</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
               </View>
+              
+              <View style={{height: 30}} />
             </ScrollView>
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -416,16 +536,28 @@ function formatDate(dateStr: string): string {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  if (date.toDateString() === today.toDateString()) return 'Today 📅';
-  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow 📆';
+  if (date.toDateString() === today.toDateString()) return '📅 Today';
+  if (date.toDateString() === tomorrow.toDateString()) return '📆 Tomorrow';
   
   return date.toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'});
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
-  loadingContainer: {flex: 1, justifyContent: 'center', alignItems: 'center'},
-  loadingText: {marginTop: Spacing.md, fontSize: FontSizes.sm},
+  container: {
+    flex: 1,
+  },
+  flex1: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md, 
+    fontSize: FontSizes.sm,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -434,24 +566,94 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     borderBottomWidth: 1,
   },
-  backButton: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
-  headerTitle: {fontSize: FontSizes.lg, fontWeight: '700'},
-  addButton: {
-    width: 36,
-    height: 36,
-    borderRadius: BorderRadius.lg,
-    alignItems: 'center',
+  backButton: {
+    width: 40, 
+    height: 40, 
+    alignItems: 'center', 
     justifyContent: 'center',
   },
-  content: {padding: Spacing.lg},
-  emptyContainer: {
-    alignItems: 'center',
-    paddingVertical: Spacing['3xl'],
+  headerTitle: {
+    fontSize: FontSizes.lg, 
+    fontWeight: '700',
   },
-  emptyEmoji: {fontSize: 64, marginBottom: Spacing.lg},
-  emptyTitle: {fontSize: FontSizes.xl, fontWeight: '700', marginBottom: Spacing.sm},
-  emptyText: {fontSize: FontSizes.base, textAlign: 'center', marginBottom: Spacing.xl, paddingHorizontal: Spacing.xl},
-  planSelector: {paddingBottom: Spacing.lg, gap: Spacing.sm},
+  headerRight: {
+    marginRight: Spacing.xs,
+  },
+  content: {
+    padding: Spacing.lg,
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing['2xl'],
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyTitle: {
+    fontSize: FontSizes.xl, 
+    fontWeight: '700', 
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.xs,
+  },
+  emptyDate: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.base, 
+    textAlign: 'center', 
+    marginBottom: Spacing.lg,
+    lineHeight: 22,
+  },
+  emptyFeatures: {
+    alignSelf: 'stretch',
+    marginBottom: Spacing.xl,
+    paddingHorizontal: Spacing.lg,
+  },
+  emptyFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  emptyFeatureText: {
+    fontSize: FontSizes.sm,
+  },
+  createButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.xl,
+    gap: Spacing.sm,
+  },
+  createButtonText: {
+    color: '#FFF',
+    fontSize: FontSizes.base,
+    fontWeight: '700',
+  },
+  noItemsCard: {
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    marginTop: Spacing.md,
+  },
+  noItemsText: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+    marginTop: Spacing.md,
+    marginBottom: Spacing.xs,
+  },
+  noItemsSubtext: {
+    fontSize: FontSizes.sm,
+    textAlign: 'center',
+  },
+  planSelector: {
+    paddingBottom: Spacing.lg, 
+    gap: Spacing.sm,
+  },
   planTab: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -459,22 +661,72 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     minWidth: 120,
   },
-  planTabText: {fontSize: FontSizes.sm, fontWeight: '600'},
-  planTabStatus: {fontSize: FontSizes.xs, marginTop: 2, textTransform: 'capitalize'},
+  planTabText: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '600',
+  },
+  planTabStatus: {
+    fontSize: FontSizes.xs, 
+    marginTop: 2, 
+    textTransform: 'capitalize',
+  },
   progressCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
     marginBottom: Spacing.lg,
   },
-  progressHeader: {flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md},
-  progressTitle: {fontSize: FontSizes.base, fontWeight: '600'},
-  progressPercent: {fontSize: FontSizes.xl, fontWeight: '700'},
-  progressBar: {height: 8, borderRadius: 4, overflow: 'hidden'},
-  progressFill: {height: '100%', borderRadius: 4},
-  progressStats: {flexDirection: 'row', justifyContent: 'space-between', marginTop: Spacing.md},
-  progressStat: {fontSize: FontSizes.sm},
-  dateSection: {marginBottom: Spacing.lg},
-  dateHeader: {fontSize: FontSizes.base, fontWeight: '700', marginBottom: Spacing.md},
+  progressHeader: {
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    marginBottom: Spacing.md,
+  },
+  progressHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    flex: 1,
+  },
+  progressHeaderText: {
+    flex: 1,
+  },
+  progressTitle: {
+    fontSize: FontSizes.base, 
+    fontWeight: '600',
+  },
+  progressDate: {
+    fontSize: FontSizes.xs, 
+    marginTop: 2,
+  },
+  progressPercent: {
+    fontSize: FontSizes.xl, 
+    fontWeight: '700',
+  },
+  progressBar: {
+    height: 8, 
+    borderRadius: 4, 
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%', 
+    borderRadius: 4,
+  },
+  progressStats: {
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    marginTop: Spacing.md,
+  },
+  progressStat: {
+    fontSize: FontSizes.sm,
+  },
+  dateSection: {
+    marginBottom: Spacing.lg,
+  },
+  dateHeader: {
+    fontSize: FontSizes.base, 
+    fontWeight: '700', 
+    marginBottom: Spacing.md,
+  },
   itemCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -491,10 +743,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
-  itemStatusEmoji: {fontSize: 18},
-  itemContent: {flex: 1},
-  itemTitle: {fontSize: FontSizes.sm, fontWeight: '600', marginBottom: 2},
-  itemSubject: {fontSize: FontSizes.xs},
+  itemStatusEmoji: {
+    fontSize: 18,
+  },
+  itemContent: {
+    flex: 1,
+  },
+  itemTitle: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '600', 
+    marginBottom: 2,
+  },
+  itemSubject: {
+    fontSize: FontSizes.xs,
+  },
   completeButton: {
     width: 32,
     height: 32,
@@ -502,11 +764,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  modalOverlay: {flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end'},
+  fab: {
+    position: 'absolute',
+    bottom: Platform.OS === 'ios' ? 40 : 24,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 4},
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  modalOverlay: {
+    flex: 1, 
+    backgroundColor: 'rgba(0,0,0,0.5)', 
+    justifyContent: 'flex-end',
+  },
   modalContent: {
     borderTopLeftRadius: BorderRadius['2xl'],
     borderTopRightRadius: BorderRadius['2xl'],
-    maxHeight: '80%',
+    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -515,27 +796,73 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     borderBottomWidth: 1,
   },
-  modalTitle: {fontSize: FontSizes.lg, fontWeight: '700'},
-  modalBody: {padding: Spacing.lg},
-  inputLabel: {fontSize: FontSizes.sm, fontWeight: '600', marginBottom: Spacing.sm, marginTop: Spacing.md},
+  modalHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: FontSizes.lg, 
+    fontWeight: '700',
+  },
+  modalBody: {
+    padding: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '600', 
+    marginBottom: Spacing.sm, 
+    marginTop: Spacing.md,
+  },
   input: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     fontSize: FontSizes.base,
   },
-  hoursRow: {flexDirection: 'row', gap: Spacing.sm},
+  hoursRow: {
+    flexDirection: 'row', 
+    gap: Spacing.sm,
+  },
   hourChip: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
-    borderWidth: 1,
+    borderWidth: 1.5,
   },
-  hourText: {fontSize: FontSizes.sm, fontWeight: '600'},
+  hourText: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '600',
+  },
   modalButtons: {
     flexDirection: 'row',
     gap: Spacing.md,
     marginTop: Spacing.xl,
-    marginBottom: Spacing.lg,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+  },
+  generateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+  },
+  generateButtonText: {
+    color: '#FFF',
+    fontSize: FontSizes.base,
+    fontWeight: '600',
   },
 });
