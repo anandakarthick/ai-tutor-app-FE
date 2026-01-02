@@ -14,9 +14,12 @@ export {
   clearAuthTokens,
   isAuthenticated,
   setSessionTerminatedCallback,
+  initializeEncryption,
+  isEncryptionReady,
+  getEncryptionStatus,
 } from './client';
 
-// Encrypted Client
+// Encrypted Client (deprecated - encryption now built into main client)
 export {encryptedApiClient} from './encryptedClient';
 
 // Services

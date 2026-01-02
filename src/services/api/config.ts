@@ -19,12 +19,17 @@ export const API_CONFIG = {
   
   // Socket.IO configuration
   SOCKET_URL: __DEV__ ? 'http://192.168.29.104:3000' : 'https://api.aitutor.com',
+  
+  // Encryption settings
+  ENCRYPTION_ENABLED: true,
 };
 
 // API Endpoints
 export const ENDPOINTS = {
   // Auth
   AUTH: {
+    HANDSHAKE: '/auth/handshake',
+    PUBLIC_KEY: '/auth/public-key',
     SEND_OTP: '/auth/send-otp',
     VERIFY_OTP: '/auth/verify-otp',
     REGISTER: '/auth/register',

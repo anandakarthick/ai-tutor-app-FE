@@ -1,7 +1,7 @@
 /**
  * Auth Context
  * Authentication state management with API integration
- * Supports single device login and FCM token management
+ * Supports E2E encryption, single device login and FCM token management
  */
 
 import React, {
@@ -15,7 +15,13 @@ import React, {
 import {Alert, AppState, AppStateStatus} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import messaging from '@react-native-firebase/messaging';
-import {authApi, STORAGE_KEYS, setSessionTerminatedCallback} from '../services/api';
+import {
+  authApi,
+  STORAGE_KEYS,
+  setSessionTerminatedCallback,
+  initializeEncryption,
+  getEncryptionStatus,
+} from '../services/api';
 import type {User, RegisterData} from '../types/api';
 
 interface AuthContextType {
@@ -23,6 +29,7 @@ interface AuthContextType {
   isLoading: boolean;
   user: User | null;
   sessionTerminated: boolean;
+  encryptionReady: boolean;
   login: (phone: string, otp: string) => Promise<boolean>;
   loginWithPassword: (email: string, password: string) => Promise<boolean>;
   register: (data: RegisterData) => Promise<boolean>;
@@ -42,6 +49,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   const [isLoading, setIsLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [sessionTerminated, setSessionTerminated] = useState(false);
+  const [encryptionReady, setEncryptionReady] = useState(false);
   const appState = useRef(AppState.currentState);
 
   // Handle session terminated from API client
@@ -66,7 +74,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   // Get FCM token
   const getFcmToken = async (): Promise<string | null> => {
     try {
-      // Request permission first
       const authStatus = await messaging().requestPermission();
       const enabled =
         authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
@@ -74,7 +81,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
       if (enabled) {
         const token = await messaging().getToken();
-        console.log('[AuthContext] FCM Token:', token);
+        console.log('[AuthContext] FCM Token:', token?.substring(0, 20) + '...');
         return token;
       }
       console.log('[AuthContext] FCM permission not granted');
@@ -85,10 +92,31 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     }
   };
 
-  // Check authentication status on mount
+  // Initialize encryption and check auth on mount
   useEffect(() => {
-    checkAuth();
+    initializeApp();
   }, []);
+
+  const initializeApp = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Step 1: Initialize E2E encryption
+      console.log('[AuthContext] Initializing E2E encryption...');
+      const encryptionSuccess = await initializeEncryption();
+      setEncryptionReady(encryptionSuccess);
+      
+      const status = getEncryptionStatus();
+      console.log('[AuthContext] Encryption status:', status);
+      
+      // Step 2: Check authentication
+      await checkAuth();
+    } catch (error) {
+      console.log('[AuthContext] Initialization error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Handle app state changes - validate session when app comes to foreground
   useEffect(() => {
@@ -102,7 +130,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       nextAppState === 'active' &&
       isAuthenticated
     ) {
-      // App came to foreground - validate session
       console.log('[AuthContext] App came to foreground - validating session');
       try {
         const response = await authApi.validateSession();
@@ -118,7 +145,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
   const checkAuth = async () => {
     try {
-      setIsLoading(true);
       const token = await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
       const storedUser = await authApi.getStoredUser();
       
@@ -133,7 +159,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
             setUser(response.data.user);
           }
         } catch (error: any) {
-          // Check if session was terminated
           if (error.response?.data?.code === 'SESSION_TERMINATED') {
             handleSessionTerminated();
           } else {
@@ -143,8 +168,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       }
     } catch (error) {
       console.log('Auth check error:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -153,7 +176,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       try {
         const response = await authApi.sendOtp(phone, purpose);
         if (response.success) {
-          return {success: true, otp: response.data?.otp}; // OTP returned only in dev mode
+          return {success: true, otp: response.data?.otp};
         }
         return {success: false};
       } catch (error: any) {
@@ -185,7 +208,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         setUser(response.data.user);
         setIsAuthenticated(true);
         
-        // Show info if previous session was terminated
         if (response.data.previousSessionTerminated) {
           console.log('[AuthContext] Previous session was terminated');
         }
@@ -209,7 +231,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
   const loginWithPassword = useCallback(
     async (email: string, password: string) => {
       try {
-        // Get FCM token before login
         const fcmToken = await getFcmToken();
         
         const response = await authApi.loginWithPassword(email, password, fcmToken || undefined);
@@ -238,7 +259,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
   const register = useCallback(async (data: RegisterData) => {
     try {
-      // Get FCM token before registration
       const fcmToken = await getFcmToken();
       
       const response = await authApi.register({...data, fcmToken: fcmToken || undefined});
@@ -280,7 +300,6 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       }
     } catch (error: any) {
       console.log('[AuthContext] Refresh user error:', error);
-      // Check if session was terminated
       if (error.response?.data?.code === 'SESSION_TERMINATED') {
         handleSessionTerminated();
       }
@@ -312,6 +331,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         isLoading,
         user,
         sessionTerminated,
+        encryptionReady,
         login,
         loginWithPassword,
         register,
