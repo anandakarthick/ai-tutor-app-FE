@@ -1,5 +1,5 @@
 /**
- * Register Screen - Registration with Validation
+ * Register Screen - Registration with Validation and Auto-Focus
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -72,7 +72,7 @@ interface FormErrors {
   medium?: string;
 }
 
-// Custom Input with validation
+// Custom Input with validation and ref support
 interface ValidatedInputProps {
   label: string;
   placeholder: string;
@@ -86,6 +86,9 @@ interface ValidatedInputProps {
   secureTextEntry?: boolean;
   maxLength?: number;
   editable?: boolean;
+  inputRef?: React.RefObject<TextInput>;
+  onSubmitEditing?: () => void;
+  returnKeyType?: 'done' | 'next' | 'go';
 }
 
 function ValidatedInput({
@@ -101,6 +104,9 @@ function ValidatedInput({
   secureTextEntry = false,
   maxLength,
   editable = true,
+  inputRef,
+  onSubmitEditing,
+  returnKeyType = 'next',
 }: ValidatedInputProps) {
   const text = useThemeColor({}, 'text');
   const textMuted = useThemeColor({}, 'textMuted');
@@ -134,6 +140,7 @@ function ValidatedInput({
           />
         )}
         <TextInput
+          ref={inputRef}
           style={[styles.textInput, {color: text}]}
           placeholder={placeholder}
           placeholderTextColor={textMuted}
@@ -144,6 +151,9 @@ function ValidatedInput({
           secureTextEntry={secureTextEntry}
           maxLength={maxLength}
           editable={editable}
+          onSubmitEditing={onSubmitEditing}
+          returnKeyType={returnKeyType}
+          blurOnSubmit={false}
         />
       </View>
       {hasError && (
@@ -161,6 +171,17 @@ export function RegisterScreen() {
   const route = useRoute<AuthStackScreenProps<'Register'>['route']>();
   const {register, sendOtp} = useAuth();
   const {phone: initialPhone, isDirectRegistration} = route.params as {phone: string; isDirectRegistration?: boolean};
+
+  // Input refs for focus management
+  const phoneInputRef = useRef<TextInput>(null);
+  const fullNameInputRef = useRef<TextInput>(null);
+  const studentNameInputRef = useRef<TextInput>(null);
+  const schoolNameInputRef = useRef<TextInput>(null);
+  const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
+  const dobInputRef = useRef<TextInput>(null);
+  const sectionInputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // API data
   const [boards, setBoards] = useState<Board[]>([]);
@@ -197,7 +218,6 @@ export function RegisterScreen() {
 
   const [loading, setLoading] = useState(false);
   const [showMediumModal, setShowMediumModal] = useState(false);
-  const [showClassModal, setShowClassModal] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -221,7 +241,6 @@ export function RegisterScreen() {
   useEffect(() => {
     if (selectedBoard) {
       loadClasses(selectedBoard.id);
-      // Clear board error when selected
       if (errors.board) {
         setErrors(prev => ({...prev, board: undefined}));
       }
@@ -324,14 +343,14 @@ export function RegisterScreen() {
   };
 
   const validateEmail = (value: string): string | undefined => {
-    if (!value) return undefined; // Optional field
+    if (!value) return undefined;
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(value)) return 'Please enter a valid email address';
     return undefined;
   };
 
   const validatePassword = (value: string): string | undefined => {
-    if (!value) return undefined; // Optional field
+    if (!value) return undefined;
     if (value.length < 6) return 'Password must be at least 6 characters';
     return undefined;
   };
@@ -373,28 +392,34 @@ export function RegisterScreen() {
     }
   };
 
-  // Mark field as touched on blur
-  const handleBlur = (field: string) => {
-    setTouched(prev => ({...prev, [field]: true}));
+  // Focus on first error field
+  const focusFirstError = (newErrors: FormErrors) => {
+    // Scroll to top first
+    scrollViewRef.current?.scrollTo({y: 0, animated: true});
+
+    // Determine which field to focus based on error priority
+    setTimeout(() => {
+      if (newErrors.phone && isDirectRegistration) {
+        phoneInputRef.current?.focus();
+      } else if (newErrors.fullName) {
+        fullNameInputRef.current?.focus();
+      } else if (newErrors.studentName) {
+        studentNameInputRef.current?.focus();
+      }
+      // For board, class, medium - we show visual error but can't focus
+    }, 300);
+  };
+
+  const focusFirstErrorStep2 = (newErrors: FormErrors) => {
+    scrollViewRef.current?.scrollTo({y: 0, animated: true});
     
-    // Validate on blur
-    switch (field) {
-      case 'phone':
-        setErrors(prev => ({...prev, phone: validatePhone(phone)}));
-        break;
-      case 'fullName':
-        setErrors(prev => ({...prev, fullName: validateFullName(fullName)}));
-        break;
-      case 'studentName':
-        setErrors(prev => ({...prev, studentName: validateStudentName(studentName)}));
-        break;
-      case 'email':
-        setErrors(prev => ({...prev, email: validateEmail(email)}));
-        break;
-      case 'password':
-        setErrors(prev => ({...prev, password: validatePassword(password)}));
-        break;
-    }
+    setTimeout(() => {
+      if (newErrors.email) {
+        emailInputRef.current?.focus();
+      } else if (newErrors.password) {
+        passwordInputRef.current?.focus();
+      }
+    }, 300);
   };
 
   const validateStep1 = (): boolean => {
@@ -452,6 +477,11 @@ export function RegisterScreen() {
       medium: true,
     });
 
+    // Focus on first error field
+    if (!isValid) {
+      focusFirstError(newErrors);
+    }
+
     return isValid;
   };
 
@@ -474,6 +504,12 @@ export function RegisterScreen() {
     }
 
     setErrors(newErrors);
+
+    // Focus on first error field
+    if (!isValid) {
+      focusFirstErrorStep2(newErrors);
+    }
+
     return isValid;
   };
 
@@ -575,14 +611,17 @@ export function RegisterScreen() {
                   },
                 ]}>
                 <TextInput
+                  ref={phoneInputRef}
                   style={[styles.textInput, {color: text}]}
                   placeholder="Enter mobile number"
                   placeholderTextColor={textMuted}
                   value={phone}
                   onChangeText={handlePhoneChange}
-                  onBlur={() => handleBlur('phone')}
                   keyboardType="phone-pad"
                   maxLength={10}
+                  returnKeyType="next"
+                  onSubmitEditing={() => fullNameInputRef.current?.focus()}
+                  blurOnSubmit={false}
                 />
               </View>
             </View>
@@ -614,6 +653,9 @@ export function RegisterScreen() {
         required
         leftIcon="user"
         autoCapitalize="words"
+        inputRef={fullNameInputRef}
+        onSubmitEditing={() => studentNameInputRef.current?.focus()}
+        returnKeyType="next"
       />
 
       <ValidatedInput
@@ -625,6 +667,9 @@ export function RegisterScreen() {
         required
         leftIcon="users"
         autoCapitalize="words"
+        inputRef={studentNameInputRef}
+        onSubmitEditing={() => schoolNameInputRef.current?.focus()}
+        returnKeyType="next"
       />
 
       <ValidatedInput
@@ -633,6 +678,8 @@ export function RegisterScreen() {
         value={schoolName}
         onChangeText={setSchoolName}
         leftIcon="home"
+        inputRef={schoolNameInputRef}
+        returnKeyType="done"
       />
 
       {/* Board Selection */}
@@ -775,6 +822,9 @@ export function RegisterScreen() {
         leftIcon="mail"
         keyboardType="email-address"
         autoCapitalize="none"
+        inputRef={emailInputRef}
+        onSubmitEditing={() => passwordInputRef.current?.focus()}
+        returnKeyType="next"
       />
 
       <ValidatedInput
@@ -785,6 +835,9 @@ export function RegisterScreen() {
         error={errors.password}
         leftIcon="lock"
         secureTextEntry
+        inputRef={passwordInputRef}
+        onSubmitEditing={() => dobInputRef.current?.focus()}
+        returnKeyType="next"
       />
 
       <ValidatedInput
@@ -795,6 +848,8 @@ export function RegisterScreen() {
         leftIcon="calendar"
         keyboardType="number-pad"
         maxLength={10}
+        inputRef={dobInputRef}
+        returnKeyType="done"
       />
 
       {/* Gender Selection */}
@@ -828,6 +883,8 @@ export function RegisterScreen() {
         onChangeText={setSection}
         autoCapitalize="characters"
         maxLength={5}
+        inputRef={sectionInputRef}
+        returnKeyType="done"
       />
     </Animated.View>
   );
@@ -935,6 +992,7 @@ export function RegisterScreen() {
 
         {/* Content */}
         <ScrollView
+          ref={scrollViewRef}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.scrollContent}>
