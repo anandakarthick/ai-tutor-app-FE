@@ -1,5 +1,5 @@
 /**
- * Register Screen - Comprehensive Student Registration with API
+ * Register Screen - Registration with Validation
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -15,13 +15,14 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useAuth} from '../../context';
 import {contentApi} from '../../services/api';
-import {Button, Input, Icon} from '../../components/ui';
+import {Button, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 import type {Board, Class, Medium, Gender} from '../../types/api';
@@ -59,6 +60,102 @@ const STUDY_HOURS = ['1', '2', '3', '4', '5', '6'];
 
 type Step = 1 | 2 | 3;
 
+// Error state interface
+interface FormErrors {
+  phone?: string;
+  fullName?: string;
+  studentName?: string;
+  email?: string;
+  password?: string;
+  board?: string;
+  class?: string;
+  medium?: string;
+}
+
+// Custom Input with validation
+interface ValidatedInputProps {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (text: string) => void;
+  error?: string;
+  required?: boolean;
+  leftIcon?: string;
+  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'number-pad';
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  secureTextEntry?: boolean;
+  maxLength?: number;
+  editable?: boolean;
+}
+
+function ValidatedInput({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  error,
+  required,
+  leftIcon,
+  keyboardType = 'default',
+  autoCapitalize = 'sentences',
+  secureTextEntry = false,
+  maxLength,
+  editable = true,
+}: ValidatedInputProps) {
+  const text = useThemeColor({}, 'text');
+  const textMuted = useThemeColor({}, 'textMuted');
+  const card = useThemeColor({}, 'card');
+  const border = useThemeColor({}, 'border');
+  const primary = useThemeColor({}, 'primary');
+
+  const hasError = !!error;
+  const borderColor = hasError ? '#EF4444' : value ? primary : border;
+
+  return (
+    <View style={styles.inputContainer}>
+      <Text style={[styles.inputLabel, {color: hasError ? '#EF4444' : text}]}>
+        {label} {required && <Text style={{color: '#EF4444'}}>*</Text>}
+      </Text>
+      <View
+        style={[
+          styles.inputWrapper,
+          {
+            backgroundColor: card,
+            borderColor,
+            borderWidth: hasError ? 2 : 1.5,
+          },
+        ]}>
+        {leftIcon && (
+          <Icon
+            name={leftIcon}
+            size={18}
+            color={hasError ? '#EF4444' : textMuted}
+            style={styles.inputIcon}
+          />
+        )}
+        <TextInput
+          style={[styles.textInput, {color: text}]}
+          placeholder={placeholder}
+          placeholderTextColor={textMuted}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          secureTextEntry={secureTextEntry}
+          maxLength={maxLength}
+          editable={editable}
+        />
+      </View>
+      {hasError && (
+        <View style={styles.errorContainer}>
+          <Icon name="alert-circle" size={14} color="#EF4444" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
 export function RegisterScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Register'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'Register'>['route']>();
@@ -94,6 +191,10 @@ export function RegisterScreen() {
   const [learningStyle, setLearningStyle] = useState('');
   const [dailyStudyHours, setDailyStudyHours] = useState('2');
 
+  // Validation errors
+  const [errors, setErrors] = useState<FormErrors>({});
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+
   const [loading, setLoading] = useState(false);
   const [showMediumModal, setShowMediumModal] = useState(false);
   const [showClassModal, setShowClassModal] = useState(false);
@@ -120,11 +221,29 @@ export function RegisterScreen() {
   useEffect(() => {
     if (selectedBoard) {
       loadClasses(selectedBoard.id);
+      // Clear board error when selected
+      if (errors.board) {
+        setErrors(prev => ({...prev, board: undefined}));
+      }
     } else {
       setClasses([]);
       setSelectedClass(null);
     }
   }, [selectedBoard]);
+
+  // Clear class error when selected
+  useEffect(() => {
+    if (selectedClass && errors.class) {
+      setErrors(prev => ({...prev, class: undefined}));
+    }
+  }, [selectedClass]);
+
+  // Clear medium error when selected
+  useEffect(() => {
+    if (selectedMedium && errors.medium) {
+      setErrors(prev => ({...prev, medium: undefined}));
+    }
+  }, [selectedMedium]);
 
   useEffect(() => {
     Animated.parallel([
@@ -150,7 +269,6 @@ export function RegisterScreen() {
       }
     } catch (error) {
       console.log('Load boards error:', error);
-      // Use fallback boards if API fails
       setBoards([
         {id: 'cbse', name: 'CBSE', fullName: 'Central Board of Secondary Education', displayOrder: 1, isActive: true},
         {id: 'icse', name: 'ICSE', fullName: 'Indian Certificate of Secondary Education', displayOrder: 2, isActive: true},
@@ -170,7 +288,6 @@ export function RegisterScreen() {
       }
     } catch (error) {
       console.log('Load classes error:', error);
-      // Use fallback classes
       const fallbackClasses = ['6th', '7th', '8th', '9th', '10th', '11th', '12th'].map((name, i) => ({
         id: `class-${i + 6}`,
         boardId,
@@ -185,36 +302,187 @@ export function RegisterScreen() {
     }
   };
 
-  const validateStep1 = () => {
-    if (isDirectRegistration && phone.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
-      return false;
+  // Validation functions
+  const validatePhone = (value: string): string | undefined => {
+    if (!value.trim()) return 'Mobile number is required';
+    if (!/^\d{10}$/.test(value)) return 'Please enter a valid 10-digit mobile number';
+    return undefined;
+  };
+
+  const validateFullName = (value: string): string | undefined => {
+    if (!value.trim()) return 'Full name is required';
+    if (value.trim().length < 2) return 'Name must be at least 2 characters';
+    if (!/^[a-zA-Z\s]+$/.test(value.trim())) return 'Name should only contain letters';
+    return undefined;
+  };
+
+  const validateStudentName = (value: string): string | undefined => {
+    if (!value.trim()) return 'Student name is required';
+    if (value.trim().length < 2) return 'Name must be at least 2 characters';
+    if (!/^[a-zA-Z\s]+$/.test(value.trim())) return 'Name should only contain letters';
+    return undefined;
+  };
+
+  const validateEmail = (value: string): string | undefined => {
+    if (!value) return undefined; // Optional field
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(value)) return 'Please enter a valid email address';
+    return undefined;
+  };
+
+  const validatePassword = (value: string): string | undefined => {
+    if (!value) return undefined; // Optional field
+    if (value.length < 6) return 'Password must be at least 6 characters';
+    return undefined;
+  };
+
+  // Handle field change with validation
+  const handlePhoneChange = (value: string) => {
+    const cleaned = value.replace(/\D/g, '').slice(0, 10);
+    setPhone(cleaned);
+    if (touched.phone) {
+      setErrors(prev => ({...prev, phone: validatePhone(cleaned)}));
     }
-    if (!fullName.trim()) {
-      Alert.alert('Error', 'Please enter your full name');
-      return false;
+  };
+
+  const handleFullNameChange = (value: string) => {
+    setFullName(value);
+    if (touched.fullName) {
+      setErrors(prev => ({...prev, fullName: validateFullName(value)}));
     }
-    if (!studentName.trim()) {
-      Alert.alert('Error', 'Please enter student name');
-      return false;
+  };
+
+  const handleStudentNameChange = (value: string) => {
+    setStudentName(value);
+    if (touched.studentName) {
+      setErrors(prev => ({...prev, studentName: validateStudentName(value)}));
     }
+  };
+
+  const handleEmailChange = (value: string) => {
+    setEmail(value);
+    if (touched.email) {
+      setErrors(prev => ({...prev, email: validateEmail(value)}));
+    }
+  };
+
+  const handlePasswordChange = (value: string) => {
+    setPassword(value);
+    if (touched.password) {
+      setErrors(prev => ({...prev, password: validatePassword(value)}));
+    }
+  };
+
+  // Mark field as touched on blur
+  const handleBlur = (field: string) => {
+    setTouched(prev => ({...prev, [field]: true}));
+    
+    // Validate on blur
+    switch (field) {
+      case 'phone':
+        setErrors(prev => ({...prev, phone: validatePhone(phone)}));
+        break;
+      case 'fullName':
+        setErrors(prev => ({...prev, fullName: validateFullName(fullName)}));
+        break;
+      case 'studentName':
+        setErrors(prev => ({...prev, studentName: validateStudentName(studentName)}));
+        break;
+      case 'email':
+        setErrors(prev => ({...prev, email: validateEmail(email)}));
+        break;
+      case 'password':
+        setErrors(prev => ({...prev, password: validatePassword(password)}));
+        break;
+    }
+  };
+
+  const validateStep1 = (): boolean => {
+    const newErrors: FormErrors = {};
+    let isValid = true;
+
+    // Validate phone (only for direct registration)
+    if (isDirectRegistration) {
+      const phoneError = validatePhone(phone);
+      if (phoneError) {
+        newErrors.phone = phoneError;
+        isValid = false;
+      }
+    }
+
+    // Validate full name
+    const fullNameError = validateFullName(fullName);
+    if (fullNameError) {
+      newErrors.fullName = fullNameError;
+      isValid = false;
+    }
+
+    // Validate student name
+    const studentNameError = validateStudentName(studentName);
+    if (studentNameError) {
+      newErrors.studentName = studentNameError;
+      isValid = false;
+    }
+
+    // Validate board
     if (!selectedBoard) {
-      Alert.alert('Error', 'Please select your board');
-      return false;
+      newErrors.board = 'Please select your board';
+      isValid = false;
     }
+
+    // Validate class
     if (!selectedClass) {
-      Alert.alert('Error', 'Please select your class');
-      return false;
+      newErrors.class = 'Please select your class';
+      isValid = false;
     }
+
+    // Validate medium
     if (!selectedMedium) {
-      Alert.alert('Error', 'Please select your medium of instruction');
-      return false;
+      newErrors.medium = 'Please select your medium of instruction';
+      isValid = false;
     }
-    return true;
+
+    setErrors(newErrors);
+    setTouched({
+      phone: true,
+      fullName: true,
+      studentName: true,
+      board: true,
+      class: true,
+      medium: true,
+    });
+
+    return isValid;
+  };
+
+  const validateStep2 = (): boolean => {
+    const newErrors: FormErrors = {...errors};
+    let isValid = true;
+
+    // Email (optional but validate format if provided)
+    const emailError = validateEmail(email);
+    if (emailError) {
+      newErrors.email = emailError;
+      isValid = false;
+    }
+
+    // Password (optional but validate if provided)
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      newErrors.password = passwordError;
+      isValid = false;
+    }
+
+    setErrors(newErrors);
+    return isValid;
   };
 
   const handleNext = () => {
-    if (currentStep === 1 && !validateStep1()) return;
+    if (currentStep === 1) {
+      if (!validateStep1()) return;
+    } else if (currentStep === 2) {
+      if (!validateStep2()) return;
+    }
     
     if (currentStep < 3) {
       setCurrentStep((currentStep + 1) as Step);
@@ -235,7 +503,6 @@ export function RegisterScreen() {
     setLoading(true);
 
     try {
-      // First register the user
       const registerSuccess = await register({
         fullName,
         phone,
@@ -244,8 +511,6 @@ export function RegisterScreen() {
       });
 
       if (registerSuccess) {
-        // User is now logged in, navigate to create student profile
-        // For now, go to plan selection
         navigation.reset({
           index: 0,
           routes: [{name: 'SelectPlan', params: {userId: phone}}],
@@ -292,22 +557,42 @@ export function RegisterScreen() {
       {/* Phone Number - Only show if direct registration */}
       {isDirectRegistration && (
         <View style={styles.phoneInputContainer}>
-          <Text style={[styles.fieldLabel, {color: text}]}>Mobile Number *</Text>
+          <Text style={[styles.fieldLabel, {color: errors.phone ? '#EF4444' : text}]}>
+            Mobile Number <Text style={{color: '#EF4444'}}>*</Text>
+          </Text>
           <View style={styles.phoneRow}>
-            <View style={[styles.countryCode, {backgroundColor: primaryBg, borderColor: border}]}>
+            <View style={[styles.countryCode, {backgroundColor: primaryBg, borderColor: errors.phone ? '#EF4444' : border}]}>
               <Text style={[styles.countryCodeText, {color: text}]}>🇮🇳 +91</Text>
             </View>
             <View style={styles.phoneInputFlex}>
-              <Input
-                placeholder="Enter mobile number"
-                value={phone}
-                onChangeText={(val) => setPhone(val.replace(/\D/g, '').slice(0, 10))}
-                keyboardType="phone-pad"
-                maxLength={10}
-                containerStyle={styles.inputNoMargin}
-              />
+              <View
+                style={[
+                  styles.inputWrapper,
+                  {
+                    backgroundColor: card,
+                    borderColor: errors.phone ? '#EF4444' : phone ? primary : border,
+                    borderWidth: errors.phone ? 2 : 1.5,
+                  },
+                ]}>
+                <TextInput
+                  style={[styles.textInput, {color: text}]}
+                  placeholder="Enter mobile number"
+                  placeholderTextColor={textMuted}
+                  value={phone}
+                  onChangeText={handlePhoneChange}
+                  onBlur={() => handleBlur('phone')}
+                  keyboardType="phone-pad"
+                  maxLength={10}
+                />
+              </View>
             </View>
           </View>
+          {errors.phone && (
+            <View style={styles.errorContainer}>
+              <Icon name="alert-circle" size={14} color="#EF4444" />
+              <Text style={styles.errorText}>{errors.phone}</Text>
+            </View>
+          )}
         </View>
       )}
 
@@ -320,27 +605,31 @@ export function RegisterScreen() {
         </View>
       )}
 
-      <Input
-        label="Your Full Name *"
+      <ValidatedInput
+        label="Your Full Name"
         placeholder="Enter your name (parent/guardian)"
         value={fullName}
-        onChangeText={setFullName}
+        onChangeText={handleFullNameChange}
+        error={errors.fullName}
+        required
         leftIcon="user"
         autoCapitalize="words"
       />
 
-      <Input
-        label="Student Name *"
+      <ValidatedInput
+        label="Student Name"
         placeholder="Enter student's full name"
         value={studentName}
-        onChangeText={setStudentName}
+        onChangeText={handleStudentNameChange}
+        error={errors.studentName}
+        required
         leftIcon="users"
         autoCapitalize="words"
       />
 
-      <Input
+      <ValidatedInput
         label="School Name"
-        placeholder="Enter school name"
+        placeholder="Enter school name (optional)"
         value={schoolName}
         onChangeText={setSchoolName}
         leftIcon="home"
@@ -348,7 +637,9 @@ export function RegisterScreen() {
 
       {/* Board Selection */}
       <View style={styles.sectionContainer}>
-        <Text style={[styles.fieldLabel, {color: text}]}>Board of Education *</Text>
+        <Text style={[styles.fieldLabel, {color: errors.board ? '#EF4444' : text}]}>
+          Board of Education <Text style={{color: '#EF4444'}}>*</Text>
+        </Text>
         {loadingBoards ? (
           <ActivityIndicator size="small" color={primary} />
         ) : (
@@ -360,8 +651,8 @@ export function RegisterScreen() {
                   styles.optionCard,
                   {
                     backgroundColor: card,
-                    borderColor: selectedBoard?.id === board.id ? primary : border,
-                    borderWidth: selectedBoard?.id === board.id ? 2 : 1,
+                    borderColor: selectedBoard?.id === board.id ? primary : errors.board ? '#EF4444' : border,
+                    borderWidth: selectedBoard?.id === board.id ? 2 : errors.board ? 2 : 1,
                   },
                   Shadows.sm,
                 ]}
@@ -379,11 +670,19 @@ export function RegisterScreen() {
             ))}
           </View>
         )}
+        {errors.board && (
+          <View style={styles.errorContainer}>
+            <Icon name="alert-circle" size={14} color="#EF4444" />
+            <Text style={styles.errorText}>{errors.board}</Text>
+          </View>
+        )}
       </View>
 
       {/* Class Selection */}
       <View style={styles.sectionContainer}>
-        <Text style={[styles.fieldLabel, {color: text}]}>Class / Grade *</Text>
+        <Text style={[styles.fieldLabel, {color: errors.class ? '#EF4444' : text}]}>
+          Class / Grade <Text style={{color: '#EF4444'}}>*</Text>
+        </Text>
         {!selectedBoard ? (
           <Text style={[styles.helperText, {color: textMuted}]}>Please select a board first</Text>
         ) : loadingClasses ? (
@@ -398,7 +697,8 @@ export function RegisterScreen() {
                     styles.classChip,
                     {
                       backgroundColor: selectedClass?.id === cls.id ? primary : card,
-                      borderColor: selectedClass?.id === cls.id ? primary : border,
+                      borderColor: selectedClass?.id === cls.id ? primary : errors.class ? '#EF4444' : border,
+                      borderWidth: errors.class && !selectedClass ? 2 : 1,
                     },
                   ]}
                   onPress={() => setSelectedClass(cls)}>
@@ -410,13 +710,28 @@ export function RegisterScreen() {
             </View>
           </ScrollView>
         )}
+        {errors.class && (
+          <View style={styles.errorContainer}>
+            <Icon name="alert-circle" size={14} color="#EF4444" />
+            <Text style={styles.errorText}>{errors.class}</Text>
+          </View>
+        )}
       </View>
 
       {/* Medium Selection */}
       <View style={styles.sectionContainer}>
-        <Text style={[styles.fieldLabel, {color: text}]}>Medium of Instruction *</Text>
+        <Text style={[styles.fieldLabel, {color: errors.medium ? '#EF4444' : text}]}>
+          Medium of Instruction <Text style={{color: '#EF4444'}}>*</Text>
+        </Text>
         <TouchableOpacity
-          style={[styles.selectButton, {backgroundColor: card, borderColor: selectedMedium ? primary : border}]}
+          style={[
+            styles.selectButton,
+            {
+              backgroundColor: card,
+              borderColor: selectedMedium ? primary : errors.medium ? '#EF4444' : border,
+              borderWidth: errors.medium && !selectedMedium ? 2 : 1.5,
+            },
+          ]}
           onPress={() => setShowMediumModal(true)}>
           {selectedMedium ? (
             <View style={styles.selectedMedium}>
@@ -428,12 +743,18 @@ export function RegisterScreen() {
               </Text>
             </View>
           ) : (
-            <Text style={[styles.selectPlaceholder, {color: textMuted}]}>
+            <Text style={[styles.selectPlaceholder, {color: errors.medium ? '#EF4444' : textMuted}]}>
               Select medium
             </Text>
           )}
-          <Icon name="chevron-down" size={20} color={textMuted} />
+          <Icon name="chevron-down" size={20} color={errors.medium ? '#EF4444' : textMuted} />
         </TouchableOpacity>
+        {errors.medium && (
+          <View style={styles.errorContainer}>
+            <Icon name="alert-circle" size={14} color="#EF4444" />
+            <Text style={styles.errorText}>{errors.medium}</Text>
+          </View>
+        )}
       </View>
     </Animated.View>
   );
@@ -445,27 +766,29 @@ export function RegisterScreen() {
         Help us personalize your experience (Optional)
       </Text>
 
-      <Input
-        label="Email (Optional)"
+      <ValidatedInput
+        label="Email"
         placeholder="Enter email address"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={handleEmailChange}
+        error={errors.email}
         leftIcon="mail"
         keyboardType="email-address"
         autoCapitalize="none"
       />
 
-      <Input
-        label="Password (Optional)"
-        placeholder="Create a password"
+      <ValidatedInput
+        label="Password"
+        placeholder="Create a password (min 6 characters)"
         value={password}
-        onChangeText={setPassword}
+        onChangeText={handlePasswordChange}
+        error={errors.password}
         leftIcon="lock"
         secureTextEntry
       />
 
-      <Input
-        label="Date of Birth (Optional)"
+      <ValidatedInput
+        label="Date of Birth"
         placeholder="YYYY-MM-DD"
         value={dateOfBirth}
         onChangeText={setDateOfBirth}
@@ -498,8 +821,8 @@ export function RegisterScreen() {
         </View>
       </View>
 
-      <Input
-        label="Section (Optional)"
+      <ValidatedInput
+        label="Section"
         placeholder="e.g., A, B, C"
         value={section}
         onChangeText={setSection}
@@ -590,7 +913,7 @@ export function RegisterScreen() {
             <Icon name="chevron-left" size={24} color={text} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={[styles.headerTitle, {color: text}]}>Student Registration</Text>
+            <Text style={[styles.headerTitle, {color: text}]}>Registration</Text>
             <Text style={[styles.headerStep, {color: textMuted}]}>Step {currentStep} of 3</Text>
           </View>
           {currentStep > 1 && (
@@ -761,8 +1084,40 @@ const styles = StyleSheet.create({
   phoneInputFlex: {
     flex: 1,
   },
-  inputNoMargin: {
-    marginBottom: 0,
+  // Input styles
+  inputContainer: {
+    marginBottom: Spacing.lg,
+  },
+  inputLabel: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    marginBottom: Spacing.sm,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing.base,
+    minHeight: 52,
+  },
+  inputIcon: {
+    marginRight: Spacing.sm,
+  },
+  textInput: {
+    flex: 1,
+    fontSize: FontSizes.base,
+    paddingVertical: Spacing.md,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: FontSizes.xs,
+    fontWeight: '500',
   },
   sectionContainer: {
     marginBottom: Spacing.lg,

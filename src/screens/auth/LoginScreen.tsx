@@ -11,6 +11,7 @@ import {
   Animated,
   ScrollView,
   Alert,
+  Image,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
@@ -19,6 +20,15 @@ import {useAuth} from '../../context';
 import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
+
+// ============================================================
+// TO ADD YOUR LOGO:
+// 1. Place your logo file at: src/assets/images/logo.png
+// 2. Uncomment the line below:
+// import Logo from '../../assets/images/logo.png';
+// 3. Set USE_LOGO to true
+// ============================================================
+const USE_LOGO = false; // Set to true after adding logo.png
 
 export function LoginScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
@@ -110,14 +120,27 @@ export function LoginScreen() {
             styles.content,
             {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
           ]}>
-          {/* Header */}
+          {/* Header with Logo */}
           <View style={styles.header}>
+            {/* Logo - Using icon as placeholder. Replace with Image when logo is ready */}
             <View style={[styles.logoContainer, Shadows.glow]}>
               <View style={[styles.logoInner, {backgroundColor: primary}]}>
                 <Icon name="book-open" size={40} color="#FFF" />
               </View>
             </View>
-            <Text style={[styles.appName, {color: primary}]}>AI Tutor 🔥</Text>
+            
+            {/* 
+              TO USE CUSTOM LOGO IMAGE:
+              1. Add logo.png to src/assets/images/
+              2. Replace the View above with:
+              <Image 
+                source={require('../../assets/images/logo.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            */}
+            
+            <Text style={[styles.appName, {color: primary}]}>AI Tutor</Text>
             <Text style={[styles.title, {color: text}]}>Welcome Back!</Text>
             <Text style={[styles.subtitle, {color: textSecondary}]}>
               Enter your mobile number to continue
@@ -247,6 +270,11 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: BorderRadius['2xl'],
   },
   appName: {
     fontSize: FontSizes.xl,
