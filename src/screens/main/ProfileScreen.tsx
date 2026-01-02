@@ -18,13 +18,14 @@ import {
   useColorScheme,
   ActivityIndicator,
   RefreshControl,
+  Pressable,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useAuth, useStudent} from '../../context';
 import {useProgress} from '../../hooks';
-import {settingsApi} from '../../services/api';
+import {settingsApi, studentsApi} from '../../services/api';
 import type {FAQ, ContactInfo} from '../../services/api/settings';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
@@ -135,26 +136,53 @@ export function ProfileScreen() {
   };
 
   const handleSaveProfile = async () => {
+    console.log('==========================================');
+    console.log('[ProfileScreen] SAVE BUTTON PRESSED!');
+    console.log('[ProfileScreen] editName:', editName);
+    console.log('[ProfileScreen] currentStudent:', currentStudent);
+    console.log('==========================================');
+    
     if (!editName.trim()) {
       Alert.alert('Error', 'Please enter your name');
       return;
     }
 
+    if (!currentStudent) {
+      console.log('[ProfileScreen] ERROR: No currentStudent found!');
+      Alert.alert('Error', 'No student profile found. Please try logging in again.');
+      return;
+    }
+
+    console.log('[ProfileScreen] Setting saving to true...');
     setSaving(true);
+    
     try {
-      if (currentStudent) {
-        const success = await updateStudent(currentStudent.id, {studentName: editName.trim()});
-        if (success) {
-          setShowEditProfile(false);
-          Alert.alert('Success', 'Profile updated successfully! ✅');
-        } else {
-          Alert.alert('Error', 'Failed to update profile');
-        }
+      console.log('[ProfileScreen] Calling studentsApi.update...');
+      console.log('[ProfileScreen] Student ID:', currentStudent.id);
+      console.log('[ProfileScreen] New Name:', editName.trim());
+      
+      const response = await studentsApi.update(currentStudent.id, {
+        studentName: editName.trim(),
+      });
+      
+      console.log('[ProfileScreen] API Response received:', response);
+      
+      if (response.success) {
+        console.log('[ProfileScreen] Update successful! Refreshing students...');
+        await loadStudents();
+        setShowEditProfile(false);
+        Alert.alert('Success', 'Profile updated successfully! ✅');
+      } else {
+        console.log('[ProfileScreen] Update failed:', response.message);
+        Alert.alert('Error', response.message || 'Failed to update profile');
       }
-    } catch (err) {
-      console.log('Save profile error:', err);
-      Alert.alert('Error', 'Failed to update profile');
+    } catch (err: any) {
+      console.log('[ProfileScreen] EXCEPTION caught:', err);
+      console.log('[ProfileScreen] Error message:', err.message);
+      console.log('[ProfileScreen] Error response:', err.response?.data);
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to update profile');
     } finally {
+      console.log('[ProfileScreen] Setting saving to false...');
       setSaving(false);
     }
   };
@@ -203,6 +231,15 @@ export function ProfileScreen() {
     }
   };
 
+  const openEditProfile = () => {
+    console.log('[ProfileScreen] Opening edit profile modal');
+    console.log('[ProfileScreen] Current displayName:', displayName);
+    console.log('[ProfileScreen] Current student:', currentStudent);
+    setEditName(displayName);
+    setEditEmail(displayEmail);
+    setShowEditProfile(true);
+  };
+
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
       <ScrollView 
@@ -241,11 +278,7 @@ export function ProfileScreen() {
               primaryColor={primary}
               textColor={text}
               textMuted={textMuted}
-              onPress={() => {
-                setEditName(displayName);
-                setEditEmail(displayEmail);
-                setShowEditProfile(true);
-              }}
+              onPress={openEditProfile}
             />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <MenuItem
@@ -325,12 +358,15 @@ export function ProfileScreen() {
                 <Icon name="x" size={24} color={textMuted} />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <View style={styles.modalBody}>
               <Text style={[styles.inputLabel, {color: textSecondary}]}>Full Name</Text>
               <TextInput
                 style={[styles.input, {backgroundColor: background, color: text, borderColor: border}]}
                 value={editName}
-                onChangeText={setEditName}
+                onChangeText={(val) => {
+                  console.log('[ProfileScreen] Name changed to:', val);
+                  setEditName(val);
+                }}
                 placeholder="Enter your name"
                 placeholderTextColor={textMuted}
                 editable={!saving}
@@ -343,13 +379,40 @@ export function ProfileScreen() {
                 placeholder="Phone number"
                 placeholderTextColor={textMuted}
               />
-              <TouchableOpacity
-                style={[styles.saveButton, {backgroundColor: primary, opacity: saving ? 0.7 : 1}]}
-                onPress={handleSaveProfile}
+              
+              {/* Using Pressable for better touch handling */}
+              <Pressable
+                style={({pressed}) => [
+                  styles.saveButton,
+                  {
+                    backgroundColor: primary,
+                    opacity: saving ? 0.7 : pressed ? 0.8 : 1,
+                  },
+                ]}
+                onPress={() => {
+                  console.log('[ProfileScreen] Pressable onPress triggered!');
+                  handleSaveProfile();
+                }}
                 disabled={saving}>
-                {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveButtonText}>Save Changes</Text>}
-              </TouchableOpacity>
-            </ScrollView>
+                {saving ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Save Changes</Text>
+                )}
+              </Pressable>
+              
+              {/* Debug info */}
+              {__DEV__ && (
+                <View style={{marginTop: 16, padding: 8, backgroundColor: '#f0f0f0', borderRadius: 4}}>
+                  <Text style={{fontSize: 10, color: '#666'}}>
+                    Debug: Student ID: {currentStudent?.id || 'NULL'}
+                  </Text>
+                  <Text style={{fontSize: 10, color: '#666'}}>
+                    Debug: Edit Name: {editName}
+                  </Text>
+                </View>
+              )}
+            </View>
           </View>
         </View>
       </Modal>
@@ -468,7 +531,7 @@ function StatCard({icon, value, label, color, cardColor, textColor, textSecondar
 
 function MenuItem({icon, label, value, emoji, danger, errorColor, primaryColor, textColor, textMuted, onPress}: any) {
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+    <TouchableOpacity style={styles.menuItem} onPress={onPress} activeOpacity={0.7}>
       <View style={[styles.menuIcon, {backgroundColor: danger ? `${errorColor}15` : `${primaryColor}15`}]}>
         <Icon name={icon} size={18} color={danger ? errorColor : primaryColor} />
       </View>
@@ -484,7 +547,7 @@ function MenuItem({icon, label, value, emoji, danger, errorColor, primaryColor, 
 function FAQItem({question, answer, textColor, textMuted, border}: any) {
   const [expanded, setExpanded] = useState(false);
   return (
-    <TouchableOpacity style={[styles.faqItem, {borderBottomColor: border}]} onPress={() => setExpanded(!expanded)}>
+    <TouchableOpacity style={[styles.faqItem, {borderBottomColor: border}]} onPress={() => setExpanded(!expanded)} activeOpacity={0.7}>
       <View style={styles.faqHeader}>
         <Text style={[styles.faqQuestion, {color: textColor}]}>{question}</Text>
         <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={textMuted} />
