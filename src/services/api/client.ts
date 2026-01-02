@@ -1,6 +1,10 @@
 /**
  * API Client with E2E Encryption
  * Axios instance with automatic encryption/decryption for all API calls
+ * 
+ * - Sends X-Client-Public-Key header for ALL requests (enables encrypted responses)
+ * - Encrypts POST/PUT/PATCH body data
+ * - Decrypts encrypted responses automatically
  */
 
 import axios, {AxiosInstance, AxiosError, InternalAxiosRequestConfig, AxiosResponse} from 'axios';
@@ -27,12 +31,11 @@ export const setSessionTerminatedCallback = (callback: () => void) => {
 };
 
 // Encryption state
-let isEncryptionEnabled = false; // Start disabled, enable after successful handshake
+let isEncryptionEnabled = false;
 let isHandshakeComplete = false;
-let serverPublicKey: string | null = null;
 let handshakeAttempted = false;
 
-// Endpoints that should NOT be encrypted (public endpoints)
+// Endpoints that should NOT be encrypted
 const UNENCRYPTED_ENDPOINTS = [
   '/auth/handshake',
   '/auth/public-key',
@@ -66,16 +69,29 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 /**
+ * Get client public key (must be called after encryption is initialized)
+ */
+const getClientPublicKey = (): string | null => {
+  try {
+    if (encryptionService.isReady()) {
+      return encryptionService.getPublicKey();
+    }
+    return null;
+  } catch (error) {
+    console.error('Failed to get client public key:', error);
+    return null;
+  }
+};
+
+/**
  * Initialize encryption and perform handshake with server
  */
 export const initializeEncryption = async (): Promise<boolean> => {
-  // Only attempt handshake once
   if (handshakeAttempted) {
     return isEncryptionEnabled && isHandshakeComplete;
   }
   handshakeAttempted = true;
 
-  // Skip if encryption is disabled in config
   if (!API_CONFIG.ENCRYPTION_ENABLED) {
     console.log('🔓 E2E Encryption disabled in config');
     isEncryptionEnabled = false;
@@ -95,19 +111,21 @@ export const initializeEncryption = async (): Promise<boolean> => {
       return false;
     }
 
-    // Perform handshake with server
     const clientPublicKey = encryptionService.getPublicKey();
-    console.log('🔑 Client public key ready, performing handshake...');
+    console.log('🔑 Client public key:', clientPublicKey);
     
     const response = await axios.post(
       `${API_CONFIG.BASE_URL}${ENDPOINTS.AUTH.HANDSHAKE}`,
       { clientPublicKey },
-      { timeout: 10000 } // 10 second timeout for handshake
+      { timeout: 10000 }
     );
 
     if (response.data.success && response.data.data) {
-      serverPublicKey = response.data.data.serverPublicKey;
+      const serverPublicKey = response.data.data.serverPublicKey;
       const serverEncryptionEnabled = response.data.data.encryptionEnabled !== false;
+      
+      console.log('🔑 Server public key:', serverPublicKey);
+      console.log('📋 Server encryption enabled:', serverEncryptionEnabled);
       
       if (serverPublicKey && serverEncryptionEnabled) {
         await encryptionService.setServerPublicKey(serverPublicKey);
@@ -126,12 +144,10 @@ export const initializeEncryption = async (): Promise<boolean> => {
     console.log('⚠️ Handshake response invalid');
     return false;
   } catch (error: any) {
-    // Log specific error details
     if (error.code === 'ECONNREFUSED') {
       console.warn('⚠️ Backend server not running at', API_CONFIG.BASE_URL);
     } else if (error.code === 'ENOTFOUND' || error.message?.includes('Network Error')) {
       console.warn('⚠️ Cannot reach backend. Check IP address:', API_CONFIG.BASE_URL);
-      console.warn('   Make sure backend is running and IP is correct');
     } else {
       console.warn('⚠️ E2E handshake failed:', error.message || error);
     }
@@ -148,7 +164,8 @@ export const initializeEncryption = async (): Promise<boolean> => {
 const shouldEncryptEndpoint = (url: string): boolean => {
   if (!isEncryptionEnabled || !isHandshakeComplete) return false;
   if (!encryptionService.isReady() || !encryptionService.hasServerKey()) return false;
-  return !UNENCRYPTED_ENDPOINTS.some(endpoint => url.includes(endpoint));
+  if (UNENCRYPTED_ENDPOINTS.some(endpoint => url.includes(endpoint))) return false;
+  return true;
 };
 
 /**
@@ -166,7 +183,7 @@ const encryptRequestData = (data: any): any => {
       payload: encryptedPayload,
     };
   } catch (error) {
-    console.error('Request encryption failed:', error);
+    console.error('❌ Request encryption failed:', error);
     return data;
   }
 };
@@ -187,12 +204,12 @@ const decryptResponseData = (data: any): any => {
   try {
     return encryptionService.decryptObject(data.payload);
   } catch (error) {
-    console.error('Response decryption failed:', error);
+    console.error('❌ Response decryption failed:', error);
     return data;
   }
 };
 
-// Request interceptor - Add auth token and encrypt
+// Request interceptor - Add auth token, client public key header, and encrypt body
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     // Add auth token
@@ -201,18 +218,29 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Encrypt request body if applicable
     const url = config.url || '';
-    if (config.data && shouldEncryptEndpoint(url) && config.method !== 'get') {
-      if (__DEV__) {
-        console.log(`🔐 Encrypting request: ${config.method?.toUpperCase()} ${url}`);
+    const shouldEncrypt = shouldEncryptEndpoint(url);
+    
+    // ALWAYS send client public key header when encryption is enabled
+    // This tells the server to encrypt the response (for GET and other requests)
+    if (shouldEncrypt && config.headers) {
+      const clientPublicKey = getClientPublicKey();
+      if (clientPublicKey) {
+        config.headers['X-Client-Public-Key'] = clientPublicKey;
+        console.log('📤 Sending X-Client-Public-Key header');
+      } else {
+        console.warn('⚠️ Could not get client public key');
       }
+    }
+    
+    // Encrypt request body for POST/PUT/PATCH
+    if (config.data && shouldEncrypt && config.method !== 'get') {
+      console.log(`🔐 Encrypting request body: ${config.method?.toUpperCase()} ${url}`);
       config.data = encryptRequestData(config.data);
-      config.headers['X-Encryption-Enabled'] = 'true';
     }
     
     if (__DEV__) {
-      console.log(`🌐 API Request: ${config.method?.toUpperCase()} ${url}`);
+      console.log(`🌐 API: ${config.method?.toUpperCase()} ${url} [encrypted: ${shouldEncrypt}]`);
     }
     
     return config;
@@ -226,15 +254,14 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     if (__DEV__) {
-      console.log(`✅ API Response: ${response.config.url} - ${response.status}`);
+      console.log(`✅ Response: ${response.config.url} - ${response.status}`);
     }
     
     // Decrypt response if encrypted
     if (response.data?.encrypted) {
-      if (__DEV__) {
-        console.log(`🔓 Decrypting response: ${response.config.url}`);
-      }
+      console.log(`🔓 Decrypting response...`);
       response.data = decryptResponseData(response.data);
+      console.log(`✅ Response decrypted`);
     }
     
     return response;
@@ -243,8 +270,7 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & {_retry?: boolean};
 
     if (__DEV__) {
-      console.log(`❌ API Error: ${originalRequest?.url} - ${error.response?.status}`);
-      console.log('Error details:', error.response?.data || error.message);
+      console.log(`❌ Error: ${originalRequest?.url} - ${error.response?.status}`);
     }
 
     // Decrypt error response if encrypted
