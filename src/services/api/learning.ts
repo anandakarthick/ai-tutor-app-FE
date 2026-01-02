@@ -79,6 +79,16 @@ export const learningApi = {
     );
     return response.data;
   },
+
+  /**
+   * Get topic progress for a student
+   */
+  getProgress: async (studentId: string, topicId: string) => {
+    const response = await apiClient.get<ApiResponse<any>>(
+      `${ENDPOINTS.LEARNING.PROGRESS}/${studentId}/${topicId}`
+    );
+    return response.data;
+  },
 };
 
 export default learningApi;

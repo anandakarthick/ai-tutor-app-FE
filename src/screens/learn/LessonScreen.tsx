@@ -25,7 +25,7 @@ import type {Topic, ContentBlock} from '../../types/api';
 export function LessonScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const {subject, chapter, lesson, topicId, subjectColor} = route.params;
+  const {subject, chapter, lesson, topicId, subjectColor, isAlreadyCompleted} = route.params;
   const {currentStudent} = useStudent();
   
   const [topic, setTopic] = useState<Topic | null>(null);
@@ -36,7 +36,7 @@ export function LessonScreen() {
   const [totalDuration, setTotalDuration] = useState(180);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
-  const [isCompleted, setIsCompleted] = useState(false);
+  const [isCompleted, setIsCompleted] = useState(isAlreadyCompleted || false); // Initialize from route params
   const [sessionId, setSessionId] = useState<string | null>(null);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -55,6 +55,7 @@ export function LessonScreen() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('[LessonScreen] Loading data, isAlreadyCompleted:', isAlreadyCompleted);
       
       // Get topic details
       const topicRes = await contentApi.topics.getById(topicId);
@@ -81,7 +82,7 @@ export function LessonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [topicId, currentStudent]);
+  }, [topicId, currentStudent, isAlreadyCompleted]);
 
   useEffect(() => {
     loadData();
@@ -144,19 +145,39 @@ export function LessonScreen() {
   };
 
   const handleComplete = async () => {
-    if (sessionId) {
-      await learningApi.endSession(sessionId, 20);
+    try {
+      console.log('[LessonScreen] Marking lesson as complete');
+      console.log('[LessonScreen] sessionId:', sessionId);
+      console.log('[LessonScreen] studentId:', currentStudent?.id);
+      console.log('[LessonScreen] topicId:', topicId);
+      
+      // End the learning session
+      if (sessionId) {
+        console.log('[LessonScreen] Ending session...');
+        const endRes = await learningApi.endSession(sessionId, 20);
+        console.log('[LessonScreen] End session response:', endRes);
+      }
+      
+      // Update progress to 100%
+      if (currentStudent) {
+        console.log('[LessonScreen] Updating progress to 100%...');
+        const progressRes = await learningApi.updateProgress(currentStudent.id, topicId, 100);
+        console.log('[LessonScreen] Update progress response:', progressRes);
+      }
+      
+      setIsCompleted(true);
+      console.log('[LessonScreen] Lesson marked as complete, navigating back...');
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1500);
+    } catch (error) {
+      console.log('[LessonScreen] Error completing lesson:', error);
+      // Still mark as completed locally and navigate back
+      setIsCompleted(true);
+      setTimeout(() => {
+        navigation.goBack();
+      }, 1500);
     }
-    
-    // Update progress
-    if (currentStudent) {
-      await learningApi.updateProgress(currentStudent.id, topicId, 100);
-    }
-    
-    setIsCompleted(true);
-    setTimeout(() => {
-      navigation.goBack();
-    }, 1500);
   };
 
   const progress = (currentTime / totalDuration) * 100;
@@ -352,9 +373,17 @@ export function LessonScreen() {
               size="lg"
             />
           ) : (
-            <View style={[styles.completedBadge, {backgroundColor: success}]}>
-              <Icon name="check-circle" size={24} color="#FFF" />
-              <Text style={styles.completedText}>Lesson Completed! 🎉</Text>
+            <View>
+              <View style={[styles.completedBadge, {backgroundColor: success}]}>
+                <Icon name="check-circle" size={24} color="#FFF" />
+                <Text style={styles.completedText}>Lesson Completed! 🎉</Text>
+              </View>
+              <TouchableOpacity 
+                style={[styles.reviseButton, {backgroundColor: card, borderColor: primary}]}
+                onPress={() => navigation.goBack()}>
+                <Icon name="refresh-cw" size={16} color={primary} />
+                <Text style={[styles.reviseText, {color: primary}]}>Back to Chapter</Text>
+              </TouchableOpacity>
             </View>
           )}
         </View>
@@ -643,6 +672,20 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.base,
     fontWeight: '700',
     color: '#FFF',
+  },
+  reviseButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1.5,
+    marginTop: Spacing.sm,
+    gap: Spacing.sm,
+  },
+  reviseText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
   },
   audioPlayer: {
     paddingHorizontal: Spacing.md,

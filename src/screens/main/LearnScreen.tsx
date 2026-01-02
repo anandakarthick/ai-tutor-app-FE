@@ -3,14 +3,13 @@
  * Browse subjects and chapters - API Integrated
  */
 
-import React, {useEffect, useRef, useCallback, useState} from 'react';
+import React, {useCallback, useState} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Animated,
   useColorScheme,
   ActivityIndicator,
   RefreshControl,
@@ -65,8 +64,6 @@ export function LearnScreen() {
   const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
   const {currentStudent} = useStudent();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
 
   // Fetch subjects based on student's class
   const {subjects, loading, error, refresh} = useSubjects(currentStudent?.classId);
@@ -104,27 +101,14 @@ export function LearnScreen() {
   useFocusEffect(
     useCallback(() => {
       console.log('[LearnScreen] Screen focused - refreshing data');
+      console.log('[LearnScreen] currentStudent:', currentStudent);
+      console.log('[LearnScreen] classId:', currentStudent?.classId);
       if (currentStudent?.classId) {
         refresh();
         loadProgress();
       }
     }, [refresh, loadProgress, currentStudent?.classId])
   );
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
 
   const handleRefresh = useCallback(async () => {
     console.log('[LearnScreen] Pull-to-refresh triggered');
@@ -186,8 +170,46 @@ export function LearnScreen() {
     );
   }
 
+  // Student exists but no class selected - prompt to complete setup
+  if (!currentStudent.classId) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={[styles.title, {color: text}]}>Learn 📚</Text>
+          <Text style={[styles.subtitle, {color: textSecondary}]}>
+            Hi, {currentStudent.studentName}!
+          </Text>
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+          }>
+          <View style={[styles.emptyCard, {backgroundColor: card}]}>
+            <View style={[styles.emptyIcon, {backgroundColor: primaryBg}]}>
+              <Text style={styles.emptyEmoji}>📝</Text>
+            </View>
+            <Text style={[styles.emptyTitle, {color: text}]}>
+              Select Your Class
+            </Text>
+            <Text style={[styles.emptyDescription, {color: textSecondary}]}>
+              Please select your board and class in your profile to see available subjects.
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionButton, {backgroundColor: primary}]}
+              onPress={() => navigation.navigate('Profile')}>
+              <Icon name="settings" size={18} color="#FFF" />
+              <Text style={styles.actionButtonText}>Update Profile</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
   // Loading state
   if (loading && subjects.length === 0) {
+    console.log('[LearnScreen] Showing LOADING state');
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
         <View style={styles.header}>
@@ -204,15 +226,13 @@ export function LearnScreen() {
     );
   }
 
+  console.log('[LearnScreen] Rendering MAIN view with', subjects.length, 'subjects, error:', error, 'loading:', loading);
+
   return (
     <SafeAreaView
       style={[styles.container, {backgroundColor: background}]}
       edges={['top']}>
-      <Animated.View
-        style={[
-          styles.header,
-          {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
-        ]}>
+      <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
             <Text style={[styles.title, {color: text}]}>Learn 📚</Text>
@@ -225,7 +245,7 @@ export function LearnScreen() {
             <Icon name="search" size={20} color={primary} />
           </TouchableOpacity>
         </View>
-      </Animated.View>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -233,7 +253,25 @@ export function LearnScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
         }>
-        {subjects.length === 0 && !loading ? (
+        {error ? (
+          <View style={[styles.emptyCard, {backgroundColor: card}]}>
+            <View style={[styles.emptyIcon, {backgroundColor: '#FEE2E2'}]}>
+              <Text style={styles.emptyEmoji}>⚠️</Text>
+            </View>
+            <Text style={[styles.emptyTitle, {color: text}]}>
+              Something went wrong
+            </Text>
+            <Text style={[styles.emptyDescription, {color: textSecondary}]}>
+              {error}
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionButton, {backgroundColor: primary}]}
+              onPress={handleRefresh}>
+              <Icon name="refresh-cw" size={18} color="#FFF" />
+              <Text style={styles.actionButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : subjects.length === 0 && !loading ? (
           <View style={[styles.emptyCard, {backgroundColor: card}]}>
             <View style={[styles.emptyIcon, {backgroundColor: primaryBg}]}>
               <Text style={styles.emptyEmoji}>📭</Text>
@@ -252,11 +290,8 @@ export function LearnScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <Animated.View
-            style={[
-              styles.subjectsGrid,
-              {opacity: fadeAnim, transform: [{translateY: slideAnim}]},
-            ]}>
+          <View style={[styles.subjectsGrid, {borderWidth: 2, borderColor: 'red', minHeight: 200}]}>
+            <Text style={{color: text, padding: 10, width: '100%'}}>Found {subjects.length} subjects:</Text>
             {subjects.map((subject, index) => {
               const subjectTheme = getSubjectTheme(subject.displayName, colorScheme);
               const progress = subjectProgress[subject.id] || 0;
@@ -277,7 +312,7 @@ export function LearnScreen() {
                 />
               );
             })}
-          </Animated.View>
+          </View>
         )}
         <View style={{height: Spacing.xl}} />
       </ScrollView>
@@ -310,52 +345,21 @@ function SubjectGridCard({
   delay: number;
   onPress: () => void;
 }) {
-  const scaleAnim = useRef(new Animated.Value(0.8)).current;
-  const opacityAnim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        delay,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 7,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 1,
-        delay,
-        duration: 400,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [delay]);
-
-  const handlePressIn = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 0.95,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const handlePressOut = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-    }).start();
-  };
-
+  const isCompleted = progress >= 100;
+  const inProgress = progress > 0 && progress < 100;
+  const successColor = '#22C55E';
+  
   return (
-    <Animated.View
-      style={[
-        styles.subjectCardWrapper,
-        {transform: [{scale: scaleAnim}], opacity: opacityAnim},
-      ]}>
+    <View style={styles.subjectCardWrapper}>
       <TouchableOpacity
-        style={[styles.subjectCard, {backgroundColor: cardColor}, Shadows.md]}
+        style={[
+          styles.subjectCard, 
+          {backgroundColor: cardColor}, 
+          isCompleted && {borderColor: successColor, borderWidth: 2},
+          inProgress && {borderColor: theme.primary, borderWidth: 2},
+          Shadows.md
+        ]}
         activeOpacity={0.9}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
         onPress={onPress}>
         <View style={styles.emojiCorner}>
           <Text style={styles.emoji}>{emoji}</Text>
@@ -369,14 +373,29 @@ function SubjectGridCard({
         <Text style={[styles.subjectMeta, {color: textSecondary}]}>
           {chapters} chapters
         </Text>
+        
+        {/* Status Badge */}
+        {isCompleted && (
+          <View style={[styles.subjectStatusBadge, {backgroundColor: `${successColor}20`}]}>
+            <Icon name="check-circle" size={10} color={successColor} />
+            <Text style={[styles.subjectStatusText, {color: successColor}]}>Completed</Text>
+          </View>
+        )}
+        {inProgress && (
+          <View style={[styles.subjectStatusBadge, {backgroundColor: `${theme.primary}20`}]}>
+            <Icon name="loader" size={10} color={theme.primary} />
+            <Text style={[styles.subjectStatusText, {color: theme.primary}]}>In Progress</Text>
+          </View>
+        )}
+        
         <View style={styles.progressContainer}>
-          <ProgressBar progress={progress} size="sm" showLabel={false} />
-          <Text style={[styles.progressText, {color: theme.primary}]}>
+          <ProgressBar progress={progress} size="sm" showLabel={false} color={isCompleted ? successColor : theme.primary} />
+          <Text style={[styles.progressText, {color: isCompleted ? successColor : theme.primary}]}>
             {progress}%
           </Text>
         </View>
       </TouchableOpacity>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -503,7 +522,20 @@ const styles = StyleSheet.create({
   },
   subjectMeta: {
     fontSize: FontSizes.xs,
-    marginBottom: Spacing.md,
+    marginBottom: Spacing.sm,
+  },
+  subjectStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 4,
+    marginBottom: Spacing.sm,
+  },
+  subjectStatusText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   progressContainer: {
     width: '100%',

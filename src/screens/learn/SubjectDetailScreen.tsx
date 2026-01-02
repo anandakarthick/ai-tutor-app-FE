@@ -16,7 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {contentApi, progressApi} from '../../services/api';
@@ -77,19 +77,22 @@ export function SubjectDetailScreen() {
   const subjectColor = SUBJECT_COLORS[subject] || '#F97316';
   const subjectEmoji = SUBJECT_EMOJI[subject] || '📘';
 
-  // Load chapters from API
+  // Load chapters from API with student progress
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('[SubjectDetailScreen] Loading data for subject:', subjectId, 'student:', currentStudent?.id);
       
       // First get books for this subject
       const booksRes = await contentApi.books.getBySubject(subjectId);
       if (booksRes.success && booksRes.data && booksRes.data.length > 0) {
         setBooks(booksRes.data);
         
-        // Get chapters for the first book
+        // Get chapters for the first book with student progress
         const bookId = booksRes.data[0].id;
-        const chaptersRes = await contentApi.chapters.getByBook(bookId);
+        const chaptersRes = await contentApi.chapters.getByBook(bookId, currentStudent?.id);
+        console.log('[SubjectDetailScreen] Chapters response:', chaptersRes);
+        
         if (chaptersRes.success && chaptersRes.data) {
           setChapters(chaptersRes.data);
           
@@ -97,17 +100,9 @@ export function SubjectDetailScreen() {
           const firstIncomplete = chaptersRes.data.find((c: any) => !c.isCompleted);
           if (firstIncomplete) {
             setCurrentChapterId(firstIncomplete.id);
-          }
-        }
-      }
-      
-      // Load progress
-      if (currentStudent) {
-        const progressRes = await progressApi.getOverall(currentStudent.id);
-        if (progressRes.success && progressRes.data?.subjectProgress) {
-          const sp = progressRes.data.subjectProgress.find(s => s.subjectId === subjectId);
-          if (sp) {
-            // Set chapter progress (would need chapter-level progress API)
+          } else if (chaptersRes.data.length > 0) {
+            // All complete, set first as current
+            setCurrentChapterId(null);
           }
         }
       }
@@ -116,11 +111,15 @@ export function SubjectDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [subjectId, currentStudent]);
+  }, [subjectId, currentStudent?.id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh data when screen is focused (after returning from chapter)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[SubjectDetailScreen] Screen focused - refreshing data');
+      loadData();
+    }, [loadData])
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -157,10 +156,12 @@ export function SubjectDetailScreen() {
     });
   };
 
-  const completedChapters = chapters.filter(c => c.progress === 100).length;
+  const completedChapters = chapters.filter(c => c.isCompleted).length;
   const totalChapters = chapters.length;
+  
+  // Calculate overall progress based on chapter progress
   const overallProgress = totalChapters > 0 
-    ? Math.round((completedChapters / totalChapters) * 100) 
+    ? Math.round(chapters.reduce((sum, c) => sum + (c.progress || 0), 0) / totalChapters)
     : 0;
 
   if (loading) {
@@ -275,26 +276,28 @@ export function SubjectDetailScreen() {
           </View>
         ) : (
           filteredChapters.map((chapter, index) => {
-            const isCompleted = chapter.progress === 100;
-            const isCurrent = chapter.id === currentChapterId;
+            const isCompleted = chapter.isCompleted === true;
             const progress = chapter.progress || 0;
+            const inProgress = progress > 0 && !isCompleted;
+            const completedTopics = chapter.completedTopics || 0;
+            const totalTopics = chapter.totalTopics || 0;
+            
+            console.log(`[SubjectDetailScreen] Chapter ${index + 1}: progress=${progress}, isCompleted=${isCompleted}, inProgress=${inProgress}`);
             
             return (
               <Animated.View
                 key={chapter.id}
-                style={[
-                  {
-                    opacity: fadeAnim,
-                    transform: [{translateY: slideAnim}],
-                  },
-                ]}>
+                style={[{
+                  opacity: fadeAnim,
+                  transform: [{translateY: slideAnim}],
+                }]}>
                 <TouchableOpacity
                   style={[
                     styles.chapterCard,
                     {
                       backgroundColor: card,
-                      borderColor: isCurrent ? subjectColor : border,
-                      borderWidth: isCurrent ? 2 : 1,
+                      borderColor: isCompleted ? success : (inProgress ? subjectColor : border),
+                      borderWidth: isCompleted || inProgress ? 2 : 1,
                     },
                     Shadows.sm,
                   ]}
@@ -307,7 +310,7 @@ export function SubjectDetailScreen() {
                       {
                         backgroundColor: isCompleted
                           ? success
-                          : isCurrent
+                          : inProgress
                           ? subjectColor
                           : `${subjectColor}20`,
                       },
@@ -318,7 +321,7 @@ export function SubjectDetailScreen() {
                       <Text
                         style={[
                           styles.chapterNumberText,
-                          {color: isCurrent ? '#FFF' : subjectColor},
+                          {color: inProgress ? '#FFF' : subjectColor},
                         ]}>
                         {index + 1}
                       </Text>
@@ -327,43 +330,55 @@ export function SubjectDetailScreen() {
 
                   {/* Chapter Info */}
                   <View style={styles.chapterInfo}>
-                    <View style={styles.chapterTitleRow}>
-                      <Text 
-                        style={[styles.chapterTitle, {color: text}]} 
-                        numberOfLines={2}>
-                        {chapter.chapterTitle}
-                      </Text>
-                      {isCurrent && (
-                        <Badge label="In Progress" variant="warning" size="sm" />
+                    <Text 
+                      style={[styles.chapterTitle, {color: text}]} 
+                      numberOfLines={2}>
+                      {chapter.chapterTitle}
+                    </Text>
+                    
+                    {/* Status Badge */}
+                    <View style={styles.statusRow}>
+                      {isCompleted && (
+                        <View style={[styles.statusBadge, {backgroundColor: `${success}20`}]}>
+                          <Icon name="check-circle" size={12} color={success} />
+                          <Text style={[styles.statusText, {color: success}]}>Completed</Text>
+                        </View>
+                      )}
+                      {inProgress && (
+                        <View style={[styles.statusBadge, {backgroundColor: `${subjectColor}20`}]}>
+                          <Icon name="loader" size={12} color={subjectColor} />
+                          <Text style={[styles.statusText, {color: subjectColor}]}>In Progress</Text>
+                        </View>
                       )}
                     </View>
+                    
                     <View style={styles.chapterMeta}>
                       <View style={styles.metaItem}>
                         <Icon name="book-open" size={12} color={textMuted} />
                         <Text style={[styles.metaText, {color: textMuted}]}>
-                          {chapter.totalTopics || 0} lessons
+                          {completedTopics}/{totalTopics} lessons
                         </Text>
                       </View>
                       <View style={styles.metaItem}>
                         <Icon name="clock" size={12} color={textMuted} />
                         <Text style={[styles.metaText, {color: textMuted}]}>
-                          {chapter.estimatedDuration || 30} min
+                          {chapter.estimatedDuration || Math.round((chapter.estimatedHours || 0.5) * 60)} min
                         </Text>
                       </View>
                     </View>
                     
-                    {/* Chapter Progress */}
-                    {progress > 0 && !isCompleted && (
+                    {/* Chapter Progress Bar */}
+                    {progress > 0 && (
                       <View style={styles.chapterProgress}>
                         <View style={[styles.chapterProgressBg, {backgroundColor: `${subjectColor}20`}]}>
                           <View 
                             style={[
                               styles.chapterProgressFill, 
-                              {backgroundColor: subjectColor, width: `${progress}%`}
+                              {backgroundColor: isCompleted ? success : subjectColor, width: `${progress}%`}
                             ]} 
                           />
                         </View>
-                        <Text style={[styles.chapterProgressText, {color: textMuted}]}>
+                        <Text style={[styles.chapterProgressText, {color: isCompleted ? success : subjectColor}]}>
                           {progress}%
                         </Text>
                       </View>
@@ -559,16 +574,26 @@ const styles = StyleSheet.create({
   chapterInfo: {
     flex: 1,
   },
-  chapterTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    marginBottom: 4,
-  },
   chapterTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    flex: 1,
+    marginBottom: 4,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    marginBottom: 4,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   chapterMeta: {
     flexDirection: 'row',

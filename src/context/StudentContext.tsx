@@ -84,6 +84,12 @@ export function StudentProvider({children}: {children: React.ReactNode}) {
         const stored = await studentsApi.getStoredStudent();
         if (!stored && response.data.length > 0) {
           await setCurrentStudent(response.data[0]);
+        } else if (stored && response.data.length > 0) {
+          // Update the stored student with full data including relations
+          const fullStudent = response.data.find(s => s.id === stored.id);
+          if (fullStudent) {
+            await setCurrentStudent(fullStudent);
+          }
         }
       }
     } catch (error) {

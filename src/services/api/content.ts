@@ -102,12 +102,16 @@ export const contentApi = {
   // ==================== Chapters ====================
   chapters: {
     /**
-     * Get chapters by book
+     * Get chapters by book with optional student progress
      */
-    getByBook: async (bookId: string) => {
+    getByBook: async (bookId: string, studentId?: string) => {
+      const params: Record<string, string> = { bookId };
+      if (studentId) {
+        params.studentId = studentId;
+      }
       const response = await apiClient.get<ApiResponse<Chapter[]>>(
         ENDPOINTS.CHAPTERS.LIST,
-        {params: {bookId}}
+        { params }
       );
       return response.data;
     },
@@ -126,12 +130,16 @@ export const contentApi = {
   // ==================== Topics ====================
   topics: {
     /**
-     * Get topics by chapter
+     * Get topics by chapter with optional student progress
      */
-    getByChapter: async (chapterId: string) => {
+    getByChapter: async (chapterId: string, studentId?: string) => {
+      const params: Record<string, string> = { chapterId };
+      if (studentId) {
+        params.studentId = studentId;
+      }
       const response = await apiClient.get<ApiResponse<Topic[]>>(
         ENDPOINTS.TOPICS.LIST,
-        {params: {chapterId}}
+        { params }
       );
       return response.data;
     },

@@ -330,9 +330,14 @@ export interface Chapter {
   description?: string;
   totalTopics: number;
   estimatedHours: number;
+  estimatedDuration?: number; // alias in minutes
   displayOrder: number;
   isActive: boolean;
   topics?: Topic[];
+  // Progress fields (added by API when studentId is provided)
+  completedTopics?: number;
+  progress?: number;
+  isCompleted?: boolean;
 }
 
 export interface Topic {
@@ -342,10 +347,16 @@ export interface Topic {
   description?: string;
   learningObjectives?: string[];
   estimatedMinutes: number;
+  estimatedDuration?: number; // alias for estimatedMinutes
   difficultyLevel: DifficultyLevel;
   displayOrder: number;
   isActive: boolean;
   chapter?: Chapter;
+  // Progress fields (added by API when studentId is provided)
+  isCompleted?: boolean;
+  progress?: number;
+  completedAt?: string | null;
+  contentType?: string;
 }
 
 export interface ContentBlock {

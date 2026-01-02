@@ -15,6 +15,7 @@ interface ProgressBarProps {
   progress: number; // 0-100
   size?: ProgressBarSize;
   variant?: ProgressBarVariant;
+  color?: string; // Custom color override
   showLabel?: boolean;
   label?: string;
   animated?: boolean;
@@ -31,6 +32,7 @@ export function ProgressBar({
   progress,
   size = 'md',
   variant = 'primary',
+  color: customColor,
   showLabel = false,
   label,
   animated = true,
@@ -48,6 +50,9 @@ export function ProgressBar({
   const textSecondary = useThemeColor({}, 'textSecondary');
 
   const getColor = () => {
+    // Use custom color if provided
+    if (customColor) return customColor;
+    
     switch (variant) {
       case 'success':
         return success;

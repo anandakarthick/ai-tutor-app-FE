@@ -16,7 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation, useRoute} from '@react-navigation/native';
+import {useNavigation, useRoute, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {contentApi} from '../../services/api';
@@ -47,11 +47,13 @@ export function ChapterScreen() {
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
 
-  // Load topics from API
+  // Load topics from API with student progress
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await contentApi.topics.getByChapter(chapterId);
+      console.log('[ChapterScreen] Loading topics for chapter:', chapterId, 'student:', currentStudent?.id);
+      const response = await contentApi.topics.getByChapter(chapterId, currentStudent?.id);
+      console.log('[ChapterScreen] Topics response:', response);
       if (response.success && response.data) {
         setTopics(response.data);
         
@@ -66,11 +68,15 @@ export function ChapterScreen() {
     } finally {
       setLoading(false);
     }
-  }, [chapterId]);
+  }, [chapterId, currentStudent?.id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh data when screen is focused (after returning from lesson)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[ChapterScreen] Screen focused - refreshing data');
+      loadData();
+    }, [loadData])
+  );
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -105,6 +111,7 @@ export function ChapterScreen() {
       topicId: topic.id,
       subjectColor,
       lessonType: topic.contentType || 'lesson',
+      isAlreadyCompleted: topic.isCompleted || false, // Pass completion status
     });
   };
 
