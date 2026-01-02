@@ -24,6 +24,9 @@ export const API_CONFIG = {
   ENCRYPTION_ENABLED: true,
 };
 
+// Export base URL for direct use
+export const API_BASE_URL = API_CONFIG.BASE_URL;
+
 // API Endpoints
 export const ENDPOINTS = {
   // Auth
@@ -97,6 +100,7 @@ export const ENDPOINTS = {
     MESSAGE: (id: string) => `/learning/session/${id}/message`,
     MESSAGES: (id: string) => `/learning/session/${id}/messages`,
     PROGRESS: '/learning/progress',
+    TEACH: '/learning/teach',
   },
 
   // Doubts

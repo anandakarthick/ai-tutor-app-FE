@@ -4,7 +4,8 @@
  */
 
 import apiClient from './client';
-import {ENDPOINTS} from './config';
+import {ENDPOINTS, API_BASE_URL} from './config';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type {
   ApiResponse,
   LearningSession,
@@ -88,6 +89,84 @@ export const learningApi = {
       `${ENDPOINTS.LEARNING.PROGRESS}/${studentId}/${topicId}`
     );
     return response.data;
+  },
+
+  /**
+   * Stream AI teaching content
+   * Returns an async generator that yields text chunks
+   */
+  streamTeaching: async function* (
+    studentName: string,
+    grade: string,
+    subject: string,
+    topic: string,
+    content: string,
+    onChunk?: (text: string) => void
+  ): AsyncGenerator<string, void, unknown> {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      
+      const response = await fetch(`${API_BASE_URL}/learning/teach`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          studentName,
+          grade,
+          subject,
+          topic,
+          content,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Teaching stream request failed');
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No reader available');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Process SSE events
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.done) {
+                return;
+              }
+              if (data.text) {
+                if (onChunk) onChunk(data.text);
+                yield data.text;
+              }
+              if (data.error) {
+                throw new Error(data.error);
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Stream teaching error:', error);
+      throw error;
+    }
   },
 };
 

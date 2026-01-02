@@ -1,6 +1,6 @@
 /**
- * Lesson Screen - Topic Content with Audio Narration
- * API Integrated
+ * Lesson Screen - AI Teaching with Line-by-Line Animation + Voice
+ * Uses Claude API for interactive teaching with optional TTS
  */
 
 import React, {useState, useRef, useEffect, useCallback} from 'react';
@@ -12,15 +12,223 @@ import {
   TouchableOpacity,
   Animated,
   ActivityIndicator,
+  Easing,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {contentApi, learningApi} from '../../services/api';
-import {Icon, Badge, Button} from '../../components/ui';
-import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
+import {Icon, Button} from '../../components/ui';
+import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {Topic, ContentBlock} from '../../types/api';
+
+// Try to import TTS, but make it optional
+let Tts: any = null;
+try {
+  Tts = require('react-native-tts').default;
+} catch (e) {
+  console.log('TTS not available:', e);
+}
+
+// Initialize TTS if available
+const initTTS = async () => {
+  if (!Tts) return false;
+  
+  try {
+    await Tts.setDefaultLanguage('en-IN');
+    await Tts.setDefaultRate(0.45);
+    await Tts.setDefaultPitch(1.1);
+    
+    const voices = await Tts.voices();
+    const indianVoice = voices?.find((v: any) => 
+      v.language?.includes('en-IN') || 
+      v.language?.includes('en_IN') ||
+      v.name?.toLowerCase().includes('india')
+    );
+    if (indianVoice) {
+      await Tts.setDefaultVoice(indianVoice.id);
+    }
+    return true;
+  } catch (error) {
+    console.log('TTS init error:', error);
+    return false;
+  }
+};
+
+// Safe TTS speak function
+const safeTtsSpeak = async (text: string) => {
+  if (!Tts) return;
+  try {
+    await Tts.speak(text);
+  } catch (e) {
+    console.log('TTS speak error:', e);
+  }
+};
+
+// Safe TTS stop function
+const safeTtsStop = () => {
+  if (!Tts) return;
+  try {
+    Tts.stop();
+  } catch (e) {
+    console.log('TTS stop error:', e);
+  }
+};
+
+// AI Avatar Component with animation
+function AIAvatar({isTyping, isSpeaking, color}: {isTyping: boolean; isSpeaking: boolean; color: string}) {
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (isTyping || isSpeaking) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.15,
+            duration: 600,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1,
+            duration: 600,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 3000,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      pulseAnim.setValue(1);
+      rotateAnim.setValue(0);
+    }
+  }, [isTyping, isSpeaking]);
+
+  const rotate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
+  return (
+    <View style={styles.avatarContainer}>
+      <Animated.View
+        style={[
+          styles.avatarOuter,
+          {
+            backgroundColor: `${color}20`,
+            transform: [{scale: pulseAnim}],
+          },
+        ]}>
+        <View style={[styles.avatarInner, {backgroundColor: color}]}>
+          <Text style={styles.avatarEmoji}>{isSpeaking ? '🗣️' : '🤖'}</Text>
+        </View>
+      </Animated.View>
+      {(isTyping || isSpeaking) && (
+        <Animated.View style={[styles.sparkle, {transform: [{rotate}]}]}>
+          <Text style={styles.sparkleEmoji}>✨</Text>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+// Sound Wave Animation for speaking
+function SoundWave({color, isActive}: {color: string; isActive: boolean}) {
+  const bar1 = useRef(new Animated.Value(0.3)).current;
+  const bar2 = useRef(new Animated.Value(0.5)).current;
+  const bar3 = useRef(new Animated.Value(0.7)).current;
+  const bar4 = useRef(new Animated.Value(0.4)).current;
+
+  useEffect(() => {
+    if (isActive) {
+      const animateBar = (bar: Animated.Value, duration: number) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(bar, {toValue: 1, duration, useNativeDriver: true}),
+            Animated.timing(bar, {toValue: 0.2, duration, useNativeDriver: true}),
+          ])
+        ).start();
+      };
+      animateBar(bar1, 300);
+      animateBar(bar2, 400);
+      animateBar(bar3, 350);
+      animateBar(bar4, 450);
+    } else {
+      bar1.setValue(0.3);
+      bar2.setValue(0.5);
+      bar3.setValue(0.7);
+      bar4.setValue(0.4);
+    }
+  }, [isActive]);
+
+  if (!isActive) return null;
+
+  return (
+    <View style={styles.soundWaveContainer}>
+      {[bar1, bar2, bar3, bar4].map((bar, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.soundBar,
+            {
+              backgroundColor: color,
+              transform: [{scaleY: bar}],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+// Typing Indicator
+function TypingIndicator({color}: {color: string}) {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const animate = (dot: Animated.Value, delay: number) => {
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, {toValue: 1, duration: 300, useNativeDriver: true}),
+          Animated.timing(dot, {toValue: 0, duration: 300, useNativeDriver: true}),
+        ])
+      ).start();
+    };
+    animate(dot1, 0);
+    animate(dot2, 150);
+    animate(dot3, 300);
+  }, []);
+
+  return (
+    <View style={styles.typingContainer}>
+      {[dot1, dot2, dot3].map((dot, i) => (
+        <Animated.View
+          key={i}
+          style={[
+            styles.typingDot,
+            {
+              backgroundColor: color,
+              transform: [{translateY: dot.interpolate({inputRange: [0, 1], outputRange: [0, -8]})}],
+            },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
 
 export function LessonScreen() {
   const navigation = useNavigation<any>();
@@ -31,16 +239,26 @@ export function LessonScreen() {
   const [topic, setTopic] = useState<Topic | null>(null);
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [totalDuration, setTotalDuration] = useState(180);
-  const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [showAnswer, setShowAnswer] = useState<Record<string, boolean>>({});
-  const [isCompleted, setIsCompleted] = useState(isAlreadyCompleted || false); // Initialize from route params
+  const [isCompleted, setIsCompleted] = useState(isAlreadyCompleted || false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   
+  // AI Teaching states
+  const [aiText, setAiText] = useState('');
+  const [fullAiText, setFullAiText] = useState('');
+  const [isAiTyping, setIsAiTyping] = useState(false);
+  const [aiTeachingStarted, setAiTeachingStarted] = useState(false);
+  const [aiTeachingComplete, setAiTeachingComplete] = useState(false);
+  const [isLoadingAi, setIsLoadingAi] = useState(false);
+  
+  // Voice states
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [voiceAvailable, setVoiceAvailable] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scrollViewRef = useRef<ScrollView>(null);
+  const aiScrollRef = useRef<ScrollView>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -51,26 +269,45 @@ export function LessonScreen() {
   const success = useThemeColor({}, 'success');
   const primary = useThemeColor({}, 'primary');
 
-  // Load topic and content from API
+  // Initialize TTS on mount
+  useEffect(() => {
+    const setupTTS = async () => {
+      const available = await initTTS();
+      setVoiceAvailable(available);
+      
+      if (Tts) {
+        try {
+          Tts.addEventListener('tts-start', () => setIsSpeaking(true));
+          Tts.addEventListener('tts-finish', () => setIsSpeaking(false));
+          Tts.addEventListener('tts-cancel', () => setIsSpeaking(false));
+        } catch (e) {
+          console.log('TTS event listener error:', e);
+        }
+      }
+    };
+    
+    setupTTS();
+    
+    return () => {
+      safeTtsStop();
+    };
+  }, []);
+
+  // Load topic and content
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      console.log('[LessonScreen] Loading data, isAlreadyCompleted:', isAlreadyCompleted);
       
-      // Get topic details
       const topicRes = await contentApi.topics.getById(topicId);
       if (topicRes.success && topicRes.data) {
         setTopic(topicRes.data);
-        setTotalDuration((topicRes.data.estimatedDuration || 15) * 60);
       }
       
-      // Get content blocks
       const contentRes = await contentApi.topics.getContent(topicId);
       if (contentRes.success && contentRes.data) {
         setContentBlocks(contentRes.data);
       }
       
-      // Start learning session
       if (currentStudent) {
         const sessionRes = await learningApi.startSession(currentStudent.id, topicId);
         if (sessionRes.success && sessionRes.data) {
@@ -82,211 +319,219 @@ export function LessonScreen() {
     } finally {
       setLoading(false);
     }
-  }, [topicId, currentStudent, isAlreadyCompleted]);
+  }, [topicId, currentStudent]);
 
   useEffect(() => {
     loadData();
-    
     return () => {
-      // End session on unmount
       if (sessionId) {
         learningApi.endSession(sessionId, 10).catch(console.log);
       }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+      safeTtsStop();
     };
   }, [loadData]);
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(fadeAnim, {toValue: 1, duration: 500, useNativeDriver: true}).start();
   }, []);
 
-  // Simulate audio playback
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlaying && currentTime < totalDuration) {
-      interval = setInterval(() => {
-        setCurrentTime(prev => {
-          if (prev >= totalDuration) {
-            setIsPlaying(false);
-            return totalDuration;
-          }
-          return prev + 1;
-        });
-      }, 1000 / playbackSpeed);
+  // Animate text appearing sentence by sentence with optional voice
+  const animateTextWithVoice = useCallback((fullText: string) => {
+    // Split into sentences
+    const sentences = fullText.split(/(?<=[.!?\n])\s+/).filter(s => s.trim().length > 0);
+    let currentIndex = 0;
+    let displayedText = '';
+    
+    const showNextSentence = () => {
+      if (currentIndex >= sentences.length) {
+        setIsAiTyping(false);
+        setAiTeachingComplete(true);
+        setIsSpeaking(false);
+        return;
+      }
+      
+      const sentence = sentences[currentIndex];
+      displayedText += (currentIndex > 0 ? ' ' : '') + sentence;
+      setAiText(displayedText);
+      
+      // Scroll to bottom
+      setTimeout(() => aiScrollRef.current?.scrollToEnd({animated: true}), 100);
+      
+      // Speak the sentence if voice is enabled and available
+      if (voiceEnabled && voiceAvailable) {
+        const cleanSentence = sentence
+          .replace(/[\u{1F300}-\u{1F9FF}]/gu, '') // Remove emojis
+          .replace(/\*\*/g, '')
+          .replace(/\*/g, '')
+          .replace(/#/g, '')
+          .trim();
+        
+        if (cleanSentence.length > 0) {
+          safeTtsSpeak(cleanSentence);
+        }
+      }
+      
+      currentIndex++;
+      
+      // Calculate delay based on sentence length (slower for longer sentences)
+      const wordCount = sentence.split(/\s+/).length;
+      const delay = Math.max(2000, wordCount * 350); // Min 2s, ~350ms per word
+      
+      typingTimeoutRef.current = setTimeout(showNextSentence, delay);
+    };
+    
+    showNextSentence();
+  }, [voiceEnabled, voiceAvailable]);
+
+  // Toggle voice
+  const toggleVoice = () => {
+    if (isSpeaking) {
+      safeTtsStop();
+      setIsSpeaking(false);
     }
-    return () => clearInterval(interval);
-  }, [isPlaying, playbackSpeed, currentTime, totalDuration]);
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    setVoiceEnabled(!voiceEnabled);
   };
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
+  // Pause/Resume
+  const togglePause = () => {
+    if (isPaused) {
+      setIsPaused(false);
+      // Continue from where we left off
+      if (!aiTeachingComplete) {
+        const remainingSentences = fullAiText.substring(aiText.length).trim();
+        if (remainingSentences) {
+          setIsAiTyping(true);
+          animateTextWithVoice(remainingSentences);
+        }
+      }
+    } else {
+      setIsPaused(true);
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+      safeTtsStop();
+      setIsSpeaking(false);
+      setIsAiTyping(false);
+    }
   };
 
-  const handleSeek = (forward: boolean) => {
-    setCurrentTime(prev => {
-      const newTime = forward ? prev + 10 : prev - 10;
-      return Math.max(0, Math.min(newTime, totalDuration));
+  // Start AI Teaching
+  const startAITeaching = async () => {
+    if (!topic || !currentStudent) return;
+    
+    setAiTeachingStarted(true);
+    setIsLoadingAi(true);
+    setAiText('');
+    
+    try {
+      const contentSummary = contentBlocks
+        .map(block => typeof block.content === 'string' ? block.content : 
+          Array.isArray(block.content) ? block.content.join('\n') : '')
+        .filter(Boolean)
+        .join('\n\n');
+
+      if (sessionId) {
+        console.log('[LessonScreen] Using session for AI teaching:', sessionId);
+        const response = await learningApi.sendMessage(
+          sessionId,
+          `Please teach me about "${topic.topicTitle}" in ${subject}. Here's the content:\n\n${contentSummary || topic.description || 'Basic concepts'}`
+        );
+
+        setIsLoadingAi(false);
+        
+        if (response.success && response.data?.aiMessage?.content) {
+          const aiResponse = response.data.aiMessage.content;
+          setFullAiText(aiResponse);
+          setIsAiTyping(true);
+          animateTextWithVoice(aiResponse);
+          return;
+        }
+      }
+      
+      console.log('[LessonScreen] Using fallback teaching content');
+      setIsLoadingAi(false);
+      const fallbackText = generateFallbackTeaching(topic.topicTitle, subject, contentSummary);
+      setFullAiText(fallbackText);
+      setIsAiTyping(true);
+      animateTextWithVoice(fallbackText);
+      
+    } catch (error) {
+      console.error('AI Teaching error:', error);
+      setIsLoadingAi(false);
+      
+      const fallbackText = generateFallbackTeaching(
+        topic?.topicTitle || lesson, 
+        subject, 
+        topic?.description || ''
+      );
+      setFullAiText(fallbackText);
+      setIsAiTyping(true);
+      animateTextWithVoice(fallbackText);
+    }
+  };
+
+  // Generate fallback teaching content
+  const generateFallbackTeaching = (topicTitle: string, subj: string, content: string) => {
+    const studentName = currentStudent?.studentName || 'there';
+    const greetings = ['Hey', 'Hi', 'Hello', 'Namaste'];
+    const greeting = greetings[Math.floor(Math.random() * greetings.length)];
+    
+    const contentLines = content.split('\n').filter(line => line.trim().length > 10);
+    const keyPoints = contentLines.slice(0, 4).map(line => {
+      const trimmed = line.trim();
+      return trimmed.length > 80 ? trimmed.substring(0, 80) + '...' : trimmed;
     });
-  };
 
-  const toggleSpeed = () => {
-    const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
-    const currentIndex = speeds.indexOf(playbackSpeed);
-    const nextIndex = (currentIndex + 1) % speeds.length;
-    setPlaybackSpeed(speeds[nextIndex]);
+    return `${greeting} ${studentName}! I'm Buddy, your AI learning companion.
+
+Today we are learning about ${topicTitle}.
+
+Let me explain this to you step by step.
+
+${keyPoints.length > 0 ? `Here are the key concepts you need to understand.\n\n${keyPoints.map((p, i) => `Point ${i + 1}. ${p}`).join('\n\n')}\n\n` : ''}This is an important topic in ${subj}.
+
+Understanding ${topicTitle} will help you build a strong foundation.
+
+Here is a memory trick for you.
+
+Try to relate ${topicTitle} to something you see in everyday life.
+
+The best way to remember is to find real examples around you.
+
+Now here is a quick challenge.
+
+Can you think of one real world example where ${topicTitle.toLowerCase()} applies?
+
+Take a moment to think about it.
+
+You are doing amazing ${studentName}!
+
+Keep asking questions and stay curious.
+
+That is the secret to becoming a great learner.
+
+You can now mark this lesson as complete!`;  
   };
 
   const handleComplete = async () => {
     try {
-      console.log('[LessonScreen] Marking lesson as complete');
-      console.log('[LessonScreen] sessionId:', sessionId);
-      console.log('[LessonScreen] studentId:', currentStudent?.id);
-      console.log('[LessonScreen] topicId:', topicId);
-      
-      // End the learning session
+      safeTtsStop();
       if (sessionId) {
-        console.log('[LessonScreen] Ending session...');
-        const endRes = await learningApi.endSession(sessionId, 20);
-        console.log('[LessonScreen] End session response:', endRes);
+        await learningApi.endSession(sessionId, 20);
       }
-      
-      // Update progress to 100%
       if (currentStudent) {
-        console.log('[LessonScreen] Updating progress to 100%...');
-        const progressRes = await learningApi.updateProgress(currentStudent.id, topicId, 100);
-        console.log('[LessonScreen] Update progress response:', progressRes);
+        await learningApi.updateProgress(currentStudent.id, topicId, 100);
       }
-      
       setIsCompleted(true);
-      console.log('[LessonScreen] Lesson marked as complete, navigating back...');
-      setTimeout(() => {
-        navigation.goBack();
-      }, 1500);
+      setTimeout(() => navigation.goBack(), 1500);
     } catch (error) {
-      console.log('[LessonScreen] Error completing lesson:', error);
-      // Still mark as completed locally and navigate back
+      console.log('Error completing lesson:', error);
       setIsCompleted(true);
-      setTimeout(() => {
-        navigation.goBack();
-      }, 1500);
-    }
-  };
-
-  const progress = (currentTime / totalDuration) * 100;
-
-  const renderContentBlock = (block: ContentBlock, index: number) => {
-    switch (block.blockType) {
-      case 'heading':
-        return (
-          <Text key={index} style={[styles.sectionHeading, {color: text}]}>
-            {block.content}
-          </Text>
-        );
-      
-      case 'paragraph':
-      case 'text':
-        return (
-          <Text key={index} style={[styles.paragraph, {color: textSecondary}]}>
-            {block.content}
-          </Text>
-        );
-      
-      case 'highlight':
-      case 'important':
-        return (
-          <View key={index} style={[styles.highlightBox, {backgroundColor: `${subjectColor}15`, borderLeftColor: subjectColor}]}>
-            <Text style={[styles.highlightText, {color: text}]}>
-              💡 {block.content}
-            </Text>
-          </View>
-        );
-      
-      case 'list':
-        const items = typeof block.content === 'string' 
-          ? block.content.split('\n').filter(Boolean)
-          : Array.isArray(block.content) ? block.content : [];
-        return (
-          <View key={index} style={styles.listContainer}>
-            {items.map((item: string, i: number) => (
-              <View key={i} style={styles.listItem}>
-                <View style={[styles.listBullet, {backgroundColor: subjectColor}]} />
-                <Text style={[styles.listText, {color: textSecondary}]}>{item}</Text>
-              </View>
-            ))}
-          </View>
-        );
-      
-      case 'example':
-        return (
-          <View key={index} style={[styles.exampleBox, {backgroundColor: card, borderColor: border}]}>
-            <View style={[styles.exampleHeader, {backgroundColor: subjectColor}]}>
-              <Icon name="file-text" size={16} color="#FFF" />
-              <Text style={styles.exampleTitle}>Example</Text>
-            </View>
-            <View style={styles.exampleContent}>
-              <Text style={[styles.exampleProblem, {color: text}]}>
-                {block.content}
-              </Text>
-            </View>
-          </View>
-        );
-      
-      case 'practice':
-      case 'question':
-        const blockId = block.id || String(index);
-        return (
-          <View key={index} style={[styles.practiceBox, {backgroundColor: `${success}10`, borderColor: success}]}>
-            <Text style={[styles.practiceText, {color: text}]}>
-              🎯 {block.content}
-            </Text>
-            {block.answer && (
-              !showAnswer[blockId] ? (
-                <TouchableOpacity 
-                  style={[styles.showAnswerButton, {backgroundColor: success}]}
-                  onPress={() => setShowAnswer(prev => ({...prev, [blockId]: true}))}>
-                  <Text style={styles.showAnswerText}>Show Answer 👀</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={[styles.answerBox, {backgroundColor: '#FFF', borderColor: success}]}>
-                  <Text style={[styles.answerText, {color: textSecondary}]}>
-                    {block.answer}
-                  </Text>
-                </View>
-              )
-            )}
-          </View>
-        );
-      
-      case 'keypoints':
-      case 'summary':
-        const points = typeof block.content === 'string'
-          ? block.content.split('\n').filter(Boolean)
-          : Array.isArray(block.content) ? block.content : [];
-        return (
-          <View key={index} style={styles.keypointsContainer}>
-            {points.map((point: string, i: number) => (
-              <View key={i} style={[styles.keypointItem, {backgroundColor: `${subjectColor}10`}]}>
-                <Text style={styles.keypointIcon}>✓</Text>
-                <Text style={[styles.keypointText, {color: text}]}>{point}</Text>
-              </View>
-            ))}
-          </View>
-        );
-      
-      default:
-        return (
-          <Text key={index} style={[styles.paragraph, {color: textSecondary}]}>
-            {typeof block.content === 'string' ? block.content : JSON.stringify(block.content)}
-          </Text>
-        );
+      setTimeout(() => navigation.goBack(), 1500);
     }
   };
 
@@ -305,9 +550,7 @@ export function LessonScreen() {
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={[styles.header, {borderBottomColor: border}]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}>
+        <TouchableOpacity style={styles.backButton} onPress={() => { safeTtsStop(); navigation.goBack(); }}>
           <Icon name="chevron-left" size={24} color={text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -318,145 +561,155 @@ export function LessonScreen() {
             {topic?.topicTitle || lesson}
           </Text>
         </View>
-        <TouchableOpacity style={styles.bookmarkButton}>
-          <Icon name="bookmark" size={22} color={textMuted} />
-        </TouchableOpacity>
+        {/* Voice Toggle - only show if TTS is available */}
+        {voiceAvailable && (
+          <TouchableOpacity 
+            style={[styles.voiceButton, {backgroundColor: voiceEnabled ? `${subjectColor}20` : `${textMuted}20`}]}
+            onPress={toggleVoice}>
+            <Icon name={voiceEnabled ? "volume-2" : "volume-x"} size={20} color={voiceEnabled ? subjectColor : textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* Textbook Content */}
-      <ScrollView
-        ref={scrollViewRef}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
-        
-        {/* Lesson Title Card */}
-        <Animated.View style={[styles.lessonTitleCard, {backgroundColor: subjectColor, opacity: fadeAnim}]}>
-          <View style={styles.lessonTitleDecor1} />
-          <View style={styles.lessonTitleDecor2} />
-          <Text style={styles.lessonTitleEmoji}>📖</Text>
-          <Text style={styles.lessonTitleText}>{topic?.topicTitle || lesson}</Text>
-          <Text style={styles.lessonSubtitleText}>{subject}</Text>
-          <View style={styles.lessonMeta}>
-            <Badge label={`⏱️ ${topic?.estimatedDuration || 15} min`} variant="default" size="sm" />
+      {/* AI Teaching Section - Top Half */}
+      <View style={[styles.aiSection, {backgroundColor: `${subjectColor}08`, borderBottomColor: border}]}>
+        <View style={styles.aiHeader}>
+          <AIAvatar isTyping={isAiTyping} isSpeaking={isSpeaking} color={subjectColor} />
+          <View style={styles.aiHeaderText}>
+            <Text style={[styles.aiName, {color: text}]}>🎓 Buddy AI Tutor</Text>
+            <View style={styles.aiStatusRow}>
+              <Text style={[styles.aiStatus, {color: isSpeaking || isAiTyping ? subjectColor : textMuted}]}>
+                {isLoadingAi ? '🧠 Thinking...' : isSpeaking ? '🔊 Speaking...' : isAiTyping ? '✍️ Teaching...' : aiTeachingComplete ? '✅ Done!' : '👋 Ready'}
+              </Text>
+              {voiceAvailable && <SoundWave color={subjectColor} isActive={isSpeaking} />}
+            </View>
           </View>
-        </Animated.View>
-
-        {/* Content Sections */}
-        <View style={styles.contentContainer}>
-          {contentBlocks.length > 0 ? (
-            contentBlocks.map((block, index) => renderContentBlock(block, index))
-          ) : (
-            // Default content if no blocks
-            <>
-              <Text style={[styles.sectionHeading, {color: text}]}>
-                📚 {topic?.topicTitle || lesson}
-              </Text>
-              <Text style={[styles.paragraph, {color: textSecondary}]}>
-                {topic?.description || 'Content for this lesson is being prepared. Please check back later or contact your instructor.'}
-              </Text>
-              <View style={[styles.highlightBox, {backgroundColor: `${subjectColor}15`, borderLeftColor: subjectColor}]}>
-                <Text style={[styles.highlightText, {color: text}]}>
-                  💡 This lesson is part of {chapter}. Complete all lessons to master this chapter.
-                </Text>
-              </View>
-            </>
+          
+          {/* Controls */}
+          {!aiTeachingStarted ? (
+            <TouchableOpacity
+              style={[styles.startTeachingBtn, {backgroundColor: subjectColor}]}
+              onPress={startAITeaching}>
+              <Icon name="play" size={16} color="#FFF" />
+              <Text style={styles.startTeachingText}>Start Lesson</Text>
+            </TouchableOpacity>
+          ) : aiTeachingStarted && !aiTeachingComplete && (
+            <TouchableOpacity
+              style={[styles.pauseBtn, {backgroundColor: isPaused ? success : `${subjectColor}20`}]}
+              onPress={togglePause}>
+              <Icon name={isPaused ? "play" : "pause"} size={16} color={isPaused ? "#FFF" : subjectColor} />
+            </TouchableOpacity>
           )}
         </View>
 
-        {/* Mark Complete Button */}
+        <ScrollView
+          ref={aiScrollRef}
+          style={styles.aiContent}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.aiContentInner}>
+          {!aiTeachingStarted ? (
+            <View style={styles.aiPlaceholder}>
+              <Text style={styles.aiPlaceholderEmoji}>🎓</Text>
+              <Text style={[styles.aiPlaceholderText, {color: textSecondary}]}>
+                Tap "Start Lesson" to begin!
+              </Text>
+              <Text style={[styles.aiPlaceholderSubtext, {color: textMuted}]}>
+                {voiceAvailable ? `🔊 Voice is ${voiceEnabled ? 'ON' : 'OFF'}` : '📖 Reading mode'}
+              </Text>
+            </View>
+          ) : isLoadingAi ? (
+            <View style={styles.aiPlaceholder}>
+              <ActivityIndicator size="large" color={subjectColor} />
+              <Text style={[styles.aiPlaceholderText, {color: textSecondary, marginTop: 16}]}>
+                Preparing your lesson...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.aiTextContainer}>
+              <Text style={[styles.aiText, {color: text}]}>{aiText}</Text>
+              {isAiTyping && !isPaused && <TypingIndicator color={subjectColor} />}
+              {isPaused && (
+                <View style={[styles.pausedBadge, {backgroundColor: `${textMuted}20`}]}>
+                  <Icon name="pause" size={14} color={textMuted} />
+                  <Text style={[styles.pausedText, {color: textMuted}]}>Paused - Tap play to continue</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Content Section - Bottom Half */}
+      <ScrollView
+        style={styles.contentSection}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.contentInner}>
+        
+        {/* Quick Summary Card */}
+        <View style={[styles.summaryCard, {backgroundColor: card, borderColor: border}]}>
+          <View style={styles.summaryHeader}>
+            <Text style={styles.summaryEmoji}>📚</Text>
+            <Text style={[styles.summaryTitle, {color: text}]}>Lesson Content</Text>
+          </View>
+          
+          {contentBlocks.length > 0 ? (
+            contentBlocks.slice(0, 3).map((block, index) => (
+              <View key={index} style={styles.summaryItem}>
+                <View style={[styles.summaryBullet, {backgroundColor: subjectColor}]} />
+                <Text style={[styles.summaryText, {color: textSecondary}]} numberOfLines={2}>
+                  {typeof block.content === 'string' ? block.content : 'Content block'}
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={[styles.summaryText, {color: textSecondary}]}>
+              {topic?.description || 'Lesson content will be displayed here.'}
+            </Text>
+          )}
+          
+          {contentBlocks.length > 3 && (
+            <Text style={[styles.moreContent, {color: subjectColor}]}>
+              +{contentBlocks.length - 3} more sections
+            </Text>
+          )}
+        </View>
+
+        {/* Learning Goals */}
+        <View style={[styles.keyPointsCard, {backgroundColor: `${success}10`, borderColor: success}]}>
+          <Text style={[styles.keyPointsTitle, {color: success}]}>🎯 Learning Goals</Text>
+          <Text style={[styles.keyPointsText, {color: textSecondary}]}>
+            {aiTeachingComplete 
+              ? '✅ Lesson completed! You can now mark this as done.'
+              : 'Complete the AI lesson above to finish this topic!'}
+          </Text>
+        </View>
+
+        {/* Complete Button */}
         <View style={styles.completeContainer}>
           {!isCompleted ? (
             <Button
-              title="Mark as Complete ✅"
+              title={aiTeachingComplete ? "Mark as Complete ✅" : "Complete Lesson First"}
               onPress={handleComplete}
               fullWidth
               size="lg"
+              disabled={!aiTeachingComplete}
             />
           ) : (
-            <View>
-              <View style={[styles.completedBadge, {backgroundColor: success}]}>
-                <Icon name="check-circle" size={24} color="#FFF" />
-                <Text style={styles.completedText}>Lesson Completed! 🎉</Text>
-              </View>
-              <TouchableOpacity 
-                style={[styles.reviseButton, {backgroundColor: card, borderColor: primary}]}
-                onPress={() => navigation.goBack()}>
-                <Icon name="refresh-cw" size={16} color={primary} />
-                <Text style={[styles.reviseText, {color: primary}]}>Back to Chapter</Text>
-              </TouchableOpacity>
+            <View style={[styles.completedBadge, {backgroundColor: success}]}>
+              <Icon name="check-circle" size={24} color="#FFF" />
+              <Text style={styles.completedText}>Lesson Completed! 🎉</Text>
             </View>
           )}
         </View>
       </ScrollView>
-
-      {/* Audio Player - Fixed at bottom */}
-      <View style={[styles.audioPlayer, {backgroundColor: card, borderTopColor: border}]}>
-        {/* Progress Bar */}
-        <View style={styles.audioProgressContainer}>
-          <View style={[styles.audioProgressBg, {backgroundColor: `${subjectColor}20`}]}>
-            <View style={[styles.audioProgressFill, {backgroundColor: subjectColor, width: `${progress}%`}]} />
-          </View>
-          <View style={styles.audioTimeRow}>
-            <Text style={[styles.audioTime, {color: textMuted}]}>{formatTime(currentTime)}</Text>
-            <Text style={[styles.audioTime, {color: textMuted}]}>{formatTime(totalDuration)}</Text>
-          </View>
-        </View>
-
-        {/* Controls */}
-        <View style={styles.audioControls}>
-          {/* Speed */}
-          <TouchableOpacity style={[styles.speedButton, {backgroundColor: `${subjectColor}15`}]} onPress={toggleSpeed}>
-            <Text style={[styles.speedText, {color: subjectColor}]}>{playbackSpeed}x</Text>
-          </TouchableOpacity>
-
-          {/* Rewind */}
-          <TouchableOpacity style={styles.seekButton} onPress={() => handleSeek(false)}>
-            <Icon name="refresh-cw" size={18} color={textSecondary} style={{transform: [{scaleX: -1}]}} />
-            <Text style={[styles.seekText, {color: textMuted}]}>10</Text>
-          </TouchableOpacity>
-
-          {/* Play/Pause */}
-          <TouchableOpacity 
-            style={[styles.playButton, {backgroundColor: subjectColor}, Shadows.md]} 
-            onPress={handlePlayPause}>
-            <Icon name={isPlaying ? 'pause' : 'play'} size={24} color="#FFF" />
-          </TouchableOpacity>
-
-          {/* Forward */}
-          <TouchableOpacity style={styles.seekButton} onPress={() => handleSeek(true)}>
-            <Icon name="refresh-cw" size={18} color={textSecondary} />
-            <Text style={[styles.seekText, {color: textMuted}]}>10</Text>
-          </TouchableOpacity>
-
-          {/* Volume */}
-          <TouchableOpacity style={[styles.volumeButton, {backgroundColor: `${subjectColor}15`}]}>
-            <Icon name="volume-2" size={18} color={subjectColor} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Now Playing Label */}
-        <View style={styles.nowPlaying}>
-          <View style={[styles.nowPlayingDot, {backgroundColor: isPlaying ? success : textMuted}]} />
-          <Text style={[styles.nowPlayingText, {color: textMuted}]}>
-            {isPlaying ? '🔊 Playing...' : '🎧 Tap play to listen'}
-          </Text>
-        </View>
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {flex: 1},
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: FontSizes.sm,
-  },
+  loadingContainer: {flex: 1, justifyContent: 'center', alignItems: 'center'},
+  loadingText: {marginTop: Spacing.md, fontSize: FontSizes.sm},
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -464,202 +717,92 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
   },
-  backButton: {
+  backButton: {width: 36, height: 36, alignItems: 'center', justifyContent: 'center'},
+  headerContent: {flex: 1, marginHorizontal: Spacing.sm},
+  headerChapter: {fontSize: FontSizes.xs, fontWeight: '600', marginBottom: 2},
+  headerLesson: {fontSize: FontSizes.sm, fontWeight: '700'},
+  voiceButton: {
     width: 36,
     height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerContent: {
-    flex: 1,
-    marginHorizontal: Spacing.sm,
-  },
-  headerChapter: {
-    fontSize: FontSizes.xs,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  headerLesson: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-  },
-  bookmarkButton: {
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scrollContent: {
-    padding: Spacing.md,
-    paddingBottom: Spacing.sm,
-  },
-  lessonTitleCard: {
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.lg,
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  lessonTitleDecor1: {
-    position: 'absolute',
-    top: -30,
-    right: -30,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  lessonTitleDecor2: {
-    position: 'absolute',
-    bottom: -20,
-    left: -20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  lessonTitleEmoji: {
-    fontSize: 32,
-    marginBottom: Spacing.xs,
-  },
-  lessonTitleText: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
-    color: '#FFF',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  lessonSubtitleText: {
-    fontSize: FontSizes.xs,
-    color: 'rgba(255,255,255,0.8)',
-    marginBottom: Spacing.sm,
-  },
-  lessonMeta: {},
-  contentContainer: {
-    marginBottom: Spacing.sm,
-  },
-  sectionHeading: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
-    marginTop: Spacing.md,
-    marginBottom: Spacing.sm,
-  },
-  paragraph: {
-    fontSize: FontSizes.sm,
-    lineHeight: 22,
-    marginBottom: Spacing.sm,
-  },
-  highlightBox: {
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderLeftWidth: 3,
-    marginBottom: Spacing.md,
-  },
-  highlightText: {
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
-    fontWeight: '500',
-  },
-  listContainer: {
-    marginBottom: Spacing.md,
-  },
-  listItem: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.sm,
-  },
-  listBullet: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginTop: 6,
-    marginRight: Spacing.sm,
-  },
-  listText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
-  },
-  exampleBox: {
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    marginBottom: Spacing.md,
-    overflow: 'hidden',
-  },
-  exampleHeader: {
+
+  // AI Section
+  aiSection: {height: '48%', borderBottomWidth: 1},
+  aiHeader: {flexDirection: 'row', alignItems: 'center', padding: Spacing.sm, gap: Spacing.sm},
+  avatarContainer: {position: 'relative'},
+  avatarOuter: {width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center'},
+  avatarInner: {width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
+  avatarEmoji: {fontSize: 24},
+  sparkle: {position: 'absolute', top: -5, right: -5},
+  sparkleEmoji: {fontSize: 16},
+  aiHeaderText: {flex: 1},
+  aiName: {fontSize: FontSizes.sm, fontWeight: '700'},
+  aiStatusRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
+  aiStatus: {fontSize: FontSizes.xs, fontWeight: '500'},
+  soundWaveContainer: {flexDirection: 'row', alignItems: 'center', gap: 2, height: 16},
+  soundBar: {width: 3, height: 16, borderRadius: 2},
+  startTeachingBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.sm,
-    gap: Spacing.xs,
-  },
-  exampleTitle: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  exampleContent: {
-    padding: Spacing.sm,
-  },
-  exampleProblem: {
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
-  },
-  practiceBox: {
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    marginBottom: Spacing.md,
-  },
-  practiceText: {
-    fontSize: FontSizes.sm,
-    lineHeight: 20,
-    marginBottom: Spacing.sm,
-  },
-  showAnswerButton: {
+    paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.sm,
+    borderRadius: BorderRadius.lg,
+    gap: 6,
+  },
+  startTeachingText: {color: '#FFF', fontSize: FontSizes.sm, fontWeight: '700'},
+  pauseBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  showAnswerText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  answerBox: {
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    borderWidth: 1,
-    marginTop: Spacing.sm,
-  },
-  answerText: {
-    fontSize: FontSizes.xs,
-    lineHeight: 18,
-  },
-  keypointsContainer: {
-    marginBottom: Spacing.sm,
-  },
-  keypointItem: {
+  aiContent: {flex: 1, paddingHorizontal: Spacing.md},
+  aiContentInner: {paddingBottom: Spacing.md},
+  aiPlaceholder: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl},
+  aiPlaceholderEmoji: {fontSize: 48, marginBottom: Spacing.md},
+  aiPlaceholderText: {fontSize: FontSizes.sm, fontWeight: '600', textAlign: 'center', marginBottom: 4},
+  aiPlaceholderSubtext: {fontSize: FontSizes.xs, textAlign: 'center', marginTop: 8},
+  aiTextContainer: {paddingTop: Spacing.xs},
+  aiText: {fontSize: FontSizes.sm, lineHeight: 26},
+  typingContainer: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm, paddingLeft: 4},
+  typingDot: {width: 8, height: 8, borderRadius: 4},
+  pausedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.sm,
-    borderRadius: BorderRadius.sm,
-    marginBottom: Spacing.xs,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    marginTop: Spacing.md,
+    alignSelf: 'flex-start',
   },
-  keypointIcon: {
-    fontSize: 14,
-    marginRight: Spacing.sm,
+  pausedText: {fontSize: FontSizes.xs, fontWeight: '600'},
+
+  // Content Section
+  contentSection: {flex: 1},
+  contentInner: {padding: Spacing.md, paddingBottom: Spacing.xl},
+  summaryCard: {borderRadius: BorderRadius.lg, borderWidth: 1, padding: Spacing.md, marginBottom: Spacing.md},
+  summaryHeader: {flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.sm},
+  summaryEmoji: {fontSize: 20},
+  summaryTitle: {fontSize: FontSizes.sm, fontWeight: '700'},
+  summaryItem: {flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.xs},
+  summaryBullet: {width: 6, height: 6, borderRadius: 3, marginTop: 6, marginRight: Spacing.sm},
+  summaryText: {flex: 1, fontSize: FontSizes.xs, lineHeight: 18},
+  moreContent: {fontSize: FontSizes.xs, fontWeight: '600', marginTop: Spacing.xs},
+  keyPointsCard: {
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
   },
-  keypointText: {
-    flex: 1,
-    fontSize: FontSizes.xs,
-    fontWeight: '500',
-  },
-  completeContainer: {
-    marginTop: Spacing.sm,
-    marginBottom: Spacing.xs,
-  },
+  keyPointsTitle: {fontSize: FontSizes.sm, fontWeight: '700', marginBottom: Spacing.xs},
+  keyPointsText: {fontSize: FontSizes.xs, lineHeight: 18},
+  completeContainer: {marginTop: Spacing.sm},
   completedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -668,101 +811,5 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     gap: Spacing.sm,
   },
-  completedText: {
-    fontSize: FontSizes.base,
-    fontWeight: '700',
-    color: '#FFF',
-  },
-  reviseButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1.5,
-    marginTop: Spacing.sm,
-    gap: Spacing.sm,
-  },
-  reviseText: {
-    fontSize: FontSizes.sm,
-    fontWeight: '600',
-  },
-  audioPlayer: {
-    paddingHorizontal: Spacing.md,
-    paddingTop: Spacing.sm,
-    paddingBottom: Spacing.xs,
-    borderTopWidth: 1,
-  },
-  audioProgressContainer: {
-    marginBottom: Spacing.xs,
-  },
-  audioProgressBg: {
-    height: 3,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  audioProgressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  audioTimeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  audioTime: {
-    fontSize: 10,
-  },
-  audioControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: Spacing.md,
-    paddingVertical: Spacing.xs,
-  },
-  speedButton: {
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 4,
-    borderRadius: BorderRadius.sm,
-  },
-  speedText: {
-    fontSize: FontSizes.xs,
-    fontWeight: '700',
-  },
-  seekButton: {
-    alignItems: 'center',
-  },
-  seekText: {
-    fontSize: 9,
-    marginTop: 1,
-  },
-  playButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  volumeButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nowPlaying: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: Spacing.xs,
-    gap: Spacing.xs,
-  },
-  nowPlayingDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  nowPlayingText: {
-    fontSize: 10,
-  },
+  completedText: {fontSize: FontSizes.base, fontWeight: '700', color: '#FFF'},
 });
