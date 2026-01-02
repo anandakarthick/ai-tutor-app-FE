@@ -9,6 +9,7 @@ import {
   Text,
   StyleSheet,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useRoute} from '@react-navigation/native';
@@ -52,15 +53,17 @@ const ONBOARDING_STEPS = [
 export function OnboardingScreen() {
   const route = useRoute<AuthStackScreenProps<'Onboarding'>['route']>();
   const {userId} = route.params;
-  const {login} = useAuth();
+  const {refreshUser} = useAuth();
   
   const [currentStep, setCurrentStep] = useState(0);
+  const [completing, setCompleting] = useState(false);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
+  const primary = useThemeColor({}, 'primary');
 
   const currentData = ONBOARDING_STEPS[currentStep];
 
@@ -107,12 +110,19 @@ export function OnboardingScreen() {
     handleComplete();
   };
 
-  const handleComplete = () => {
-    // Login the user - this will automatically switch to Main app
-    login({
-      phone: userId,
-      name: 'Student',
-    });
+  const handleComplete = async () => {
+    setCompleting(true);
+    try {
+      // Refresh user data to ensure we have the latest from the server
+      // This will automatically update the auth state and switch to Main app
+      await refreshUser();
+    } catch (err) {
+      console.log('Refresh user error:', err);
+      // Even if refresh fails, the user should already be logged in from registration
+      // The navigation will handle switching to main app
+    } finally {
+      setCompleting(false);
+    }
   };
 
   const isLastStep = currentStep === ONBOARDING_STEPS.length - 1;
@@ -120,7 +130,7 @@ export function OnboardingScreen() {
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
       {/* Skip Button */}
-      {!isLastStep && (
+      {!isLastStep && !completing && (
         <View style={styles.skipContainer}>
           <Button
             title="Skip"
@@ -177,12 +187,21 @@ export function OnboardingScreen() {
 
       {/* Bottom Buttons */}
       <View style={styles.bottomContainer}>
-        <Button
-          title={isLastStep ? "Let's Start! 🚀" : 'Next'}
-          onPress={handleNext}
-          fullWidth
-          size="lg"
-        />
+        {completing ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color={primary} />
+            <Text style={[styles.loadingText, {color: textSecondary}]}>
+              Setting up your account...
+            </Text>
+          </View>
+        ) : (
+          <Button
+            title={isLastStep ? "Let's Start! 🚀" : 'Next'}
+            onPress={handleNext}
+            fullWidth
+            size="lg"
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -240,5 +259,15 @@ const styles = StyleSheet.create({
   bottomContainer: {
     paddingHorizontal: Spacing.xl,
     paddingBottom: Spacing.lg,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+    gap: Spacing.sm,
+  },
+  loadingText: {
+    fontSize: FontSizes.sm,
   },
 });

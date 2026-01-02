@@ -1,6 +1,6 @@
 /**
  * Payment Screen
- * Payment processing with mock UPI/Card options
+ * Payment processing with Razorpay integration
  */
 
 import React, {useState, useEffect, useRef} from 'react';
@@ -13,25 +13,34 @@ import {
   Animated,
   Alert,
   Modal,
+  ActivityIndicator,
+  Linking,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {paymentsApi, subscriptionsApi} from '../../services/api';
 import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
 
+// Try to import RazorpayCheckout if available
+let RazorpayCheckout: any = null;
+try {
+  RazorpayCheckout = require('react-native-razorpay').default;
+} catch (e) {
+  console.log('Razorpay not available');
+}
+
 const PAYMENT_METHODS = [
-  {id: 'upi', name: 'UPI', icon: 'smartphone', emoji: '📱', description: 'Google Pay, PhonePe, Paytm'},
-  {id: 'card', name: 'Credit/Debit Card', icon: 'credit-card', emoji: '💳', description: 'Visa, Mastercard, RuPay'},
-  {id: 'netbanking', name: 'Net Banking', icon: 'building', emoji: '🏦', description: 'All major banks'},
+  {id: 'razorpay', name: 'Razorpay', icon: 'credit-card', emoji: '💳', description: 'UPI, Cards, NetBanking, Wallets'},
+  {id: 'upi', name: 'UPI Direct', icon: 'smartphone', emoji: '📱', description: 'Google Pay, PhonePe, Paytm'},
 ];
 
 const UPI_APPS = [
-  {id: 'gpay', name: 'Google Pay', color: '#4285F4'},
-  {id: 'phonepe', name: 'PhonePe', color: '#5F259F'},
-  {id: 'paytm', name: 'Paytm', color: '#00BAF2'},
-  {id: 'other', name: 'Other UPI', color: '#22C55E'},
+  {id: 'gpay', name: 'Google Pay', color: '#4285F4', upiPrefix: 'gpay://'},
+  {id: 'phonepe', name: 'PhonePe', color: '#5F259F', upiPrefix: 'phonepe://'},
+  {id: 'paytm', name: 'Paytm', color: '#00BAF2', upiPrefix: 'paytm://'},
 ];
 
 export function PaymentScreen() {
@@ -39,14 +48,14 @@ export function PaymentScreen() {
   const route = useRoute<AuthStackScreenProps<'Payment'>['route']>();
   const {planId, planName, price, userId} = route.params;
 
-  const [selectedMethod, setSelectedMethod] = useState('upi');
+  const [selectedMethod, setSelectedMethod] = useState('razorpay');
   const [upiId, setUpiId] = useState('');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
-  const [cardName, setCardName] = useState('');
   const [processing, setProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [discount, setDiscount] = useState(0);
+  const [couponError, setCouponError] = useState('');
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
@@ -60,6 +69,9 @@ export function PaymentScreen() {
   const border = useThemeColor({}, 'border');
   const primaryBg = useThemeColor({}, 'primaryBackground');
   const success = useThemeColor({}, 'success');
+  const error = useThemeColor({}, 'error');
+
+  const finalPrice = Math.max(0, price - discount);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -69,56 +81,191 @@ export function PaymentScreen() {
     }).start();
   }, []);
 
-  const handlePayment = () => {
+  const validateCoupon = async () => {
+    if (!couponCode.trim()) return;
+    
+    setValidatingCoupon(true);
+    setCouponError('');
+    
+    try {
+      const response = await subscriptionsApi.validateCoupon(couponCode.trim(), planId);
+      if (response.success && response.data) {
+        const coupon = response.data;
+        if (coupon.discountType === 'percentage') {
+          setDiscount(Math.round((price * coupon.discountValue) / 100));
+        } else {
+          setDiscount(coupon.discountValue);
+        }
+        Alert.alert('Success', `Coupon applied! You saved ₹${discount}`);
+      }
+    } catch (err: any) {
+      setCouponError(err.message || 'Invalid coupon code');
+      setDiscount(0);
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleRazorpayPayment = async () => {
     setProcessing(true);
 
-    // Simulate payment processing
-    setTimeout(() => {
+    try {
+      // Create order on backend
+      const orderResponse = await paymentsApi.createOrder({
+        amount: finalPrice,
+        currency: 'INR',
+        planId: planId,
+        description: `${planName} Subscription`,
+      });
+
+      if (!orderResponse.success || !orderResponse.data) {
+        throw new Error('Failed to create order');
+      }
+
+      const {orderId, amount, currency, razorpayKeyId} = orderResponse.data;
+
+      if (!RazorpayCheckout) {
+        // Fallback for when Razorpay is not installed
+        Alert.alert(
+          'Payment',
+          'Razorpay SDK not available. In production, this would open the Razorpay checkout.',
+          [
+            {text: 'Cancel', style: 'cancel', onPress: () => setProcessing(false)},
+            {text: 'Simulate Success', onPress: () => simulatePaymentSuccess(orderId)},
+          ]
+        );
+        return;
+      }
+
+      // Open Razorpay checkout
+      const options = {
+        description: `${planName} Subscription`,
+        image: 'https://your-logo-url.com/logo.png',
+        currency: currency,
+        key: razorpayKeyId,
+        amount: amount, // in paise
+        name: 'AI Tutor',
+        order_id: orderId,
+        prefill: {
+          email: '',
+          contact: '',
+          name: '',
+        },
+        theme: {color: primary},
+      };
+
+      const paymentData = await RazorpayCheckout.open(options);
+      
+      // Verify payment on backend
+      const verifyResponse = await paymentsApi.verify({
+        razorpayOrderId: orderId,
+        razorpayPaymentId: paymentData.razorpay_payment_id,
+        razorpaySignature: paymentData.razorpay_signature,
+        planId: planId,
+        couponCode: couponCode.trim() || undefined,
+      });
+
+      if (verifyResponse.success) {
+        // Create subscription
+        await subscriptionsApi.create(planId, paymentData.razorpay_payment_id, couponCode.trim() || undefined);
+        showPaymentSuccess();
+      } else {
+        throw new Error('Payment verification failed');
+      }
+    } catch (err: any) {
+      console.log('Payment error:', err);
+      if (err.code !== 'PAYMENT_CANCELLED') {
+        Alert.alert('Payment Failed', err.message || 'Something went wrong. Please try again.');
+      }
       setProcessing(false);
-      setShowSuccess(true);
+    }
+  };
 
-      Animated.spring(successAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 7,
-      }).start();
+  const simulatePaymentSuccess = async (orderId: string) => {
+    try {
+      // For development/testing - simulate successful payment
+      await subscriptionsApi.create(planId, `sim_${Date.now()}`, couponCode.trim() || undefined);
+      showPaymentSuccess();
+    } catch (err) {
+      Alert.alert('Error', 'Failed to create subscription');
+      setProcessing(false);
+    }
+  };
 
-      // Navigate after showing success
-      setTimeout(() => {
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'Onboarding', params: {userId}}],
-        });
-      }, 2000);
+  const handleUpiPayment = async (upiApp?: string) => {
+    if (!upiId.includes('@')) {
+      Alert.alert('Invalid UPI ID', 'Please enter a valid UPI ID');
+      return;
+    }
+
+    setProcessing(true);
+
+    try {
+      // Create order first
+      const orderResponse = await paymentsApi.createOrder({
+        amount: finalPrice,
+        currency: 'INR',
+        planId: planId,
+        description: `${planName} Subscription`,
+      });
+
+      if (!orderResponse.success || !orderResponse.data) {
+        throw new Error('Failed to create order');
+      }
+
+      // Generate UPI deep link
+      const upiLink = `upi://pay?pa=merchant@upi&pn=AITutor&am=${finalPrice}&cu=INR&tn=${planName}Subscription`;
+      
+      const canOpen = await Linking.canOpenURL(upiLink);
+      if (canOpen) {
+        await Linking.openURL(upiLink);
+        // Note: In a real app, you'd need to handle the callback from UPI apps
+        Alert.alert(
+          'Complete Payment',
+          'Please complete the payment in your UPI app and come back.',
+          [{text: 'OK', onPress: () => setProcessing(false)}]
+        );
+      } else {
+        Alert.alert('Error', 'No UPI app found on your device');
+        setProcessing(false);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to initiate UPI payment');
+      setProcessing(false);
+    }
+  };
+
+  const showPaymentSuccess = () => {
+    setProcessing(false);
+    setShowSuccess(true);
+
+    Animated.spring(successAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 7,
+    }).start();
+
+    // Navigate after showing success
+    setTimeout(() => {
+      navigation.reset({
+        index: 0,
+        routes: [{name: 'Onboarding', params: {userId}}],
+      });
     }, 2000);
   };
 
-  const formatCardNumber = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    const groups = cleaned.match(/.{1,4}/g);
-    return groups ? groups.join(' ').slice(0, 19) : '';
-  };
-
-  const formatExpiry = (value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return `${cleaned.slice(0, 2)}/${cleaned.slice(2, 4)}`;
+  const handlePayment = () => {
+    if (selectedMethod === 'razorpay') {
+      handleRazorpayPayment();
+    } else if (selectedMethod === 'upi') {
+      handleUpiPayment();
     }
-    return cleaned;
   };
 
   const canPay = () => {
     if (selectedMethod === 'upi') {
       return upiId.includes('@');
-    }
-    if (selectedMethod === 'card') {
-      return (
-        cardNumber.replace(/\s/g, '').length === 16 &&
-        cardExpiry.length === 5 &&
-        cardCvv.length === 3 &&
-        cardName.trim().length > 0
-      );
     }
     return true;
   };
@@ -162,12 +309,67 @@ export function PaymentScreen() {
           <View style={[styles.divider, {backgroundColor: border}]} />
           <View style={styles.summaryRow}>
             <Text style={[styles.summaryLabel, {color: textSecondary}]}>
-              Amount
+              Price
             </Text>
-            <Text style={[styles.summaryPrice, {color: primary}]}>
+            <Text style={[styles.summaryValue, {color: text}]}>
               ₹{price}
             </Text>
           </View>
+          {discount > 0 && (
+            <>
+              <View style={[styles.divider, {backgroundColor: border}]} />
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, {color: success}]}>
+                  Discount
+                </Text>
+                <Text style={[styles.summaryValue, {color: success}]}>
+                  -₹{discount}
+                </Text>
+              </View>
+            </>
+          )}
+          <View style={[styles.divider, {backgroundColor: border}]} />
+          <View style={styles.summaryRow}>
+            <Text style={[styles.summaryLabel, {color: textSecondary}]}>
+              Total
+            </Text>
+            <Text style={[styles.summaryPrice, {color: primary}]}>
+              ₹{finalPrice}
+            </Text>
+          </View>
+        </Animated.View>
+
+        {/* Coupon Code */}
+        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
+          <Text style={[styles.sectionTitle, {color: text}]}>
+            Have a coupon? 🎟️
+          </Text>
+          <View style={styles.couponRow}>
+            <View style={{flex: 1}}>
+              <Input
+                placeholder="Enter coupon code"
+                value={couponCode}
+                onChangeText={setCouponCode}
+                autoCapitalize="characters"
+                editable={!validatingCoupon && discount === 0}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.applyButton, {backgroundColor: discount > 0 ? success : primary}]}
+              onPress={validateCoupon}
+              disabled={validatingCoupon || discount > 0 || !couponCode.trim()}>
+              {validatingCoupon ? (
+                <ActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Text style={styles.applyButtonText}>
+                  {discount > 0 ? '✓' : 'Apply'}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+          {couponError ? (
+            <Text style={[styles.couponError, {color: error}]}>{couponError}</Text>
+          ) : null}
         </Animated.View>
 
         {/* Payment Methods */}
@@ -224,65 +426,13 @@ export function PaymentScreen() {
                 <TouchableOpacity
                   key={app.id}
                   style={[styles.upiApp, {backgroundColor: `${app.color}15`}]}
-                  onPress={() => {
-                    if (app.id !== 'other') {
-                      Alert.alert(
-                        'Open ' + app.name,
-                        'This will open ' + app.name + ' app for payment',
-                      );
-                    }
-                  }}>
+                  onPress={() => handleUpiPayment(app.id)}>
                   <Text style={[styles.upiAppText, {color: app.color}]}>
                     {app.name}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          </Animated.View>
-        )}
-
-        {/* Card Input */}
-        {selectedMethod === 'card' && (
-          <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
-            <Text style={[styles.sectionTitle, {color: text}]}>
-              Card Details
-            </Text>
-            <Input
-              placeholder="Card Number"
-              value={cardNumber}
-              onChangeText={val => setCardNumber(formatCardNumber(val))}
-              leftIcon="credit-card"
-              keyboardType="number-pad"
-              maxLength={19}
-            />
-            <View style={styles.cardRow}>
-              <View style={{flex: 1}}>
-                <Input
-                  placeholder="MM/YY"
-                  value={cardExpiry}
-                  onChangeText={val => setCardExpiry(formatExpiry(val))}
-                  keyboardType="number-pad"
-                  maxLength={5}
-                />
-              </View>
-              <View style={{flex: 1}}>
-                <Input
-                  placeholder="CVV"
-                  value={cardCvv}
-                  onChangeText={setCardCvv}
-                  keyboardType="number-pad"
-                  maxLength={3}
-                  secureTextEntry
-                />
-              </View>
-            </View>
-            <Input
-              placeholder="Cardholder Name"
-              value={cardName}
-              onChangeText={setCardName}
-              leftIcon="user"
-              autoCapitalize="words"
-            />
           </Animated.View>
         )}
 
@@ -297,10 +447,10 @@ export function PaymentScreen() {
         {/* Pay Button */}
         <View style={styles.buttonContainer}>
           <Button
-            title={processing ? 'Processing...' : `Pay ₹${price} 🔒`}
+            title={processing ? 'Processing...' : `Pay ₹${finalPrice} 🔒`}
             onPress={handlePayment}
             loading={processing}
-            disabled={!canPay()}
+            disabled={!canPay() || processing}
             fullWidth
             size="lg"
           />
@@ -328,7 +478,7 @@ export function PaymentScreen() {
               Welcome to AI Tutor Premium
             </Text>
             <Text style={[styles.successAmount, {color: success}]}>
-              ₹{price} paid
+              ₹{finalPrice} paid
             </Text>
           </Animated.View>
         </View>
@@ -397,6 +547,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: Spacing.md,
   },
+  couponRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    alignItems: 'flex-start',
+  },
+  applyButton: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginTop: 4,
+    minWidth: 80,
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: FontSizes.sm,
+  },
+  couponError: {
+    fontSize: FontSizes.xs,
+    marginTop: Spacing.xs,
+  },
   methodCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -446,10 +618,6 @@ const styles = StyleSheet.create({
   upiAppText: {
     fontSize: FontSizes.xs,
     fontWeight: '600',
-  },
-  cardRow: {
-    flexDirection: 'row',
-    gap: Spacing.md,
   },
   securityNote: {
     flexDirection: 'row',
