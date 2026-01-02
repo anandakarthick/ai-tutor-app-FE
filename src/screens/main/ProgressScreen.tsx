@@ -3,24 +3,24 @@
  * View learning progress and analytics - API Integrated
  */
 
-import React, {useEffect, useRef, useCallback, useState} from 'react';
+import React, {useEffect, useCallback, useState} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  Animated,
+  TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useFocusEffect} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {useProgress} from '../../hooks/useApi';
 import {progressApi} from '../../services/api';
-import {Icon, ProgressRing, ProgressBar, Card, Badge} from '../../components/ui';
-import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
+import {Icon, ProgressBar, Badge} from '../../components/ui';
+import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
 
 interface SubjectProgress {
   subjectId: string;
@@ -29,7 +29,7 @@ interface SubjectProgress {
 }
 
 export function ProgressScreen() {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const navigation = useNavigation<any>();
   const {currentStudent} = useStudent();
   const {dailyProgress, streak, loading, refresh} = useProgress();
   const [refreshing, setRefreshing] = useState(false);
@@ -44,49 +44,49 @@ export function ProgressScreen() {
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const primary = useThemeColor({}, 'primary');
+  const primaryBg = useThemeColor({}, 'primaryBackground');
+  const card = useThemeColor({}, 'card');
   const border = useThemeColor({}, 'border');
+  const success = useThemeColor({}, 'success');
+  const warning = useThemeColor({}, 'warning');
 
   // Load overall progress
   const loadOverall = useCallback(async () => {
     if (!currentStudent) return;
     try {
-      console.log('Loading overall progress for student:', currentStudent.id);
+      console.log('[ProgressScreen] Loading overall progress for student:', currentStudent.id);
       const response = await progressApi.getOverall(currentStudent.id);
       if (response.success && response.data) {
         setOverallData(response.data);
       }
     } catch (err) {
-      console.log('Load overall progress error:', err);
+      console.log('[ProgressScreen] Load overall progress error:', err);
     }
   }, [currentStudent]);
 
   // Refresh when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('ProgressScreen focused - refreshing data');
-      refresh();
-      loadOverall();
-    }, [refresh, loadOverall])
+      console.log('[ProgressScreen] Screen focused - refreshing data');
+      if (currentStudent) {
+        refresh();
+        loadOverall();
+      }
+    }, [refresh, loadOverall, currentStudent])
   );
 
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
-  }, []);
-
   const handleRefresh = useCallback(async () => {
-    console.log('ProgressScreen pull-to-refresh triggered');
+    console.log('[ProgressScreen] Pull-to-refresh triggered');
     setRefreshing(true);
     try {
-      await Promise.all([refresh(), loadOverall()]);
+      if (currentStudent) {
+        await Promise.all([refresh(), loadOverall()]);
+      }
     } catch (err) {
-      console.log('Refresh error:', err);
+      console.log('[ProgressScreen] Refresh error:', err);
     }
     setRefreshing(false);
-  }, [refresh, loadOverall]);
+  }, [refresh, loadOverall, currentStudent]);
 
   // Calculate weekly study data from dailyProgress
   const getWeeklyData = () => {
@@ -99,7 +99,6 @@ export function ProgressScreen() {
       date.setDate(date.getDate() - i);
       const dayName = days[date.getDay()];
       
-      // Find matching progress entry
       const progressEntry = dailyProgress.find(p => {
         const pDate = new Date(p.date);
         return pDate.toDateString() === date.toDateString();
@@ -132,9 +131,71 @@ export function ProgressScreen() {
     return `${mins}m`;
   };
 
+  // No student profile - show setup prompt
+  if (!currentStudent) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={[styles.title, {color: text}]}>Progress 📊</Text>
+          <Text style={[styles.subtitle, {color: textSecondary}]}>
+            Track your learning journey
+          </Text>
+        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+          }>
+          <View style={[styles.emptyCard, {backgroundColor: card}]}>
+            <View style={[styles.emptyIcon, {backgroundColor: primaryBg}]}>
+              <Text style={styles.emptyEmoji}>📊</Text>
+            </View>
+            <Text style={[styles.emptyTitle, {color: text}]}>
+              Complete Your Profile
+            </Text>
+            <Text style={[styles.emptyDescription, {color: textSecondary}]}>
+              Set up your student profile to start tracking your learning progress and achievements!
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionButton, {backgroundColor: primary}]}
+              onPress={() => navigation.navigate('Profile')}>
+              <Icon name="user" size={18} color="#FFF" />
+              <Text style={styles.actionButtonText}>Go to Profile</Text>
+            </TouchableOpacity>
+            
+            <View style={[styles.previewSection, {borderColor: border}]}>
+              <Text style={[styles.previewTitle, {color: text}]}>
+                📈 What you'll track:
+              </Text>
+              <Text style={[styles.previewItem, {color: textSecondary}]}>
+                • Daily study time and streaks
+              </Text>
+              <Text style={[styles.previewItem, {color: textSecondary}]}>
+                • Topics completed per subject
+              </Text>
+              <Text style={[styles.previewItem, {color: textSecondary}]}>
+                • XP points and levels
+              </Text>
+              <Text style={[styles.previewItem, {color: textSecondary}]}>
+                • Weekly progress charts
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  // Loading state
   if (loading && dailyProgress.length === 0) {
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+        <View style={styles.header}>
+          <Text style={[styles.title, {color: text}]}>Progress 📊</Text>
+          <Text style={[styles.subtitle, {color: textSecondary}]}>
+            Track your learning journey
+          </Text>
+        </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={primary} />
           <Text style={[styles.loadingText, {color: textSecondary}]}>Loading progress...</Text>
@@ -144,15 +205,14 @@ export function ProgressScreen() {
   }
 
   return (
-    <SafeAreaView
-      style={[styles.container, {backgroundColor: background}]}
-      edges={['top']}>
-      <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
         <Text style={[styles.title, {color: text}]}>Progress 📊</Text>
         <Text style={[styles.subtitle, {color: textSecondary}]}>
           Track your learning journey
         </Text>
-      </Animated.View>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -160,136 +220,141 @@ export function ProgressScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
         }>
-        {/* Overall Progress */}
-        <Animated.View style={{opacity: fadeAnim}}>
-          <Card style={styles.overallCard}>
-            <View style={styles.overallContent}>
-              <View style={styles.overallText}>
-                <Text style={[styles.overallTitle, {color: text}]}>
-                  Overall Progress
-                </Text>
-                <Text style={[styles.overallSubtitle, {color: textSecondary}]}>
-                  {streak.streakDays > 0 
-                    ? `🔥 ${streak.streakDays} day streak! Keep it up!` 
-                    : 'Start learning to build your streak!'}
-                </Text>
-                <View style={styles.overallStats}>
-                  <View style={styles.overallStat}>
-                    <Text style={[styles.statValue, {color: text}]}>
-                      {overallData.completedTopics}
-                    </Text>
-                    <Text style={[styles.statLabel, {color: textSecondary}]}>
-                      Topics
-                    </Text>
-                  </View>
-                  <View
-                    style={[styles.statDivider, {backgroundColor: border}]}
-                  />
-                  <View style={styles.overallStat}>
-                    <Text style={[styles.statValue, {color: text}]}>
-                      {streak.xp || 0}
-                    </Text>
-                    <Text style={[styles.statLabel, {color: textSecondary}]}>
-                      XP Points
-                    </Text>
-                  </View>
-                  <View
-                    style={[styles.statDivider, {backgroundColor: border}]}
-                  />
-                  <View style={styles.overallStat}>
-                    <Text style={[styles.statValue, {color: text}]}>
-                      {formatStudyTime(overallData.totalTimeMinutes)}
-                    </Text>
-                    <Text style={[styles.statLabel, {color: textSecondary}]}>
-                      Study Time
-                    </Text>
-                  </View>
-                </View>
-              </View>
-              <ProgressRing progress={overallProgress} size="xl" label="Complete" />
+        
+        {/* Stats Row */}
+        <View style={styles.statsRow}>
+          <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
+            <Icon name="flame" size={24} color="#EF4444" />
+            <Text style={[styles.statValue, {color: text}]}>{streak.streakDays || 0}</Text>
+            <Text style={[styles.statLabel, {color: textSecondary}]}>Day Streak</Text>
+          </View>
+          <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
+            <Icon name="star" size={24} color="#F97316" />
+            <Text style={[styles.statValue, {color: text}]}>{streak.xp || 0}</Text>
+            <Text style={[styles.statLabel, {color: textSecondary}]}>XP Points</Text>
+          </View>
+          <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
+            <Icon name="award" size={24} color="#FBBF24" />
+            <Text style={[styles.statValue, {color: text}]}>{streak.level || 1}</Text>
+            <Text style={[styles.statLabel, {color: textSecondary}]}>Level</Text>
+          </View>
+        </View>
+
+        {/* Overall Progress Card */}
+        <View style={[styles.overallCard, {backgroundColor: card}, Shadows.sm]}>
+          <View style={styles.overallHeader}>
+            <Text style={[styles.sectionTitle, {color: text}]}>Overall Progress</Text>
+            <Badge label={`${overallProgress}%`} variant="primary" />
+          </View>
+          <View style={styles.overallStats}>
+            <View style={styles.overallStatItem}>
+              <Text style={[styles.overallStatValue, {color: text}]}>{overallData.completedTopics}</Text>
+              <Text style={[styles.overallStatLabel, {color: textSecondary}]}>Topics Done</Text>
             </View>
-          </Card>
-        </Animated.View>
+            <View style={[styles.overallDivider, {backgroundColor: border}]} />
+            <View style={styles.overallStatItem}>
+              <Text style={[styles.overallStatValue, {color: text}]}>{overallData.totalTopics}</Text>
+              <Text style={[styles.overallStatLabel, {color: textSecondary}]}>Total Topics</Text>
+            </View>
+            <View style={[styles.overallDivider, {backgroundColor: border}]} />
+            <View style={styles.overallStatItem}>
+              <Text style={[styles.overallStatValue, {color: text}]}>{formatStudyTime(overallData.totalTimeMinutes)}</Text>
+              <Text style={[styles.overallStatLabel, {color: textSecondary}]}>Study Time</Text>
+            </View>
+          </View>
+          <ProgressBar progress={overallProgress} size="md" showLabel={false} />
+        </View>
 
         {/* Weekly Chart */}
-        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
+        <View style={styles.section}>
           <Text style={[styles.sectionTitle, {color: text}]}>This Week</Text>
-          <Card>
+          <View style={[styles.chartCard, {backgroundColor: card}, Shadows.sm]}>
             <View style={styles.chartContainer}>
-              {weeklyStudy.map((item, index) => (
+              {weeklyStudy.map((item) => (
                 <View key={item.day} style={styles.chartBar}>
                   <View style={styles.barContainer}>
                     <View
                       style={[
                         styles.bar,
                         {
-                          height: `${Math.max((item.hours / maxHours) * 100, 5)}%`,
-                          backgroundColor:
-                            item.isToday ? primary : `${primary}40`,
+                          height: `${Math.max((item.hours / maxHours) * 100, 8)}%`,
+                          backgroundColor: item.isToday ? primary : `${primary}50`,
                         },
                       ]}
                     />
                   </View>
-                  <Text style={[styles.barLabel, {color: textSecondary}]}>
+                  <Text style={[styles.barLabel, {color: item.isToday ? primary : textSecondary}]}>
                     {item.day}
                   </Text>
                 </View>
               ))}
             </View>
-            <View style={styles.chartSummary}>
+            <View style={[styles.chartSummary, {borderTopColor: border}]}>
               <View style={styles.chartSummaryItem}>
                 <Icon name="clock" size={16} color={primary} />
                 <Text style={[styles.chartSummaryText, {color: text}]}>
                   {totalWeeklyHours.toFixed(1)} hours this week
                 </Text>
               </View>
-              <Badge 
-                label={`Level ${streak.level || 1}`} 
-                variant="success" 
-                size="sm" 
-              />
             </View>
-          </Card>
-        </Animated.View>
+          </View>
+        </View>
 
         {/* Subject Progress */}
-        <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
-          <Text style={[styles.sectionTitle, {color: text}]}>
-            Subject Progress
-          </Text>
-          {overallData.subjectProgress.length === 0 ? (
-            <View style={styles.emptySubjects}>
-              <Text style={[styles.emptyText, {color: textSecondary}]}>
-                Start learning to see your progress here
-              </Text>
-            </View>
-          ) : (
-            overallData.subjectProgress.map(subject => (
-              <View key={subject.subjectId} style={styles.subjectItem}>
-                <ProgressBar
-                  progress={Math.round(subject.avgProgress || 0)}
-                  label={subject.subjectName}
-                  showLabel
-                  size="md"
-                />
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, {color: text}]}>Subject Progress</Text>
+          <View style={[styles.subjectCard, {backgroundColor: card}, Shadows.sm]}>
+            {overallData.subjectProgress.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionEmoji}>📚</Text>
+                <Text style={[styles.emptySectionText, {color: textSecondary}]}>
+                  Start learning to see your subject progress
+                </Text>
               </View>
-            ))
-          )}
-        </Animated.View>
+            ) : (
+              overallData.subjectProgress.map((subject, index) => (
+                <View 
+                  key={subject.subjectId} 
+                  style={[
+                    styles.subjectItem,
+                    index < overallData.subjectProgress.length - 1 && {
+                      borderBottomWidth: 1,
+                      borderBottomColor: border,
+                      marginBottom: 12,
+                      paddingBottom: 12,
+                    }
+                  ]}>
+                  <View style={styles.subjectHeader}>
+                    <Text style={[styles.subjectName, {color: text}]}>{subject.subjectName}</Text>
+                    <Text style={[styles.subjectPercent, {color: primary}]}>
+                      {Math.round(subject.avgProgress || 0)}%
+                    </Text>
+                  </View>
+                  <ProgressBar progress={Math.round(subject.avgProgress || 0)} size="sm" showLabel={false} />
+                </View>
+              ))
+            )}
+          </View>
+        </View>
 
         {/* Recent Activity */}
-        {dailyProgress.length > 0 && (
-          <Animated.View style={[styles.section, {opacity: fadeAnim}]}>
-            <Text style={[styles.sectionTitle, {color: text}]}>
-              Recent Activity
-            </Text>
-            <Card>
-              {dailyProgress.slice(0, 5).map((activity, index) => (
+        <View style={styles.section}>
+          <Text style={[styles.sectionTitle, {color: text}]}>Recent Activity</Text>
+          <View style={[styles.activityCard, {backgroundColor: card}, Shadows.sm]}>
+            {dailyProgress.length === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionEmoji}>🕐</Text>
+                <Text style={[styles.emptySectionText, {color: textSecondary}]}>
+                  Your recent activity will appear here
+                </Text>
+              </View>
+            ) : (
+              dailyProgress.slice(0, 5).map((activity, index) => (
                 <View 
                   key={activity.id || index} 
                   style={[
                     styles.activityItem,
-                    index < dailyProgress.slice(0, 5).length - 1 && {
+                    index < Math.min(dailyProgress.length, 5) - 1 && {
                       borderBottomWidth: 1,
                       borderBottomColor: border,
                     },
@@ -310,104 +375,190 @@ export function ProgressScreen() {
                     </Text>
                   </View>
                 </View>
-              ))}
-            </Card>
-          </Animated.View>
-        )}
+              ))
+            )}
+          </View>
+        </View>
+        
+        <View style={{height: 40}} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
+  container: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: Spacing.md,
-    fontSize: FontSizes.sm,
+    marginTop: 12,
+    fontSize: 14,
   },
   header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: FontSizes['2xl'],
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
-  subtitle: {fontSize: FontSizes.base},
-  scrollContent: {padding: Spacing.lg, paddingTop: 0},
-  overallCard: {marginBottom: Spacing.xl},
-  overallContent: {
+  subtitle: {
+    fontSize: 16,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 0,
+    flexGrow: 1,
+  },
+  
+  // Stats Row
+  statsRow: {
     flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  statCard: {
+    flex: 1,
+    padding: 12,
+    borderRadius: 12,
     alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 8,
+  },
+  statLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  
+  // Overall Card
+  overallCard: {
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  overallHeader: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  overallText: {flex: 1, marginRight: Spacing.lg},
-  overallTitle: {
-    fontSize: FontSizes.lg,
+  overallStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  overallStatItem: {
+    alignItems: 'center',
+  },
+  overallStatValue: {
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: Spacing.xs,
   },
-  overallSubtitle: {fontSize: FontSizes.sm, marginBottom: Spacing.base},
-  overallStats: {flexDirection: 'row', alignItems: 'center'},
-  overallStat: {alignItems: 'center'},
-  statValue: {fontSize: FontSizes.lg, fontWeight: '700'},
-  statLabel: {fontSize: FontSizes.xs},
-  statDivider: {width: 1, height: 30, marginHorizontal: Spacing.md},
-  section: {marginBottom: Spacing.xl},
+  overallStatLabel: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  overallDivider: {
+    width: 1,
+    height: 30,
+  },
+  
+  // Section
+  section: {
+    marginBottom: 20,
+  },
   sectionTitle: {
-    fontSize: FontSizes.lg,
+    fontSize: 18,
     fontWeight: '700',
-    marginBottom: Spacing.base,
+    marginBottom: 12,
+  },
+  
+  // Chart Card
+  chartCard: {
+    padding: 16,
+    borderRadius: 16,
   },
   chartContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    height: 120,
-    marginBottom: Spacing.base,
+    height: 100,
+    marginBottom: 12,
   },
-  chartBar: {flex: 1, alignItems: 'center'},
+  chartBar: {
+    flex: 1,
+    alignItems: 'center',
+  },
   barContainer: {
     flex: 1,
-    width: 24,
+    width: 20,
     justifyContent: 'flex-end',
-    marginBottom: Spacing.xs,
+    marginBottom: 6,
   },
-  bar: {width: '100%', borderRadius: BorderRadius.sm, minHeight: 4},
-  barLabel: {fontSize: FontSizes.xs, fontWeight: '500'},
+  bar: {
+    width: '100%',
+    borderRadius: 4,
+    minHeight: 4,
+  },
+  barLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
   chartSummary: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Spacing.md,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
   },
   chartSummaryItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: Spacing.sm,
+    gap: 8,
   },
-  chartSummaryText: {fontSize: FontSizes.sm, fontWeight: '500'},
-  emptySubjects: {
-    paddingVertical: Spacing.xl,
+  chartSummaryText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  
+  // Subject Card
+  subjectCard: {
+    padding: 16,
+    borderRadius: 16,
+  },
+  subjectItem: {},
+  subjectHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
-  emptyText: {
-    fontSize: FontSizes.sm,
-    textAlign: 'center',
+  subjectName: {
+    fontSize: 14,
+    fontWeight: '600',
   },
-  subjectItem: {marginBottom: Spacing.md},
+  subjectPercent: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  
+  // Activity Card
+  activityCard: {
+    padding: 16,
+    borderRadius: 16,
+  },
   activityItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: Spacing.sm,
+    paddingVertical: 10,
   },
   activityIcon: {
     width: 36,
@@ -415,15 +566,90 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.sm,
+    marginRight: 12,
   },
-  activityContent: {flex: 1},
+  activityContent: {
+    flex: 1,
+  },
   activityTitle: {
-    fontSize: FontSizes.sm,
+    fontSize: 14,
     fontWeight: '600',
     marginBottom: 2,
   },
   activityMeta: {
-    fontSize: FontSizes.xs,
+    fontSize: 12,
+  },
+  
+  // Empty States
+  emptyCard: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  emptyEmoji: {
+    fontSize: 40,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  emptyDescription: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 24,
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  previewSection: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  previewTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  previewItem: {
+    fontSize: 13,
+    lineHeight: 22,
+  },
+  emptySection: {
+    paddingVertical: 24,
+    alignItems: 'center',
+  },
+  emptySectionEmoji: {
+    fontSize: 32,
+    marginBottom: 8,
+  },
+  emptySectionText: {
+    fontSize: 13,
+    textAlign: 'center',
   },
 });
