@@ -27,9 +27,10 @@ export const setSessionTerminatedCallback = (callback: () => void) => {
 };
 
 // Encryption state
-let isEncryptionEnabled = true; // Enable by default
+let isEncryptionEnabled = false; // Start disabled, enable after successful handshake
 let isHandshakeComplete = false;
 let serverPublicKey: string | null = null;
+let handshakeAttempted = false;
 
 // Endpoints that should NOT be encrypted (public endpoints)
 const UNENCRYPTED_ENDPOINTS = [
@@ -68,8 +69,22 @@ const processQueue = (error: any, token: string | null = null) => {
  * Initialize encryption and perform handshake with server
  */
 export const initializeEncryption = async (): Promise<boolean> => {
+  // Only attempt handshake once
+  if (handshakeAttempted) {
+    return isEncryptionEnabled && isHandshakeComplete;
+  }
+  handshakeAttempted = true;
+
+  // Skip if encryption is disabled in config
+  if (!API_CONFIG.ENCRYPTION_ENABLED) {
+    console.log('🔓 E2E Encryption disabled in config');
+    isEncryptionEnabled = false;
+    return false;
+  }
+
   try {
     console.log('🔐 Initializing E2E encryption...');
+    console.log('📡 Backend URL:', API_CONFIG.BASE_URL);
     
     // Initialize encryption service
     await encryptionService.initialize();
@@ -82,31 +97,47 @@ export const initializeEncryption = async (): Promise<boolean> => {
 
     // Perform handshake with server
     const clientPublicKey = encryptionService.getPublicKey();
+    console.log('🔑 Client public key ready, performing handshake...');
     
     const response = await axios.post(
       `${API_CONFIG.BASE_URL}${ENDPOINTS.AUTH.HANDSHAKE}`,
-      { clientPublicKey }
+      { clientPublicKey },
+      { timeout: 10000 } // 10 second timeout for handshake
     );
 
     if (response.data.success && response.data.data) {
       serverPublicKey = response.data.data.serverPublicKey;
-      isEncryptionEnabled = response.data.data.encryptionEnabled !== false;
+      const serverEncryptionEnabled = response.data.data.encryptionEnabled !== false;
       
-      if (serverPublicKey) {
+      if (serverPublicKey && serverEncryptionEnabled) {
         await encryptionService.setServerPublicKey(serverPublicKey);
+        isEncryptionEnabled = true;
+        isHandshakeComplete = true;
+        await AsyncStorage.setItem(STORAGE_KEYS.ENCRYPTION_ENABLED, 'true');
+        console.log('✅ E2E Encryption enabled successfully');
+        return true;
+      } else {
+        console.log('🔓 Server has encryption disabled');
+        isEncryptionEnabled = false;
+        return false;
       }
-      
-      isHandshakeComplete = true;
-      await AsyncStorage.setItem(STORAGE_KEYS.ENCRYPTION_ENABLED, isEncryptionEnabled ? 'true' : 'false');
-      
-      console.log(`✅ E2E encryption ${isEncryptionEnabled ? 'enabled' : 'disabled'}`);
-      return true;
     }
     
+    console.log('⚠️ Handshake response invalid');
     return false;
-  } catch (error) {
-    console.warn('⚠️ E2E handshake failed, continuing without encryption:', error);
+  } catch (error: any) {
+    // Log specific error details
+    if (error.code === 'ECONNREFUSED') {
+      console.warn('⚠️ Backend server not running at', API_CONFIG.BASE_URL);
+    } else if (error.code === 'ENOTFOUND' || error.message?.includes('Network Error')) {
+      console.warn('⚠️ Cannot reach backend. Check IP address:', API_CONFIG.BASE_URL);
+      console.warn('   Make sure backend is running and IP is correct');
+    } else {
+      console.warn('⚠️ E2E handshake failed:', error.message || error);
+    }
+    
     isEncryptionEnabled = false;
+    console.log('🔓 Continuing without encryption');
     return false;
   }
 };
@@ -116,6 +147,7 @@ export const initializeEncryption = async (): Promise<boolean> => {
  */
 const shouldEncryptEndpoint = (url: string): boolean => {
   if (!isEncryptionEnabled || !isHandshakeComplete) return false;
+  if (!encryptionService.isReady() || !encryptionService.hasServerKey()) return false;
   return !UNENCRYPTED_ENDPOINTS.some(endpoint => url.includes(endpoint));
 };
 
@@ -212,7 +244,7 @@ apiClient.interceptors.response.use(
 
     if (__DEV__) {
       console.log(`❌ API Error: ${originalRequest?.url} - ${error.response?.status}`);
-      console.log('Error details:', error.response?.data);
+      console.log('Error details:', error.response?.data || error.message);
     }
 
     // Decrypt error response if encrypted
@@ -350,6 +382,7 @@ export const getEncryptionStatus = () => ({
   handshakeComplete: isHandshakeComplete,
   serviceReady: encryptionService.isReady(),
   hasServerKey: encryptionService.hasServerKey(),
+  configEnabled: API_CONFIG.ENCRYPTION_ENABLED,
 });
 
 export default apiClient;

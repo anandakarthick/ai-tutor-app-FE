@@ -7,7 +7,7 @@
 // For Android Emulator: 10.0.2.2
 // For iOS Simulator: localhost
 // For physical device: your computer's IP address
-const DEV_API_URL = 'http://192.168.29.104:3000/api/v1'; // Android Emulator
+const DEV_API_URL = 'http://192.168.29.179:3000/api/v1'; // Android Emulator
 // const DEV_API_URL = 'http://localhost:3000/api/v1'; // iOS Simulator
 // const DEV_API_URL = 'http://192.168.1.100:3000/api/v1'; // Physical device (use your IP)
 
@@ -18,7 +18,7 @@ export const API_CONFIG = {
   TIMEOUT: 30000, // 30 seconds
   
   // Socket.IO configuration
-  SOCKET_URL: __DEV__ ? 'http://192.168.29.104:3000' : 'https://api.aitutor.com',
+  SOCKET_URL: __DEV__ ? 'http://192.168.29.179:3000' : 'https://api.aitutor.com',
   
   // Encryption settings
   ENCRYPTION_ENABLED: true,
