@@ -108,18 +108,17 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     } catch (error: any) {
       console.log('Login error:', error);
       
-      // Check if user not found - don't show alert, throw error instead
-      const errorCode = error.response?.data?.code;
+      // Extract error info
+      const errorCode = error.response?.data?.code || '';
       const errorMessage = error.response?.data?.message || 'Login failed';
       
-      if (errorCode === 'USER_NOT_FOUND') {
-        // Throw error so screen can handle registration redirect
-        throw new Error(errorMessage);
-      }
+      // Create custom error with code attached
+      const customError = new Error(errorMessage);
+      (customError as any).code = errorCode;
       
-      // For other errors, show alert
-      Alert.alert('Login Failed', errorMessage);
-      return false;
+      // Throw error so screen can handle it
+      // This includes USER_NOT_FOUND, INVALID_OTP, OTP_EXPIRED, etc.
+      throw customError;
     }
   }, []);
 

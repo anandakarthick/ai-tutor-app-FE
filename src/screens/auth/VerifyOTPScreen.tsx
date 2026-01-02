@@ -125,9 +125,9 @@ export function VerifyOTPScreen() {
     setError('');
     
     try {
-      // If coming from registration flow - go to plan selection
+      // If coming from registration flow - verify OTP and go to plan selection
       if (fromRegistration) {
-        // First verify the OTP
+        console.log('🔐 Verifying OTP for registration...');
         const isValid = await verifyOtp(phone, enteredOtp);
         if (isValid) {
           navigation.reset({
@@ -143,35 +143,22 @@ export function VerifyOTPScreen() {
         return;
       }
       
-      // For login flow - first verify OTP, then try to login
-      console.log('🔐 Verifying OTP...');
-      const isValid = await verifyOtp(phone, enteredOtp);
+      // For login flow - directly call login (it will verify OTP internally)
+      console.log('🔐 Logging in with OTP...');
       
-      if (!isValid) {
-        setError('Invalid OTP. Please try again.');
-        shakeError();
-        setOtp(['', '', '', '', '', '']);
-        inputRefs.current[0]?.focus();
-        return;
-      }
-      
-      console.log('✅ OTP verified, attempting login...');
-      
-      // Try to login
       const loginSuccess = await login(phone, enteredOtp);
       
       if (loginSuccess) {
         console.log('✅ Login successful');
         // AuthContext will update and navigation will switch automatically
       }
-      // If login fails due to user not found, it will show alert from AuthContext
-      // Let's catch the specific error and redirect to registration
+      // Note: If login returns false, error is already set in AuthContext
       
     } catch (err: any) {
-      console.log('❌ Verify/Login error:', err);
+      console.log('❌ Login error:', err);
       
       // Check if user not found - redirect to registration
-      if (err.message?.includes('not found') || err.response?.data?.code === 'USER_NOT_FOUND') {
+      if (err.message?.includes('not found') || err.code === 'USER_NOT_FOUND') {
         Alert.alert(
           'New User',
           'This phone number is not registered. Would you like to create an account?',
@@ -183,6 +170,24 @@ export function VerifyOTPScreen() {
             },
           ]
         );
+        return;
+      }
+      
+      // Check for invalid OTP error
+      if (err.message?.includes('Invalid OTP') || err.code === 'INVALID_OTP') {
+        setError('Invalid OTP. Please try again.');
+        shakeError();
+        setOtp(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+        return;
+      }
+      
+      // Check for expired OTP
+      if (err.message?.includes('expired') || err.code === 'OTP_EXPIRED') {
+        setError('OTP has expired. Please request a new one.');
+        shakeError();
+        setOtp(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
         return;
       }
       
