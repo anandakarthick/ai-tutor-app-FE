@@ -3,14 +3,13 @@
  * Browse and take quizzes - API Integrated
  */
 
-import React, {useEffect, useRef, useCallback, useState} from 'react';
+import React, {useEffect, useCallback, useState} from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Animated,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -18,69 +17,70 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {useStudent} from '../../context';
-import {useQuizzes} from '../../hooks/useApi';
+import {quizzesApi} from '../../services/api';
 import {Icon, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
-import type {Quiz, QuizAttempt} from '../../types/api';
+import type {Quiz} from '../../types/api';
 
 export function QuizzesScreen() {
   const navigation = useNavigation<any>();
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const {currentStudent} = useStudent();
-  const {quizzes, loading, refresh} = useQuizzes();
+  
+  // Local state
+  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState({
-    completed: 0,
-    avgScore: 0,
-    bestScore: 0,
-  });
 
+  // Theme colors
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
   const primary = useThemeColor({}, 'primary');
+  const primaryBg = useThemeColor({}, 'primaryBackground');
   const card = useThemeColor({}, 'card');
   const success = useThemeColor({}, 'success');
   const warning = useThemeColor({}, 'warning');
+  const border = useThemeColor({}, 'border');
 
-  // Calculate stats from quizzes
-  useEffect(() => {
-    if (quizzes.length > 0) {
-      const completedQuizzes = quizzes.filter(q => q.attempts && q.attempts.length > 0);
-      const scores = completedQuizzes.flatMap(q => 
-        q.attempts?.map((a: QuizAttempt) => a.percentage || a.score) || []
-      ).filter(s => s !== undefined && s !== null);
+  // Load quizzes
+  const loadQuizzes = useCallback(async () => {
+    try {
+      setError(null);
+      console.log('[QuizzesScreen] Loading quizzes...');
+      const response = await quizzesApi.getAll();
+      console.log('[QuizzesScreen] Response:', response);
       
-      setStats({
-        completed: completedQuizzes.length,
-        avgScore: scores.length > 0 
-          ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
-          : 0,
-        bestScore: scores.length > 0 ? Math.round(Math.max(...scores)) : 0,
-      });
+      if (response.success && response.data) {
+        setQuizzes(response.data);
+        console.log('[QuizzesScreen] Loaded', response.data.length, 'quizzes');
+      } else {
+        setQuizzes([]);
+        console.log('[QuizzesScreen] No quizzes found');
+      }
+    } catch (err: any) {
+      console.log('[QuizzesScreen] Error loading quizzes:', err);
+      setError(err.message || 'Failed to load quizzes');
+      setQuizzes([]);
+    } finally {
+      setLoading(false);
     }
-  }, [quizzes]);
-
-  useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 500,
-      useNativeDriver: true,
-    }).start();
   }, []);
+
+  // Initial load
+  useEffect(() => {
+    loadQuizzes();
+  }, [loadQuizzes]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh();
+    await loadQuizzes();
     setRefreshing(false);
-  }, [refresh]);
+  }, [loadQuizzes]);
 
   const handleQuizPress = (quiz: Quiz) => {
-    // Show quiz details and start option
     Alert.alert(
-      quiz.quizTitle,
-      `${quiz.totalQuestions} questions • ${quiz.timeLimitMinutes || quiz.duration || 15} min\n\nReady to start this quiz?`,
+      quiz.quizTitle || 'Quiz',
+      `${quiz.totalQuestions || 0} questions • ${quiz.timeLimitMinutes || 15} min\n\nReady to start?`,
       [
         {text: 'Cancel', style: 'cancel'},
         {
@@ -91,257 +91,315 @@ export function QuizzesScreen() {
     );
   };
 
-  const getQuizTypeLabel = (type: string) => {
+  const getQuizTypeLabel = (type?: string) => {
     switch (type) {
       case 'topic': return 'Topic Quiz';
       case 'chapter': return 'Chapter Test';
       case 'mock': return 'Mock Test';
       case 'practice': return 'Practice';
       case 'daily': return 'Daily Quiz';
-      default: return type;
+      default: return 'Quiz';
     }
   };
-
-  const getQuizTypeEmoji = (type: string) => {
-    switch (type) {
-      case 'topic': return '📚';
-      case 'chapter': return '📖';
-      case 'mock': return '🎯';
-      case 'practice': return '✏️';
-      case 'daily': return '📅';
-      default: return '📝';
-    }
-  };
-
-  const getLatestScore = (quiz: Quiz): number | null => {
-    if (quiz.attempts && quiz.attempts.length > 0) {
-      const lastAttempt = quiz.attempts[quiz.attempts.length - 1];
-      return lastAttempt.percentage || lastAttempt.score || null;
-    }
-    return null;
-  };
-
-  if (loading && quizzes.length === 0) {
-    return (
-      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={primary} />
-          <Text style={[styles.loadingText, {color: textSecondary}]}>Loading quizzes...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   return (
-    <SafeAreaView
-      style={[styles.container, {backgroundColor: background}]}
-      edges={['top']}>
-      <Animated.View style={[styles.header, {opacity: fadeAnim}]}>
+    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+      {/* Header */}
+      <View style={styles.header}>
         <Text style={[styles.title, {color: text}]}>Quizzes 📝</Text>
         <Text style={[styles.subtitle, {color: textSecondary}]}>
           Test your knowledge
         </Text>
-      </Animated.View>
+      </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+          <RefreshControl 
+            refreshing={refreshing} 
+            onRefresh={handleRefresh} 
+            colors={[primary]} 
+          />
         }>
-        {/* Stats */}
-        <Animated.View style={[styles.statsRow, {opacity: fadeAnim}]}>
+        
+        {/* Stats Cards */}
+        <View style={styles.statsRow}>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="check-circle" size={24} color={success} />
-            <Text style={[styles.statValue, {color: text}]}>{stats.completed}</Text>
-            <Text style={[styles.statLabel, {color: textSecondary}]}>
-              Completed
-            </Text>
+            <Text style={[styles.statValue, {color: text}]}>0</Text>
+            <Text style={[styles.statLabel, {color: textSecondary}]}>Completed</Text>
           </View>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="percent" size={24} color={primary} />
-            <Text style={[styles.statValue, {color: text}]}>{stats.avgScore}%</Text>
-            <Text style={[styles.statLabel, {color: textSecondary}]}>
-              Avg. Score
-            </Text>
+            <Text style={[styles.statValue, {color: text}]}>0%</Text>
+            <Text style={[styles.statLabel, {color: textSecondary}]}>Avg. Score</Text>
           </View>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="star" size={24} color={warning} />
-            <Text style={[styles.statValue, {color: text}]}>{stats.bestScore}%</Text>
-            <Text style={[styles.statLabel, {color: textSecondary}]}>
-              Best Score
+            <Text style={[styles.statValue, {color: text}]}>0%</Text>
+            <Text style={[styles.statLabel, {color: textSecondary}]}>Best Score</Text>
+          </View>
+        </View>
+
+        {/* Content */}
+        {loading ? (
+          // Loading State
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={primary} />
+            <Text style={[styles.centerText, {color: textSecondary}]}>
+              Loading quizzes...
             </Text>
           </View>
-        </Animated.View>
-
-        {/* Quiz List */}
-        <Animated.View style={{opacity: fadeAnim}}>
-          <Text style={[styles.sectionTitle, {color: text}]}>
-            Available Quizzes
-          </Text>
-          
-          {quizzes.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyEmoji}>📭</Text>
-              <Text style={[styles.emptyText, {color: textSecondary}]}>
-                No quizzes available yet
+        ) : error ? (
+          // Error State
+          <View style={[styles.emptyCard, {backgroundColor: card}]}>
+            <View style={[styles.emptyIcon, {backgroundColor: '#FEE2E2'}]}>
+              <Text style={styles.emptyEmoji}>⚠️</Text>
+            </View>
+            <Text style={[styles.emptyTitle, {color: text}]}>
+              Something went wrong
+            </Text>
+            <Text style={[styles.emptyText, {color: textSecondary}]}>
+              {error}
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionButton, {backgroundColor: primary}]}
+              onPress={handleRefresh}>
+              <Icon name="refresh-cw" size={18} color="#FFF" />
+              <Text style={styles.actionButtonText}>Try Again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : quizzes.length === 0 ? (
+          // Empty State
+          <View style={[styles.emptyCard, {backgroundColor: card}]}>
+            <View style={[styles.emptyIcon, {backgroundColor: primaryBg}]}>
+              <Text style={styles.emptyEmoji}>📝</Text>
+            </View>
+            <Text style={[styles.emptyTitle, {color: text}]}>
+              No Quizzes Available
+            </Text>
+            <Text style={[styles.emptyText, {color: textSecondary}]}>
+              Quizzes will appear here once you start learning topics. Complete lessons to unlock quizzes!
+            </Text>
+            <TouchableOpacity
+              style={[styles.actionButton, {backgroundColor: primary}]}
+              onPress={() => navigation.navigate('Learn')}>
+              <Icon name="book-open" size={18} color="#FFF" />
+              <Text style={styles.actionButtonText}>Start Learning</Text>
+            </TouchableOpacity>
+            
+            {/* Tips */}
+            <View style={[styles.tipsBox, {backgroundColor: background, borderColor: border}]}>
+              <Text style={[styles.tipsTitle, {color: text}]}>
+                💡 How to unlock quizzes:
+              </Text>
+              <Text style={[styles.tipItem, {color: textSecondary}]}>
+                • Complete topics to unlock topic quizzes
+              </Text>
+              <Text style={[styles.tipItem, {color: textSecondary}]}>
+                • Finish chapters to access chapter tests
+              </Text>
+              <Text style={[styles.tipItem, {color: textSecondary}]}>
+                • Daily quizzes appear every day
               </Text>
             </View>
-          ) : (
-            quizzes.map((quiz) => {
-              const score = getLatestScore(quiz);
-              return (
-                <TouchableOpacity
-                  key={quiz.id}
-                  style={[styles.quizCard, {backgroundColor: card}, Shadows.sm]}
-                  onPress={() => handleQuizPress(quiz)}>
-                  <View
-                    style={[styles.quizIcon, {backgroundColor: `${primary}15`}]}>
-                    <Text style={styles.quizIconEmoji}>
-                      {getQuizTypeEmoji(quiz.quizType)}
+          </View>
+        ) : (
+          // Quiz List
+          <View>
+            <Text style={[styles.sectionTitle, {color: text}]}>
+              Available Quizzes ({quizzes.length})
+            </Text>
+            {quizzes.map((quiz) => (
+              <TouchableOpacity
+                key={quiz.id}
+                style={[styles.quizCard, {backgroundColor: card}, Shadows.sm]}
+                onPress={() => handleQuizPress(quiz)}
+                activeOpacity={0.7}>
+                <View style={[styles.quizIcon, {backgroundColor: `${primary}15`}]}>
+                  <Text style={styles.quizEmoji}>📝</Text>
+                </View>
+                <View style={styles.quizInfo}>
+                  <Badge label={getQuizTypeLabel(quiz.quizType)} variant="primary" size="sm" />
+                  <Text style={[styles.quizTitle, {color: text}]} numberOfLines={1}>
+                    {quiz.quizTitle || 'Untitled Quiz'}
+                  </Text>
+                  <View style={styles.quizMeta}>
+                    <Text style={[styles.quizMetaText, {color: textSecondary}]}>
+                      📋 {quiz.totalQuestions || 0} questions
+                    </Text>
+                    <Text style={[styles.quizMetaText, {color: textSecondary}]}>
+                      ⏱️ {quiz.timeLimitMinutes || 15} min
                     </Text>
                   </View>
-                  <View style={styles.quizContent}>
-                    <View style={styles.quizHeader}>
-                      <Badge 
-                        label={getQuizTypeLabel(quiz.quizType)} 
-                        variant="primary" 
-                        size="sm" 
-                      />
-                      {score !== null && (
-                        <Text
-                          style={[
-                            styles.quizScore,
-                            {color: score >= 80 ? success : score >= 60 ? warning : '#EF4444'},
-                          ]}>
-                          {Math.round(score)}%
-                        </Text>
-                      )}
-                    </View>
-                    <Text style={[styles.quizTitle, {color: text}]} numberOfLines={1}>
-                      {quiz.quizTitle}
-                    </Text>
-                    <View style={styles.quizMeta}>
-                      <View style={styles.quizMetaItem}>
-                        <Icon name="help-circle" size={12} color={textSecondary} />
-                        <Text style={[styles.quizMetaText, {color: textSecondary}]}>
-                          {quiz.totalQuestions} questions
-                        </Text>
-                      </View>
-                      <View style={styles.quizMetaItem}>
-                        <Icon name="clock" size={12} color={textSecondary} />
-                        <Text style={[styles.quizMetaText, {color: textSecondary}]}>
-                          {quiz.timeLimitMinutes || quiz.duration || 15} min
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                  <Icon name="chevron-right" size={20} color={textSecondary} />
-                </TouchableOpacity>
-              );
-            })
-          )}
-        </Animated.View>
+                </View>
+                <Icon name="chevron-right" size={20} color={textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
 
-        <View style={{height: Spacing['2xl']}} />
+        <View style={{height: 40}} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
-  loadingContainer: {
+  container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: Spacing.md,
-    fontSize: FontSizes.sm,
   },
   header: {
-    paddingHorizontal: Spacing.lg,
-    paddingTop: Spacing.md,
-    paddingBottom: Spacing.lg,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 16,
   },
   title: {
-    fontSize: FontSizes['2xl'],
+    fontSize: 28,
     fontWeight: '700',
-    marginBottom: Spacing.xs,
+    marginBottom: 4,
   },
-  subtitle: {fontSize: FontSizes.base},
-  scrollContent: {padding: Spacing.lg, paddingTop: 0},
+  subtitle: {
+    fontSize: 16,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 0,
+    flexGrow: 1,
+  },
   statsRow: {
     flexDirection: 'row',
-    gap: Spacing.md,
-    marginBottom: Spacing.xl,
+    gap: 12,
+    marginBottom: 24,
   },
   statCard: {
     flex: 1,
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
+    padding: 12,
+    borderRadius: 12,
     alignItems: 'center',
   },
   statValue: {
-    fontSize: FontSizes.xl,
+    fontSize: 20,
     fontWeight: '700',
-    marginTop: Spacing.sm,
+    marginTop: 8,
   },
-  statLabel: {fontSize: FontSizes.xs, marginTop: 2},
-  sectionTitle: {
-    fontSize: FontSizes.lg,
-    fontWeight: '700',
-    marginBottom: Spacing.base,
+  statLabel: {
+    fontSize: 11,
+    marginTop: 2,
   },
-  emptyContainer: {
+  
+  // Center container for loading
+  centerContainer: {
+    paddingVertical: 60,
     alignItems: 'center',
-    paddingVertical: Spacing['2xl'],
+  },
+  centerText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  
+  // Empty/Error state
+  emptyCard: {
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+  },
+  emptyIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   emptyEmoji: {
-    fontSize: 48,
-    marginBottom: Spacing.md,
+    fontSize: 40,
   },
-  emptyText: {
-    fontSize: FontSizes.base,
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
     textAlign: 'center',
   },
+  emptyText: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 20,
+    paddingHorizontal: 12,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    gap: 8,
+    marginBottom: 24,
+  },
+  actionButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  tipsBox: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  tipsTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  tipItem: {
+    fontSize: 13,
+    lineHeight: 22,
+  },
+  
+  // Section
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  
+  // Quiz card
   quizCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: Spacing.base,
-    borderRadius: BorderRadius.lg,
-    marginBottom: Spacing.md,
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
   },
   quizIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: BorderRadius.md,
+    width: 50,
+    height: 50,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: Spacing.md,
+    marginRight: 12,
   },
-  quizIconEmoji: {
+  quizEmoji: {
     fontSize: 24,
   },
-  quizContent: {flex: 1, marginRight: Spacing.sm},
-  quizHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.xs,
+  quizInfo: {
+    flex: 1,
+    marginRight: 8,
   },
-  quizScore: {fontSize: FontSizes.sm, fontWeight: '700'},
   quizTitle: {
-    fontSize: FontSizes.base,
+    fontSize: 15,
     fontWeight: '600',
-    marginBottom: Spacing.sm,
+    marginTop: 6,
+    marginBottom: 6,
   },
-  quizMeta: {flexDirection: 'row', gap: Spacing.lg},
-  quizMetaItem: {
+  quizMeta: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
+    gap: 16,
   },
-  quizMetaText: {fontSize: FontSizes.xs},
+  quizMetaText: {
+    fontSize: 12,
+  },
 });

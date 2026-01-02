@@ -1,5 +1,6 @@
 /**
  * Profile Screen - with full API integration
+ * Handles both User and Student profile updates
  */
 
 import React, {useState, useEffect, useRef, useCallback} from 'react';
@@ -25,15 +26,16 @@ import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useAuth, useStudent} from '../../context';
 import {useProgress} from '../../hooks';
-import {settingsApi, studentsApi} from '../../services/api';
+import {settingsApi, studentsApi, usersApi, contentApi} from '../../services/api';
 import type {FAQ, ContactInfo} from '../../services/api/settings';
+import type {Board, Class} from '../../types/api';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
 
 export function ProfileScreen() {
   const navigation = useNavigation<any>();
   const {user, logout, refreshUser} = useAuth();
-  const {currentStudent, updateStudent, loadStudents} = useStudent();
+  const {currentStudent, createStudent, updateStudent, loadStudents} = useStudent();
   const {streak, refresh: refreshProgress} = useProgress();
   const systemColorScheme = useColorScheme();
   
@@ -41,11 +43,22 @@ export function ProfileScreen() {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showHelpCenter, setShowHelpCenter] = useState(false);
   const [showContactUs, setShowContactUs] = useState(false);
+  const [showCreateStudent, setShowCreateStudent] = useState(false);
 
   // Edit profile form state
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [saving, setSaving] = useState(false);
+
+  // Create student form state
+  const [studentName, setStudentName] = useState('');
+  const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null);
+  const [boards, setBoards] = useState<Board[]>([]);
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loadingBoards, setLoadingBoards] = useState(false);
+  const [loadingClasses, setLoadingClasses] = useState(false);
+  const [creatingStudent, setCreatingStudent] = useState(false);
 
   // Dark mode state
   const [darkModeEnabled, setDarkModeEnabled] = useState(systemColorScheme === 'dark');
@@ -76,6 +89,57 @@ export function ProfileScreen() {
       Animated.timing(slideAnim, {toValue: 0, duration: 600, useNativeDriver: true}),
     ]).start();
   }, []);
+
+  // Load boards when create student modal opens
+  const loadBoards = useCallback(async () => {
+    try {
+      setLoadingBoards(true);
+      const response = await contentApi.boards.getAll();
+      if (response.success && response.data) {
+        setBoards(response.data);
+      }
+    } catch (err) {
+      console.log('Load boards error:', err);
+      // Fallback boards
+      setBoards([
+        {id: 'cbse', name: 'CBSE', fullName: 'Central Board', displayOrder: 1, isActive: true} as Board,
+        {id: 'icse', name: 'ICSE', fullName: 'ICSE Board', displayOrder: 2, isActive: true} as Board,
+        {id: 'state', name: 'State Board', fullName: 'State Board', displayOrder: 3, isActive: true} as Board,
+      ]);
+    } finally {
+      setLoadingBoards(false);
+    }
+  }, []);
+
+  // Load classes when board changes
+  const loadClasses = useCallback(async (boardId: string) => {
+    try {
+      setLoadingClasses(true);
+      const response = await contentApi.boards.getClasses(boardId);
+      if (response.success && response.data) {
+        setClasses(response.data);
+      }
+    } catch (err) {
+      console.log('Load classes error:', err);
+      // Fallback classes
+      setClasses([
+        {id: 'c6', boardId, className: '6th', displayName: 'Class 6', displayOrder: 1, isActive: true} as Class,
+        {id: 'c7', boardId, className: '7th', displayName: 'Class 7', displayOrder: 2, isActive: true} as Class,
+        {id: 'c8', boardId, className: '8th', displayName: 'Class 8', displayOrder: 3, isActive: true} as Class,
+        {id: 'c9', boardId, className: '9th', displayName: 'Class 9', displayOrder: 4, isActive: true} as Class,
+        {id: 'c10', boardId, className: '10th', displayName: 'Class 10', displayOrder: 5, isActive: true} as Class,
+      ]);
+    } finally {
+      setLoadingClasses(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (selectedBoard) {
+      loadClasses(selectedBoard.id);
+      setSelectedClass(null);
+    }
+  }, [selectedBoard, loadClasses]);
 
   // Load FAQs
   const loadFaqs = useCallback(async () => {
@@ -122,11 +186,14 @@ export function ProfileScreen() {
   const displayName = currentStudent?.studentName || user?.fullName || 'Student';
   const displayEmail = user?.email || '';
   const displayPhone = user?.phone || '';
-  const displayClass = currentStudent?.class?.displayName || currentStudent?.class?.className || '10th';
-  const displayBoard = currentStudent?.board?.name || 'CBSE';
+  const displayClass = currentStudent?.class?.displayName || currentStudent?.class?.className || 'Not Set';
+  const displayBoard = currentStudent?.board?.name || 'Not Set';
   const studentXp = currentStudent?.xp || 0;
   const studentLevel = currentStudent?.level || 1;
   const studentStreak = streak.streakDays || currentStudent?.streakDays || 0;
+
+  // Check if user has student profile
+  const hasStudentProfile = !!currentStudent;
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -136,54 +203,91 @@ export function ProfileScreen() {
   };
 
   const handleSaveProfile = async () => {
-    console.log('==========================================');
-    console.log('[ProfileScreen] SAVE BUTTON PRESSED!');
-    console.log('[ProfileScreen] editName:', editName);
-    console.log('[ProfileScreen] currentStudent:', currentStudent);
-    console.log('==========================================');
-    
     if (!editName.trim()) {
       Alert.alert('Error', 'Please enter your name');
       return;
     }
 
-    if (!currentStudent) {
-      console.log('[ProfileScreen] ERROR: No currentStudent found!');
-      Alert.alert('Error', 'No student profile found. Please try logging in again.');
-      return;
-    }
-
-    console.log('[ProfileScreen] Setting saving to true...');
     setSaving(true);
     
     try {
-      console.log('[ProfileScreen] Calling studentsApi.update...');
-      console.log('[ProfileScreen] Student ID:', currentStudent.id);
-      console.log('[ProfileScreen] New Name:', editName.trim());
-      
-      const response = await studentsApi.update(currentStudent.id, {
-        studentName: editName.trim(),
-      });
-      
-      console.log('[ProfileScreen] API Response received:', response);
-      
-      if (response.success) {
-        console.log('[ProfileScreen] Update successful! Refreshing students...');
-        await loadStudents();
-        setShowEditProfile(false);
-        Alert.alert('Success', 'Profile updated successfully! ✅');
-      } else {
-        console.log('[ProfileScreen] Update failed:', response.message);
-        Alert.alert('Error', response.message || 'Failed to update profile');
+      if (hasStudentProfile && currentStudent) {
+        const response = await studentsApi.update(currentStudent.id, {
+          studentName: editName.trim(),
+        });
+        
+        if (response.success) {
+          await loadStudents();
+          setShowEditProfile(false);
+          Alert.alert('Success', 'Profile updated successfully! ✅');
+        } else {
+          Alert.alert('Error', response.message || 'Failed to update profile');
+        }
+      } else if (user) {
+        const response = await usersApi.update(user.id, {
+          fullName: editName.trim(),
+        });
+        
+        if (response.success) {
+          await refreshUser();
+          setShowEditProfile(false);
+          Alert.alert('Success', 'Profile updated successfully! ✅');
+        } else {
+          Alert.alert('Error', response.message || 'Failed to update profile');
+        }
       }
     } catch (err: any) {
-      console.log('[ProfileScreen] EXCEPTION caught:', err);
-      console.log('[ProfileScreen] Error message:', err.message);
-      console.log('[ProfileScreen] Error response:', err.response?.data);
       Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to update profile');
     } finally {
-      console.log('[ProfileScreen] Setting saving to false...');
       setSaving(false);
+    }
+  };
+
+  const handleCreateStudent = async () => {
+    if (!studentName.trim()) {
+      Alert.alert('Error', 'Please enter student name');
+      return;
+    }
+    if (!selectedBoard) {
+      Alert.alert('Error', 'Please select a board');
+      return;
+    }
+    if (!selectedClass) {
+      Alert.alert('Error', 'Please select a class');
+      return;
+    }
+
+    setCreatingStudent(true);
+    
+    try {
+      const result = await createStudent({
+        studentName: studentName.trim(),
+        boardId: selectedBoard.id,
+        classId: selectedClass.id,
+        medium: 'english',
+      });
+      
+      if (result) {
+        setShowCreateStudent(false);
+        setStudentName('');
+        setSelectedBoard(null);
+        setSelectedClass(null);
+        Alert.alert('Success', 'Student profile created successfully! 🎉');
+      } else {
+        Alert.alert('Error', 'Failed to create student profile');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to create student profile');
+    } finally {
+      setCreatingStudent(false);
+    }
+  };
+
+  const openCreateStudentModal = () => {
+    setStudentName(user?.fullName || '');
+    setShowCreateStudent(true);
+    if (boards.length === 0) {
+      loadBoards();
     }
   };
 
@@ -232,9 +336,6 @@ export function ProfileScreen() {
   };
 
   const openEditProfile = () => {
-    console.log('[ProfileScreen] Opening edit profile modal');
-    console.log('[ProfileScreen] Current displayName:', displayName);
-    console.log('[ProfileScreen] Current student:', currentStudent);
     setEditName(displayName);
     setEditEmail(displayEmail);
     setShowEditProfile(true);
@@ -255,10 +356,34 @@ export function ProfileScreen() {
           </View>
           <Text style={[styles.name, {color: text}]}>{displayName} 🔥</Text>
           <View style={styles.badges}>
-            <Badge label={`${displayClass} • ${displayBoard}`} variant="primary" />
-            <Badge label={`⚡ Level ${studentLevel}`} variant="level" />
+            {hasStudentProfile ? (
+              <>
+                <Badge label={`${displayClass} • ${displayBoard}`} variant="primary" />
+                <Badge label={`⚡ Level ${studentLevel}`} variant="level" />
+              </>
+            ) : (
+              <Badge label="Complete your profile" variant="warning" />
+            )}
           </View>
         </Animated.View>
+
+        {/* No Student Profile Warning */}
+        {!hasStudentProfile && (
+          <Animated.View style={[{opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
+            <TouchableOpacity
+              style={[styles.warningCard, {backgroundColor: '#FEF3C7', borderColor: '#F59E0B'}]}
+              onPress={openCreateStudentModal}>
+              <Icon name="alert-circle" size={24} color="#F59E0B" />
+              <View style={styles.warningContent}>
+                <Text style={[styles.warningTitle, {color: '#92400E'}]}>Complete Your Profile</Text>
+                <Text style={[styles.warningText, {color: '#B45309'}]}>
+                  Set up your student profile to access all features
+                </Text>
+              </View>
+              <Icon name="chevron-right" size={20} color="#F59E0B" />
+            </TouchableOpacity>
+          </Animated.View>
+        )}
 
         {/* Stats */}
         <Animated.View style={[styles.statsRow, {opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
@@ -284,12 +409,18 @@ export function ProfileScreen() {
             <MenuItem
               icon="graduation-cap"
               label="Class & Board"
-              value={`${displayClass} • ${displayBoard}`}
+              value={hasStudentProfile ? `${displayClass} • ${displayBoard}` : 'Not Set'}
               emoji="🎓"
               primaryColor={primary}
               textColor={text}
               textMuted={textMuted}
-              onPress={() => Alert.alert('Info', 'Contact support to change class & board')}
+              onPress={() => {
+                if (hasStudentProfile) {
+                  Alert.alert('Info', 'Contact support to change class & board');
+                } else {
+                  openCreateStudentModal();
+                }
+              }}
             />
           </Card>
         </Animated.View>
@@ -359,14 +490,13 @@ export function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
-              <Text style={[styles.inputLabel, {color: textSecondary}]}>Full Name</Text>
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>
+                {hasStudentProfile ? 'Student Name' : 'Full Name'}
+              </Text>
               <TextInput
                 style={[styles.input, {backgroundColor: background, color: text, borderColor: border}]}
                 value={editName}
-                onChangeText={(val) => {
-                  console.log('[ProfileScreen] Name changed to:', val);
-                  setEditName(val);
-                }}
+                onChangeText={setEditName}
                 placeholder="Enter your name"
                 placeholderTextColor={textMuted}
                 editable={!saving}
@@ -380,19 +510,12 @@ export function ProfileScreen() {
                 placeholderTextColor={textMuted}
               />
               
-              {/* Using Pressable for better touch handling */}
               <Pressable
                 style={({pressed}) => [
                   styles.saveButton,
-                  {
-                    backgroundColor: primary,
-                    opacity: saving ? 0.7 : pressed ? 0.8 : 1,
-                  },
+                  {backgroundColor: primary, opacity: saving ? 0.7 : pressed ? 0.8 : 1},
                 ]}
-                onPress={() => {
-                  console.log('[ProfileScreen] Pressable onPress triggered!');
-                  handleSaveProfile();
-                }}
+                onPress={handleSaveProfile}
                 disabled={saving}>
                 {saving ? (
                   <ActivityIndicator color="#FFF" />
@@ -400,19 +523,106 @@ export function ProfileScreen() {
                   <Text style={styles.saveButtonText}>Save Changes</Text>
                 )}
               </Pressable>
-              
-              {/* Debug info */}
-              {__DEV__ && (
-                <View style={{marginTop: 16, padding: 8, backgroundColor: '#f0f0f0', borderRadius: 4}}>
-                  <Text style={{fontSize: 10, color: '#666'}}>
-                    Debug: Student ID: {currentStudent?.id || 'NULL'}
-                  </Text>
-                  <Text style={{fontSize: 10, color: '#666'}}>
-                    Debug: Edit Name: {editName}
-                  </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Create Student Profile Modal */}
+      <Modal visible={showCreateStudent} transparent animationType="slide" onRequestClose={() => setShowCreateStudent(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, {backgroundColor: card, maxHeight: '85%'}]}>
+            <View style={[styles.modalHeader, {borderBottomColor: border}]}>
+              <Text style={[styles.modalTitle, {color: text}]}>Complete Profile 🎓</Text>
+              <TouchableOpacity onPress={() => setShowCreateStudent(false)}>
+                <Icon name="x" size={24} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.modalBody}>
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Student Name *</Text>
+              <TextInput
+                style={[styles.input, {backgroundColor: background, color: text, borderColor: border}]}
+                value={studentName}
+                onChangeText={setStudentName}
+                placeholder="Enter student name"
+                placeholderTextColor={textMuted}
+                editable={!creatingStudent}
+              />
+
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Board *</Text>
+              {loadingBoards ? (
+                <ActivityIndicator size="small" color={primary} style={{marginBottom: 16}} />
+              ) : (
+                <View style={styles.optionsRow}>
+                  {boards.map((board) => (
+                    <TouchableOpacity
+                      key={board.id}
+                      style={[
+                        styles.optionChip,
+                        {
+                          backgroundColor: selectedBoard?.id === board.id ? primary : background,
+                          borderColor: selectedBoard?.id === board.id ? primary : border,
+                        },
+                      ]}
+                      onPress={() => setSelectedBoard(board)}
+                      disabled={creatingStudent}>
+                      <Text style={[
+                        styles.optionChipText,
+                        {color: selectedBoard?.id === board.id ? '#FFF' : text},
+                      ]}>
+                        {board.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               )}
-            </View>
+
+              <Text style={[styles.inputLabel, {color: textSecondary}]}>Class *</Text>
+              {!selectedBoard ? (
+                <Text style={[styles.helperText, {color: textMuted}]}>Select a board first</Text>
+              ) : loadingClasses ? (
+                <ActivityIndicator size="small" color={primary} style={{marginBottom: 16}} />
+              ) : (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <View style={styles.optionsRow}>
+                    {classes.map((cls) => (
+                      <TouchableOpacity
+                        key={cls.id}
+                        style={[
+                          styles.optionChip,
+                          {
+                            backgroundColor: selectedClass?.id === cls.id ? primary : background,
+                            borderColor: selectedClass?.id === cls.id ? primary : border,
+                          },
+                        ]}
+                        onPress={() => setSelectedClass(cls)}
+                        disabled={creatingStudent}>
+                        <Text style={[
+                          styles.optionChipText,
+                          {color: selectedClass?.id === cls.id ? '#FFF' : text},
+                        ]}>
+                          {cls.displayName || cls.className}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+              )}
+
+              <Pressable
+                style={({pressed}) => [
+                  styles.saveButton,
+                  {backgroundColor: primary, opacity: creatingStudent ? 0.7 : pressed ? 0.8 : 1, marginTop: 24},
+                ]}
+                onPress={handleCreateStudent}
+                disabled={creatingStudent}>
+                {creatingStudent ? (
+                  <ActivityIndicator color="#FFF" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Create Profile 🚀</Text>
+                )}
+              </Pressable>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -435,14 +645,7 @@ export function ProfileScreen() {
                 </View>
               ) : faqs.length > 0 ? (
                 faqs.map((faq) => (
-                  <FAQItem 
-                    key={faq.id} 
-                    question={faq.question} 
-                    answer={faq.answer} 
-                    textColor={text} 
-                    textMuted={textMuted} 
-                    border={border} 
-                  />
+                  <FAQItem key={faq.id} question={faq.question} answer={faq.answer} textColor={text} textMuted={textMuted} border={border} />
                 ))
               ) : (
                 <View style={styles.emptyContainer}>
@@ -468,7 +671,7 @@ export function ProfileScreen() {
               {loadingContact ? (
                 <View style={styles.loadingContainer}>
                   <ActivityIndicator size="large" color={primary} />
-                  <Text style={[styles.loadingText, {color: textSecondary}]}>Loading contact info...</Text>
+                  <Text style={[styles.loadingText, {color: textSecondary}]}>Loading...</Text>
                 </View>
               ) : contactInfo ? (
                 <>
@@ -497,14 +700,6 @@ export function ProfileScreen() {
                     </View>
                     <Icon name="chevron-right" size={20} color={textMuted} />
                   </TouchableOpacity>
-                  {contactInfo.supportHours && (
-                    <View style={[styles.supportHours, {backgroundColor: `${primary}10`}]}>
-                      <Icon name="clock" size={16} color={primary} />
-                      <Text style={[styles.supportHoursText, {color: textSecondary}]}>
-                        Support Hours: {contactInfo.supportHours}
-                      </Text>
-                    </View>
-                  )}
                 </>
               ) : (
                 <View style={styles.emptyContainer}>
@@ -564,6 +759,10 @@ const styles = StyleSheet.create({
   avatarRing: {borderWidth: 3, borderRadius: BorderRadius.full, padding: 3, marginBottom: Spacing.md},
   name: {fontSize: FontSizes['2xl'], fontWeight: '700', marginBottom: Spacing.sm},
   badges: {flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', justifyContent: 'center'},
+  warningCard: {flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1.5, marginBottom: Spacing.lg, gap: Spacing.md},
+  warningContent: {flex: 1},
+  warningTitle: {fontSize: FontSizes.sm, fontWeight: '700'},
+  warningText: {fontSize: FontSizes.xs, marginTop: 2},
   statsRow: {flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.xl},
   statCard: {flex: 1, padding: Spacing.base, borderRadius: BorderRadius.xl, alignItems: 'center'},
   statIcon: {width: 40, height: 40, borderRadius: BorderRadius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.sm},
@@ -587,6 +786,10 @@ const styles = StyleSheet.create({
   input: {borderWidth: 1, borderRadius: BorderRadius.lg, padding: Spacing.md, fontSize: FontSizes.base, marginBottom: Spacing.lg},
   saveButton: {padding: Spacing.md, borderRadius: BorderRadius.lg, alignItems: 'center', marginTop: Spacing.md, marginBottom: Spacing.lg},
   saveButtonText: {color: '#FFF', fontSize: FontSizes.base, fontWeight: '600'},
+  optionsRow: {flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg},
+  optionChip: {paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: BorderRadius.lg, borderWidth: 1.5},
+  optionChipText: {fontSize: FontSizes.sm, fontWeight: '600'},
+  helperText: {fontSize: FontSizes.sm, fontStyle: 'italic', marginBottom: Spacing.lg},
   faqItem: {paddingVertical: Spacing.md, borderBottomWidth: 1},
   faqHeader: {flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'},
   faqQuestion: {fontSize: FontSizes.sm, fontWeight: '600', flex: 1, marginRight: Spacing.sm},
@@ -597,8 +800,6 @@ const styles = StyleSheet.create({
   contactInfo: {flex: 1},
   contactLabel: {fontSize: FontSizes.sm, fontWeight: '600'},
   contactValue: {fontSize: FontSizes.xs, marginTop: 2},
-  supportHours: {flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, marginTop: Spacing.md, gap: Spacing.sm},
-  supportHoursText: {fontSize: FontSizes.sm},
   loadingContainer: {alignItems: 'center', paddingVertical: Spacing.xl},
   loadingText: {marginTop: Spacing.md, fontSize: FontSizes.sm},
   emptyContainer: {alignItems: 'center', paddingVertical: Spacing.xl},

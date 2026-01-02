@@ -27,6 +27,7 @@ interface AuthContextType {
   verifyOtp: (phone: string, otp: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
   updateFcmToken: (token: string) => Promise<void>;
+  updateLocalUser: (userData: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -176,13 +177,21 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
 
   const refreshUser = useCallback(async () => {
     try {
+      console.log('[AuthContext] Refreshing user data...');
       const response = await authApi.getCurrentUser();
       if (response.success && response.data) {
+        console.log('[AuthContext] User refreshed:', response.data.user);
         setUser(response.data.user);
       }
     } catch (error) {
-      console.log('Refresh user error:', error);
+      console.log('[AuthContext] Refresh user error:', error);
     }
+  }, []);
+
+  // Update local user state (for immediate UI updates after profile save)
+  const updateLocalUser = useCallback((userData: Partial<User>) => {
+    console.log('[AuthContext] Updating local user:', userData);
+    setUser(prev => prev ? {...prev, ...userData} : null);
   }, []);
 
   const updateFcmToken = useCallback(async (token: string) => {
@@ -207,6 +216,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
         verifyOtp,
         refreshUser,
         updateFcmToken,
+        updateLocalUser,
       }}>
       {children}
     </AuthContext.Provider>

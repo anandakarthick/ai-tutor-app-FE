@@ -14,6 +14,7 @@ export {encryptedApiClient} from './encryptedClient';
 
 // Services
 export {authApi} from './auth';
+export {usersApi} from './users';
 export {studentsApi} from './students';
 export {contentApi} from './content';
 export {learningApi} from './learning';
@@ -30,6 +31,7 @@ export {settingsApi} from './settings';
 // Convenience object with all APIs
 export const api = {
   auth: require('./auth').authApi,
+  users: require('./users').usersApi,
   students: require('./students').studentsApi,
   content: require('./content').contentApi,
   learning: require('./learning').learningApi,
