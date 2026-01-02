@@ -8,3 +8,4 @@ export {QuizzesScreen} from './QuizzesScreen';
 export {ProgressScreen} from './ProgressScreen';
 export {ProfileScreen} from './ProfileScreen';
 export {DoubtScreen} from './DoubtScreen';
+export {StudyPlanScreen} from './StudyPlanScreen';

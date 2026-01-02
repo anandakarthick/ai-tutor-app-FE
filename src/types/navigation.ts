@@ -30,9 +30,21 @@ export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
   Doubt: undefined;
-  SubjectDetail: {subject: string};
-  Chapter: {subject: string; chapter: string; chapterId: string; subjectColor: string};
-  Lesson: {subject: string; chapter: string; lesson: string; lessonId: string; subjectColor: string; lessonType: string};
+  SubjectDetail: {subject: string; subjectId?: string};
+  Chapter: {subject: string; chapter: string; chapterId: string; subjectColor?: string};
+  Lesson: {
+    subject?: string;
+    chapter?: string;
+    lesson?: string;
+    lessonId?: string;
+    topicId?: string;
+    subjectColor?: string;
+    lessonType?: string;
+  };
+  StudyPlan: undefined;
+  QuizTaking: {quizId: string};
+  Leaderboard: undefined;
+  Achievements: undefined;
   NotificationSettings: undefined;
 };
 

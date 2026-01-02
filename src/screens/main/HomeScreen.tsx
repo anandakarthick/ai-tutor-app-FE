@@ -571,7 +571,7 @@ export function HomeScreen() {
               label="Study Plan"
               color="#22C55E"
               emoji="📅"
-              onPress={() => {}}
+              onPress={() => navigation.navigate('StudyPlan')}
             />
             <QuickAction
               icon="trophy"

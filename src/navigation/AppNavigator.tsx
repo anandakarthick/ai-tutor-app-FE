@@ -10,8 +10,9 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import {useAuth} from '../context';
 import {AuthNavigator} from './AuthNavigator';
 import {MainTabNavigator} from './MainTabNavigator';
-import {DoubtScreen} from '../screens/main/DoubtScreen';
+import {DoubtScreen, StudyPlanScreen} from '../screens/main';
 import {SubjectDetailScreen, ChapterScreen, LessonScreen} from '../screens/learn';
+import {QuizTakingScreen} from '../screens/quiz';
 import {NotificationSettingsScreen} from '../screens/settings';
 import {useThemeColor} from '../hooks/useThemeColor';
 import type {RootStackParamList} from '../types/navigation';
@@ -73,6 +74,21 @@ export function AppNavigator() {
             component={LessonScreen}
             options={{
               animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="StudyPlan"
+            component={StudyPlanScreen}
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="QuizTaking"
+            component={QuizTakingScreen}
+            options={{
+              animation: 'slide_from_right',
+              gestureEnabled: false, // Prevent swipe back during quiz
             }}
           />
           <Stack.Screen

@@ -16,15 +16,16 @@ import {
   Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {useQuizzes} from '../../hooks/useApi';
-import {quizzesApi} from '../../services/api';
 import {Icon, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
 import type {Quiz, QuizAttempt} from '../../types/api';
 
 export function QuizzesScreen() {
+  const navigation = useNavigation<any>();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const {currentStudent} = useStudent();
   const {quizzes, loading, refresh} = useQuizzes();
@@ -48,15 +49,15 @@ export function QuizzesScreen() {
     if (quizzes.length > 0) {
       const completedQuizzes = quizzes.filter(q => q.attempts && q.attempts.length > 0);
       const scores = completedQuizzes.flatMap(q => 
-        q.attempts?.map((a: QuizAttempt) => a.score) || []
-      );
+        q.attempts?.map((a: QuizAttempt) => a.percentage || a.score) || []
+      ).filter(s => s !== undefined && s !== null);
       
       setStats({
         completed: completedQuizzes.length,
         avgScore: scores.length > 0 
           ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
           : 0,
-        bestScore: scores.length > 0 ? Math.max(...scores) : 0,
+        bestScore: scores.length > 0 ? Math.round(Math.max(...scores)) : 0,
       });
     }
   }, [quizzes]);
@@ -75,33 +76,19 @@ export function QuizzesScreen() {
     setRefreshing(false);
   }, [refresh]);
 
-  const handleQuizPress = async (quiz: Quiz) => {
+  const handleQuizPress = (quiz: Quiz) => {
     // Show quiz details and start option
     Alert.alert(
       quiz.quizTitle,
-      `${quiz.totalQuestions} questions • ${quiz.duration} min\n\nReady to start this quiz?`,
+      `${quiz.totalQuestions} questions • ${quiz.timeLimitMinutes || quiz.duration || 15} min\n\nReady to start this quiz?`,
       [
         {text: 'Cancel', style: 'cancel'},
         {
-          text: 'Start Quiz',
-          onPress: () => startQuiz(quiz),
+          text: 'Start Quiz 🚀',
+          onPress: () => navigation.navigate('QuizTaking', {quizId: quiz.id}),
         },
       ]
     );
-  };
-
-  const startQuiz = async (quiz: Quiz) => {
-    if (!currentStudent) return;
-    
-    try {
-      const response = await quizzesApi.startAttempt(quiz.id, currentStudent.id);
-      if (response.success && response.data) {
-        // Navigate to quiz taking screen (would need to create this)
-        Alert.alert('Quiz Started', `Attempt ID: ${response.data.id}\n\nQuiz taking screen coming soon!`);
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to start quiz');
-    }
   };
 
   const getQuizTypeLabel = (type: string) => {
@@ -110,13 +97,26 @@ export function QuizzesScreen() {
       case 'chapter': return 'Chapter Test';
       case 'mock': return 'Mock Test';
       case 'practice': return 'Practice';
+      case 'daily': return 'Daily Quiz';
       default: return type;
+    }
+  };
+
+  const getQuizTypeEmoji = (type: string) => {
+    switch (type) {
+      case 'topic': return '📚';
+      case 'chapter': return '📖';
+      case 'mock': return '🎯';
+      case 'practice': return '✏️';
+      case 'daily': return '📅';
+      default: return '📝';
     }
   };
 
   const getLatestScore = (quiz: Quiz): number | null => {
     if (quiz.attempts && quiz.attempts.length > 0) {
-      return quiz.attempts[quiz.attempts.length - 1].score;
+      const lastAttempt = quiz.attempts[quiz.attempts.length - 1];
+      return lastAttempt.percentage || lastAttempt.score || null;
     }
     return null;
   };
@@ -197,7 +197,9 @@ export function QuizzesScreen() {
                   onPress={() => handleQuizPress(quiz)}>
                   <View
                     style={[styles.quizIcon, {backgroundColor: `${primary}15`}]}>
-                    <Icon name="file-text" size={24} color={primary} />
+                    <Text style={styles.quizIconEmoji}>
+                      {getQuizTypeEmoji(quiz.quizType)}
+                    </Text>
                   </View>
                   <View style={styles.quizContent}>
                     <View style={styles.quizHeader}>
@@ -212,20 +214,26 @@ export function QuizzesScreen() {
                             styles.quizScore,
                             {color: score >= 80 ? success : score >= 60 ? warning : '#EF4444'},
                           ]}>
-                          {score}%
+                          {Math.round(score)}%
                         </Text>
                       )}
                     </View>
-                    <Text style={[styles.quizTitle, {color: text}]}>
+                    <Text style={[styles.quizTitle, {color: text}]} numberOfLines={1}>
                       {quiz.quizTitle}
                     </Text>
                     <View style={styles.quizMeta}>
-                      <Text style={[styles.quizMetaText, {color: textSecondary}]}>
-                        {quiz.totalQuestions} questions
-                      </Text>
-                      <Text style={[styles.quizMetaText, {color: textSecondary}]}>
-                        {quiz.duration} min
-                      </Text>
+                      <View style={styles.quizMetaItem}>
+                        <Icon name="help-circle" size={12} color={textSecondary} />
+                        <Text style={[styles.quizMetaText, {color: textSecondary}]}>
+                          {quiz.totalQuestions} questions
+                        </Text>
+                      </View>
+                      <View style={styles.quizMetaItem}>
+                        <Icon name="clock" size={12} color={textSecondary} />
+                        <Text style={[styles.quizMetaText, {color: textSecondary}]}>
+                          {quiz.timeLimitMinutes || quiz.duration || 15} min
+                        </Text>
+                      </View>
                     </View>
                   </View>
                   <Icon name="chevron-right" size={20} color={textSecondary} />
@@ -234,6 +242,8 @@ export function QuizzesScreen() {
             })
           )}
         </Animated.View>
+
+        <View style={{height: Spacing['2xl']}} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -311,6 +321,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: Spacing.md,
   },
+  quizIconEmoji: {
+    fontSize: 24,
+  },
   quizContent: {flex: 1, marginRight: Spacing.sm},
   quizHeader: {
     flexDirection: 'row',
@@ -324,6 +337,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: Spacing.sm,
   },
-  quizMeta: {flexDirection: 'row', gap: Spacing.base},
+  quizMeta: {flexDirection: 'row', gap: Spacing.lg},
+  quizMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+  },
   quizMetaText: {fontSize: FontSizes.xs},
 });
