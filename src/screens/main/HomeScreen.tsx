@@ -22,7 +22,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {useDashboard, useProgress, useSubjects} from '../../hooks';
@@ -69,8 +69,8 @@ export function HomeScreen() {
   // Context and hooks
   const {currentStudent, dashboardStats, loadDashboard} = useStudent();
   const {todayPlan, leaderboard, achievements, loading: dashboardLoading, refresh: refreshDashboard} = useDashboard();
-  const {streak, loading: progressLoading} = useProgress();
-  const {subjects, loading: subjectsLoading} = useSubjects(currentStudent?.classId);
+  const {streak, loading: progressLoading, refresh: refreshProgress} = useProgress();
+  const {subjects, loading: subjectsLoading, refresh: refreshSubjects} = useSubjects(currentStudent?.classId);
 
   // Local state
   const [refreshing, setRefreshing] = useState(false);
@@ -95,20 +95,30 @@ export function HomeScreen() {
   const errorColor = useThemeColor({}, 'error');
 
   // Load subject progress
-  useEffect(() => {
-    const loadSubjectProgress = async () => {
-      if (!currentStudent) return;
-      try {
-        const response = await progressApi.getOverall(currentStudent.id);
-        if (response.success && response.data?.subjectProgress) {
-          setSubjectProgress(response.data.subjectProgress);
-        }
-      } catch (err) {
-        console.log('Load subject progress error:', err);
+  const loadSubjectProgress = useCallback(async () => {
+    if (!currentStudent) return;
+    try {
+      console.log('Loading subject progress for student:', currentStudent.id);
+      const response = await progressApi.getOverall(currentStudent.id);
+      if (response.success && response.data?.subjectProgress) {
+        setSubjectProgress(response.data.subjectProgress);
       }
-    };
-    loadSubjectProgress();
+    } catch (err) {
+      console.log('Load subject progress error:', err);
+    }
   }, [currentStudent]);
+
+  // Refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('HomeScreen focused - refreshing data');
+      loadDashboard();
+      refreshDashboard();
+      refreshProgress();
+      refreshSubjects();
+      loadSubjectProgress();
+    }, [loadDashboard, refreshDashboard, refreshProgress, refreshSubjects, loadSubjectProgress])
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -174,23 +184,21 @@ export function HomeScreen() {
   }, []);
 
   const onRefresh = useCallback(async () => {
+    console.log('HomeScreen pull-to-refresh triggered');
     setRefreshing(true);
-    await Promise.all([loadDashboard(), refreshDashboard()]);
-    
-    // Reload subject progress
-    if (currentStudent) {
-      try {
-        const response = await progressApi.getOverall(currentStudent.id);
-        if (response.success && response.data?.subjectProgress) {
-          setSubjectProgress(response.data.subjectProgress);
-        }
-      } catch (err) {
-        console.log('Refresh subject progress error:', err);
-      }
+    try {
+      await Promise.all([
+        loadDashboard(),
+        refreshDashboard(),
+        refreshProgress(),
+        refreshSubjects(),
+        loadSubjectProgress(),
+      ]);
+    } catch (err) {
+      console.log('Refresh error:', err);
     }
-    
     setRefreshing(false);
-  }, [loadDashboard, refreshDashboard, currentStudent]);
+  }, [loadDashboard, refreshDashboard, refreshProgress, refreshSubjects, loadSubjectProgress]);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -469,7 +477,7 @@ export function HomeScreen() {
               <Text style={[styles.sectionTitle, {color: text}]}>Today's Plan</Text>
               <Text style={styles.sectionEmoji}>📋</Text>
             </View>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => navigation.navigate('StudyPlan')}>
               <Text style={[styles.seeAll, {color: primary}]}>See All</Text>
             </TouchableOpacity>
           </View>

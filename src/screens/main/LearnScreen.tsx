@@ -3,7 +3,7 @@
  * Browse subjects and chapters - API Integrated
  */
 
-import React, {useEffect, useRef, useCallback} from 'react';
+import React, {useEffect, useRef, useCallback, useState} from 'react';
 import {
   View,
   Text,
@@ -16,7 +16,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {useSubjects} from '../../hooks/useApi';
@@ -70,8 +70,8 @@ export function LearnScreen() {
 
   // Fetch subjects based on student's class
   const {subjects, loading, error, refresh} = useSubjects(currentStudent?.classId);
-  const [subjectProgress, setSubjectProgress] = React.useState<Record<string, number>>({});
-  const [refreshing, setRefreshing] = React.useState(false);
+  const [subjectProgress, setSubjectProgress] = useState<Record<string, number>>({});
+  const [refreshing, setRefreshing] = useState(false);
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -79,25 +79,32 @@ export function LearnScreen() {
   const card = useThemeColor({}, 'card');
   const primary = useThemeColor({}, 'primary');
 
-  // Load progress for each subject
-  useEffect(() => {
-    const loadProgress = async () => {
-      if (!currentStudent) return;
-      try {
-        const response = await progressApi.getOverall(currentStudent.id);
-        if (response.success && response.data?.subjectProgress) {
-          const progressMap: Record<string, number> = {};
-          response.data.subjectProgress.forEach(sp => {
-            progressMap[sp.subjectId] = sp.avgProgress || 0;
-          });
-          setSubjectProgress(progressMap);
-        }
-      } catch (err) {
-        console.log('Load progress error:', err);
+  // Load progress for subjects
+  const loadProgress = useCallback(async () => {
+    if (!currentStudent) return;
+    try {
+      console.log('Loading subject progress for student:', currentStudent.id);
+      const response = await progressApi.getOverall(currentStudent.id);
+      if (response.success && response.data?.subjectProgress) {
+        const progressMap: Record<string, number> = {};
+        response.data.subjectProgress.forEach(sp => {
+          progressMap[sp.subjectId] = sp.avgProgress || 0;
+        });
+        setSubjectProgress(progressMap);
       }
-    };
-    loadProgress();
-  }, [currentStudent, subjects]);
+    } catch (err) {
+      console.log('Load progress error:', err);
+    }
+  }, [currentStudent]);
+
+  // Refresh data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('LearnScreen focused - refreshing data');
+      refresh();
+      loadProgress();
+    }, [refresh, loadProgress])
+  );
 
   useEffect(() => {
     Animated.parallel([
@@ -115,10 +122,15 @@ export function LearnScreen() {
   }, []);
 
   const handleRefresh = useCallback(async () => {
+    console.log('LearnScreen pull-to-refresh triggered');
     setRefreshing(true);
-    await refresh();
+    try {
+      await Promise.all([refresh(), loadProgress()]);
+    } catch (err) {
+      console.log('Refresh error:', err);
+    }
     setRefreshing(false);
-  }, [refresh]);
+  }, [refresh, loadProgress]);
 
   const handleSubjectPress = (subject: Subject) => {
     navigation.navigate('SubjectDetail', {

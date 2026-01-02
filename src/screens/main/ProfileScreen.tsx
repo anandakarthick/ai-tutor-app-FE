@@ -1,8 +1,8 @@
 /**
- * Profile Screen - with API integration
+ * Profile Screen - with full API integration
  */
 
-import React, {useState, useEffect, useRef} from 'react';
+import React, {useState, useEffect, useRef, useCallback} from 'react';
 import {
   View,
   Text,
@@ -17,20 +17,23 @@ import {
   Linking,
   useColorScheme,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useAuth, useStudent} from '../../context';
 import {useProgress} from '../../hooks';
+import {settingsApi} from '../../services/api';
+import type {FAQ, ContactInfo} from '../../services/api/settings';
 import {Avatar, Badge, Card, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
 
 export function ProfileScreen() {
   const navigation = useNavigation<any>();
-  const {user, logout} = useAuth();
-  const {currentStudent, updateStudent} = useStudent();
-  const {streak} = useProgress();
+  const {user, logout, refreshUser} = useAuth();
+  const {currentStudent, updateStudent, loadStudents} = useStudent();
+  const {streak, refresh: refreshProgress} = useProgress();
   const systemColorScheme = useColorScheme();
   
   // Modal states
@@ -45,6 +48,13 @@ export function ProfileScreen() {
 
   // Dark mode state
   const [darkModeEnabled, setDarkModeEnabled] = useState(systemColorScheme === 'dark');
+
+  // Data states
+  const [faqs, setFaqs] = useState<FAQ[]>([]);
+  const [contactInfo, setContactInfo] = useState<ContactInfo | null>(null);
+  const [loadingFaqs, setLoadingFaqs] = useState(false);
+  const [loadingContact, setLoadingContact] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -65,6 +75,47 @@ export function ProfileScreen() {
       Animated.timing(slideAnim, {toValue: 0, duration: 600, useNativeDriver: true}),
     ]).start();
   }, []);
+
+  // Load FAQs
+  const loadFaqs = useCallback(async () => {
+    try {
+      setLoadingFaqs(true);
+      const response = await settingsApi.getFaqs();
+      if (response.success && response.data) {
+        setFaqs(response.data);
+      }
+    } catch (err) {
+      console.log('Load FAQs error:', err);
+    } finally {
+      setLoadingFaqs(false);
+    }
+  }, []);
+
+  // Load contact info
+  const loadContactInfo = useCallback(async () => {
+    try {
+      setLoadingContact(true);
+      const response = await settingsApi.getContactInfo();
+      if (response.success && response.data) {
+        setContactInfo(response.data);
+      }
+    } catch (err) {
+      console.log('Load contact error:', err);
+    } finally {
+      setLoadingContact(false);
+    }
+  }, []);
+
+  // Refresh handler
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([
+      refreshUser(),
+      loadStudents(),
+      refreshProgress(),
+    ]);
+    setRefreshing(false);
+  }, [refreshUser, loadStudents, refreshProgress]);
 
   // Get display data
   const displayName = currentStudent?.studentName || user?.fullName || 'Student';
@@ -92,11 +143,16 @@ export function ProfileScreen() {
     setSaving(true);
     try {
       if (currentStudent) {
-        await updateStudent(currentStudent.id, {studentName: editName.trim()});
+        const success = await updateStudent(currentStudent.id, {studentName: editName.trim()});
+        if (success) {
+          setShowEditProfile(false);
+          Alert.alert('Success', 'Profile updated successfully! ✅');
+        } else {
+          Alert.alert('Error', 'Failed to update profile');
+        }
       }
-      setShowEditProfile(false);
-      Alert.alert('Success', 'Profile updated successfully! ✅');
     } catch (err) {
+      console.log('Save profile error:', err);
       Alert.alert('Error', 'Failed to update profile');
     } finally {
       setSaving(false);
@@ -115,13 +171,46 @@ export function ProfileScreen() {
     ]);
   };
 
-  const handleContactEmail = () => Linking.openURL('mailto:support@aitutorapp.com');
-  const handleContactPhone = () => Linking.openURL('tel:+919876543210');
-  const handleWhatsApp = () => Linking.openURL('https://wa.me/919876543210');
+  const handleOpenHelpCenter = async () => {
+    setShowHelpCenter(true);
+    if (faqs.length === 0) {
+      await loadFaqs();
+    }
+  };
+
+  const handleOpenContactUs = async () => {
+    setShowContactUs(true);
+    if (!contactInfo) {
+      await loadContactInfo();
+    }
+  };
+
+  const handleContactEmail = () => {
+    if (contactInfo?.email) {
+      Linking.openURL(`mailto:${contactInfo.email}`);
+    }
+  };
+
+  const handleContactPhone = () => {
+    if (contactInfo?.phone) {
+      Linking.openURL(`tel:${contactInfo.phone.replace(/\s/g, '')}`);
+    }
+  };
+
+  const handleWhatsApp = () => {
+    if (contactInfo?.whatsapp) {
+      Linking.openURL(`https://wa.me/${contactInfo.whatsapp.replace(/[^0-9]/g, '')}`);
+    }
+  };
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[primary]} />
+        }>
         {/* Profile Header */}
         <Animated.View style={[styles.profileHeader, {opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
           <View style={[styles.avatarRing, {borderColor: primary}]}>
@@ -207,9 +296,9 @@ export function ProfileScreen() {
         <Animated.View style={[styles.menuSection, {opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
           <Text style={[styles.sectionTitle, {color: textSecondary}]}>SUPPORT</Text>
           <Card padding="sm">
-            <MenuItem icon="help-circle" label="Help Center" emoji="❓" primaryColor={primary} textColor={text} textMuted={textMuted} onPress={() => setShowHelpCenter(true)} />
+            <MenuItem icon="help-circle" label="Help Center" emoji="❓" primaryColor={primary} textColor={text} textMuted={textMuted} onPress={handleOpenHelpCenter} />
             <View style={[styles.divider, {backgroundColor: border}]} />
-            <MenuItem icon="mail" label="Contact Us" emoji="📧" primaryColor={primary} textColor={text} textMuted={textMuted} onPress={() => setShowContactUs(true)} />
+            <MenuItem icon="mail" label="Contact Us" emoji="📧" primaryColor={primary} textColor={text} textMuted={textMuted} onPress={handleOpenContactUs} />
             <View style={[styles.divider, {backgroundColor: border}]} />
             <MenuItem icon="star" label="Rate App" emoji="⭐" primaryColor={primary} textColor={text} textMuted={textMuted} onPress={handleRateApp} />
           </Card>
@@ -276,10 +365,27 @@ export function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.modalBody}>
-              <FAQItem question="How do I start learning?" answer="Go to Learn tab, select a subject, choose a chapter, and start with any lesson." textColor={text} textMuted={textMuted} border={border} />
-              <FAQItem question="How does the streak work?" answer="Complete at least one lesson daily to maintain your streak." textColor={text} textMuted={textMuted} border={border} />
-              <FAQItem question="How do I ask doubts?" answer="Tap 'Ask Doubt' on home screen. Our AI tutor will help answer your questions." textColor={text} textMuted={textMuted} border={border} />
-              <FAQItem question="How are quizzes scored?" answer="Each correct answer gives XP points. Complete faster for bonus points." textColor={text} textMuted={textMuted} border={border} />
+              {loadingFaqs ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={primary} />
+                  <Text style={[styles.loadingText, {color: textSecondary}]}>Loading FAQs...</Text>
+                </View>
+              ) : faqs.length > 0 ? (
+                faqs.map((faq) => (
+                  <FAQItem 
+                    key={faq.id} 
+                    question={faq.question} 
+                    answer={faq.answer} 
+                    textColor={text} 
+                    textMuted={textMuted} 
+                    border={border} 
+                  />
+                ))
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, {color: textMuted}]}>No FAQs available</Text>
+                </View>
+              )}
             </ScrollView>
           </View>
         </View>
@@ -288,7 +394,7 @@ export function ProfileScreen() {
       {/* Contact Us Modal */}
       <Modal visible={showContactUs} transparent animationType="slide" onRequestClose={() => setShowContactUs(false)}>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, {backgroundColor: card, maxHeight: '60%'}]}>
+          <View style={[styles.modalContent, {backgroundColor: card, maxHeight: '70%'}]}>
             <View style={[styles.modalHeader, {borderBottomColor: border}]}>
               <Text style={[styles.modalTitle, {color: text}]}>Contact Us 📧</Text>
               <TouchableOpacity onPress={() => setShowContactUs(false)}>
@@ -296,31 +402,52 @@ export function ProfileScreen() {
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
-              <Text style={[styles.contactIntro, {color: textSecondary}]}>We're here to help!</Text>
-              <TouchableOpacity style={[styles.contactOption, {backgroundColor: background, borderColor: border}]} onPress={handleContactEmail}>
-                <View style={[styles.contactIcon, {backgroundColor: `${primary}15`}]}><Icon name="mail" size={20} color={primary} /></View>
-                <View style={styles.contactInfo}>
-                  <Text style={[styles.contactLabel, {color: text}]}>Email Support</Text>
-                  <Text style={[styles.contactValue, {color: textMuted}]}>support@aitutorapp.com</Text>
+              {loadingContact ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color={primary} />
+                  <Text style={[styles.loadingText, {color: textSecondary}]}>Loading contact info...</Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={textMuted} />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.contactOption, {backgroundColor: background, borderColor: border}]} onPress={handleContactPhone}>
-                <View style={[styles.contactIcon, {backgroundColor: '#22C55E15'}]}><Icon name="phone" size={20} color="#22C55E" /></View>
-                <View style={styles.contactInfo}>
-                  <Text style={[styles.contactLabel, {color: text}]}>Phone Support</Text>
-                  <Text style={[styles.contactValue, {color: textMuted}]}>+91 98765 43210</Text>
+              ) : contactInfo ? (
+                <>
+                  <Text style={[styles.contactIntro, {color: textSecondary}]}>We're here to help!</Text>
+                  <TouchableOpacity style={[styles.contactOption, {backgroundColor: background, borderColor: border}]} onPress={handleContactEmail}>
+                    <View style={[styles.contactIcon, {backgroundColor: `${primary}15`}]}><Icon name="mail" size={20} color={primary} /></View>
+                    <View style={styles.contactInfo}>
+                      <Text style={[styles.contactLabel, {color: text}]}>Email Support</Text>
+                      <Text style={[styles.contactValue, {color: textMuted}]}>{contactInfo.email}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color={textMuted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.contactOption, {backgroundColor: background, borderColor: border}]} onPress={handleContactPhone}>
+                    <View style={[styles.contactIcon, {backgroundColor: '#22C55E15'}]}><Icon name="phone" size={20} color="#22C55E" /></View>
+                    <View style={styles.contactInfo}>
+                      <Text style={[styles.contactLabel, {color: text}]}>Phone Support</Text>
+                      <Text style={[styles.contactValue, {color: textMuted}]}>{contactInfo.phone}</Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color={textMuted} />
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.contactOption, {backgroundColor: background, borderColor: border}]} onPress={handleWhatsApp}>
+                    <View style={[styles.contactIcon, {backgroundColor: '#25D36615'}]}><Icon name="message-circle" size={20} color="#25D366" /></View>
+                    <View style={styles.contactInfo}>
+                      <Text style={[styles.contactLabel, {color: text}]}>WhatsApp</Text>
+                      <Text style={[styles.contactValue, {color: textMuted}]}>Chat with us</Text>
+                    </View>
+                    <Icon name="chevron-right" size={20} color={textMuted} />
+                  </TouchableOpacity>
+                  {contactInfo.supportHours && (
+                    <View style={[styles.supportHours, {backgroundColor: `${primary}10`}]}>
+                      <Icon name="clock" size={16} color={primary} />
+                      <Text style={[styles.supportHoursText, {color: textSecondary}]}>
+                        Support Hours: {contactInfo.supportHours}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : (
+                <View style={styles.emptyContainer}>
+                  <Text style={[styles.emptyText, {color: textMuted}]}>Contact info unavailable</Text>
                 </View>
-                <Icon name="chevron-right" size={20} color={textMuted} />
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.contactOption, {backgroundColor: background, borderColor: border}]} onPress={handleWhatsApp}>
-                <View style={[styles.contactIcon, {backgroundColor: '#25D36615'}]}><Icon name="message-circle" size={20} color="#25D366" /></View>
-                <View style={styles.contactInfo}>
-                  <Text style={[styles.contactLabel, {color: text}]}>WhatsApp</Text>
-                  <Text style={[styles.contactValue, {color: textMuted}]}>Chat with us</Text>
-                </View>
-                <Icon name="chevron-right" size={20} color={textMuted} />
-              </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -407,4 +534,10 @@ const styles = StyleSheet.create({
   contactInfo: {flex: 1},
   contactLabel: {fontSize: FontSizes.sm, fontWeight: '600'},
   contactValue: {fontSize: FontSizes.xs, marginTop: 2},
+  supportHours: {flexDirection: 'row', alignItems: 'center', padding: Spacing.md, borderRadius: BorderRadius.lg, marginTop: Spacing.md, gap: Spacing.sm},
+  supportHoursText: {fontSize: FontSizes.sm},
+  loadingContainer: {alignItems: 'center', paddingVertical: Spacing.xl},
+  loadingText: {marginTop: Spacing.md, fontSize: FontSizes.sm},
+  emptyContainer: {alignItems: 'center', paddingVertical: Spacing.xl},
+  emptyText: {fontSize: FontSizes.sm},
 });

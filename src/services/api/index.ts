@@ -25,6 +25,7 @@ export {subscriptionsApi} from './subscriptions';
 export {paymentsApi} from './payments';
 export {notificationsApi} from './notifications';
 export {dashboardApi} from './dashboard';
+export {settingsApi} from './settings';
 
 // Convenience object with all APIs
 export const api = {
@@ -40,6 +41,7 @@ export const api = {
   payments: require('./payments').paymentsApi,
   notifications: require('./notifications').notificationsApi,
   dashboard: require('./dashboard').dashboardApi,
+  settings: require('./settings').settingsApi,
 };
 
 export default api;

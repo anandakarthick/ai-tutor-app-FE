@@ -1,5 +1,6 @@
 /**
  * Custom Hooks for API Data
+ * With enhanced logging for debugging
  */
 
 import {useState, useEffect, useCallback} from 'react';
@@ -38,16 +39,23 @@ export function useSubjects(classId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!classId) return;
+    if (!classId) {
+      console.log('[useSubjects] No classId provided, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
       setError(null);
+      console.log('[useSubjects] Fetching subjects for classId:', classId);
       const response = await contentApi.subjects.getByClass(classId);
+      console.log('[useSubjects] Response:', response);
       if (response.success && response.data) {
         setSubjects(response.data);
+        console.log('[useSubjects] Loaded', response.data.length, 'subjects');
       }
     } catch (err: any) {
+      console.log('[useSubjects] Error:', err.message);
       setError(err.message || 'Failed to load subjects');
     } finally {
       setLoading(false);
@@ -68,16 +76,23 @@ export function useBooks(subjectId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!subjectId) return;
+    if (!subjectId) {
+      console.log('[useBooks] No subjectId provided, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
       setError(null);
+      console.log('[useBooks] Fetching books for subjectId:', subjectId);
       const response = await contentApi.books.getBySubject(subjectId);
+      console.log('[useBooks] Response:', response);
       if (response.success && response.data) {
         setBooks(response.data);
+        console.log('[useBooks] Loaded', response.data.length, 'books');
       }
     } catch (err: any) {
+      console.log('[useBooks] Error:', err.message);
       setError(err.message || 'Failed to load books');
     } finally {
       setLoading(false);
@@ -98,16 +113,23 @@ export function useChapters(bookId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!bookId) return;
+    if (!bookId) {
+      console.log('[useChapters] No bookId provided, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
       setError(null);
+      console.log('[useChapters] Fetching chapters for bookId:', bookId);
       const response = await contentApi.chapters.getByBook(bookId);
+      console.log('[useChapters] Response:', response);
       if (response.success && response.data) {
         setChapters(response.data);
+        console.log('[useChapters] Loaded', response.data.length, 'chapters');
       }
     } catch (err: any) {
+      console.log('[useChapters] Error:', err.message);
       setError(err.message || 'Failed to load chapters');
     } finally {
       setLoading(false);
@@ -128,16 +150,23 @@ export function useTopics(chapterId?: string) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!chapterId) return;
+    if (!chapterId) {
+      console.log('[useTopics] No chapterId provided, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
       setError(null);
+      console.log('[useTopics] Fetching topics for chapterId:', chapterId);
       const response = await contentApi.topics.getByChapter(chapterId);
+      console.log('[useTopics] Response:', response);
       if (response.success && response.data) {
         setTopics(response.data);
+        console.log('[useTopics] Loaded', response.data.length, 'topics');
       }
     } catch (err: any) {
+      console.log('[useTopics] Error:', err.message);
       setError(err.message || 'Failed to load topics');
     } finally {
       setLoading(false);
@@ -164,15 +193,17 @@ export function useLearningSession() {
     
     try {
       setLoading(true);
+      console.log('[useLearningSession] Starting session for topic:', topicId);
       const response = await learningApi.startSession(currentStudent.id, topicId);
       if (response.success && response.data) {
         setSession(response.data);
         setMessages([]);
+        console.log('[useLearningSession] Session started:', response.data.id);
         return response.data;
       }
       return null;
     } catch (err) {
-      console.log('Start session error:', err);
+      console.log('[useLearningSession] Start session error:', err);
       return null;
     } finally {
       setLoading(false);
@@ -183,11 +214,12 @@ export function useLearningSession() {
     if (!session) return;
     
     try {
+      console.log('[useLearningSession] Ending session:', session.id);
       await learningApi.endSession(session.id, xpEarned);
       setSession(null);
       setMessages([]);
     } catch (err) {
-      console.log('End session error:', err);
+      console.log('[useLearningSession] End session error:', err);
     }
   }, [session]);
 
@@ -196,6 +228,7 @@ export function useLearningSession() {
     
     try {
       setSending(true);
+      console.log('[useLearningSession] Sending message to session:', session.id);
       const response = await learningApi.sendMessage(session.id, content);
       if (response.success && response.data) {
         setMessages(prev => [
@@ -207,7 +240,7 @@ export function useLearningSession() {
       }
       return null;
     } catch (err) {
-      console.log('Send message error:', err);
+      console.log('[useLearningSession] Send message error:', err);
       return null;
     } finally {
       setSending(false);
@@ -218,12 +251,14 @@ export function useLearningSession() {
     if (!session) return;
     
     try {
+      console.log('[useLearningSession] Loading messages for session:', session.id);
       const response = await learningApi.getMessages(session.id);
       if (response.success && response.data) {
         setMessages(response.data);
+        console.log('[useLearningSession] Loaded', response.data.length, 'messages');
       }
     } catch (err) {
-      console.log('Load messages error:', err);
+      console.log('[useLearningSession] Load messages error:', err);
     }
   }, [session]);
 
@@ -247,16 +282,22 @@ export function useDoubts() {
   const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
-    if (!currentStudent) return;
+    if (!currentStudent) {
+      console.log('[useDoubts] No currentStudent, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log('[useDoubts] Fetching doubts for student:', currentStudent.id);
       const response = await doubtsApi.getAll({studentId: currentStudent.id});
+      console.log('[useDoubts] Response:', response);
       if (response.success && response.data) {
         setDoubts(response.data);
+        console.log('[useDoubts] Loaded', response.data.length, 'doubts');
       }
     } catch (err) {
-      console.log('Load doubts error:', err);
+      console.log('[useDoubts] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -267,6 +308,7 @@ export function useDoubts() {
     
     try {
       setCreating(true);
+      console.log('[useDoubts] Creating doubt for student:', currentStudent.id);
       const response = await doubtsApi.create({
         studentId: currentStudent.id,
         question,
@@ -274,11 +316,12 @@ export function useDoubts() {
       });
       if (response.success && response.data) {
         setDoubts(prev => [response.data, ...prev]);
+        console.log('[useDoubts] Doubt created:', response.data.id);
         return response.data;
       }
       return null;
     } catch (err) {
-      console.log('Create doubt error:', err);
+      console.log('[useDoubts] Create doubt error:', err);
       return null;
     } finally {
       setCreating(false);
@@ -300,12 +343,15 @@ export function useQuizzes(topicId?: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('[useQuizzes] Fetching quizzes', topicId ? `for topic: ${topicId}` : '(all)');
       const response = await quizzesApi.getAll(topicId ? {topicId} : undefined);
+      console.log('[useQuizzes] Response:', response);
       if (response.success && response.data) {
         setQuizzes(response.data);
+        console.log('[useQuizzes] Loaded', response.data.length, 'quizzes');
       }
     } catch (err) {
-      console.log('Load quizzes error:', err);
+      console.log('[useQuizzes] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -325,16 +371,22 @@ export function useStudyPlans() {
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!currentStudent) return;
+    if (!currentStudent) {
+      console.log('[useStudyPlans] No currentStudent, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log('[useStudyPlans] Fetching plans for student:', currentStudent.id);
       const response = await studyPlansApi.getAll({studentId: currentStudent.id});
+      console.log('[useStudyPlans] Response:', response);
       if (response.success && response.data) {
         setPlans(response.data);
+        console.log('[useStudyPlans] Loaded', response.data.length, 'plans');
       }
     } catch (err) {
-      console.log('Load study plans error:', err);
+      console.log('[useStudyPlans] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -350,17 +402,19 @@ export function useStudyPlans() {
     if (!currentStudent) return null;
     
     try {
+      console.log('[useStudyPlans] Generating plan for student:', currentStudent.id);
       const response = await studyPlansApi.generate({
         studentId: currentStudent.id,
         ...data,
       });
       if (response.success && response.data) {
         setPlans(prev => [response.data, ...prev]);
+        console.log('[useStudyPlans] Plan generated:', response.data.id);
         return response.data;
       }
       return null;
     } catch (err) {
-      console.log('Generate study plan error:', err);
+      console.log('[useStudyPlans] Generate error:', err);
       return null;
     }
   }, [currentStudent]);
@@ -380,24 +434,33 @@ export function useProgress() {
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!currentStudent) return;
+    if (!currentStudent) {
+      console.log('[useProgress] No currentStudent, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log('[useProgress] Fetching progress for student:', currentStudent.id);
       
       const [dailyRes, streakRes] = await Promise.all([
         progressApi.getDaily(currentStudent.id, 30),
         progressApi.getStreak(currentStudent.id),
       ]);
 
+      console.log('[useProgress] Daily response:', dailyRes);
+      console.log('[useProgress] Streak response:', streakRes);
+
       if (dailyRes.success && dailyRes.data) {
         setDailyProgress(dailyRes.data);
+        console.log('[useProgress] Loaded', dailyRes.data.length, 'daily progress entries');
       }
       if (streakRes.success && streakRes.data) {
         setStreak(streakRes.data);
+        console.log('[useProgress] Streak:', streakRes.data.streakDays, 'days');
       }
     } catch (err) {
-      console.log('Load progress error:', err);
+      console.log('[useProgress] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -419,10 +482,14 @@ export function useDashboard() {
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
-    if (!currentStudent) return;
+    if (!currentStudent) {
+      console.log('[useDashboard] No currentStudent, skipping fetch');
+      return;
+    }
     
     try {
       setLoading(true);
+      console.log('[useDashboard] Fetching dashboard for student:', currentStudent.id);
       
       const [todayRes, leaderRes, achieveRes] = await Promise.all([
         dashboardApi.getToday(currentStudent.id),
@@ -430,17 +497,22 @@ export function useDashboard() {
         dashboardApi.getAchievements(currentStudent.id),
       ]);
 
+      console.log('[useDashboard] Today response:', todayRes);
+      console.log('[useDashboard] Leaderboard response:', leaderRes);
+      console.log('[useDashboard] Achievements response:', achieveRes);
+
       if (todayRes.success && todayRes.data) {
         setTodayPlan(todayRes.data);
       }
       if (leaderRes.success && leaderRes.data) {
         setLeaderboard(leaderRes.data);
+        console.log('[useDashboard] Loaded', leaderRes.data.length, 'leaderboard entries');
       }
       if (achieveRes.success && achieveRes.data) {
         setAchievements(achieveRes.data);
       }
     } catch (err) {
-      console.log('Load dashboard error:', err);
+      console.log('[useDashboard] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -462,20 +534,26 @@ export function useNotifications() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('[useNotifications] Fetching notifications');
       
       const [listRes, countRes] = await Promise.all([
         notificationsApi.getAll({limit: 50}),
         notificationsApi.getUnreadCount(),
       ]);
 
+      console.log('[useNotifications] List response:', listRes);
+      console.log('[useNotifications] Count response:', countRes);
+
       if (listRes.success && listRes.data) {
         setNotifications(listRes.data);
+        console.log('[useNotifications] Loaded', listRes.data.length, 'notifications');
       }
       if (countRes.success && countRes.data) {
         setUnreadCount(countRes.data.count);
+        console.log('[useNotifications] Unread count:', countRes.data.count);
       }
     } catch (err) {
-      console.log('Load notifications error:', err);
+      console.log('[useNotifications] Error:', err);
     } finally {
       setLoading(false);
     }
@@ -483,23 +561,25 @@ export function useNotifications() {
 
   const markRead = useCallback(async (id: string) => {
     try {
+      console.log('[useNotifications] Marking notification as read:', id);
       await notificationsApi.markRead(id);
       setNotifications(prev =>
         prev.map(n => (n.id === id ? {...n, isRead: true} : n))
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
     } catch (err) {
-      console.log('Mark read error:', err);
+      console.log('[useNotifications] Mark read error:', err);
     }
   }, []);
 
   const markAllRead = useCallback(async () => {
     try {
+      console.log('[useNotifications] Marking all notifications as read');
       await notificationsApi.markAllRead();
       setNotifications(prev => prev.map(n => ({...n, isRead: true})));
       setUnreadCount(0);
     } catch (err) {
-      console.log('Mark all read error:', err);
+      console.log('[useNotifications] Mark all read error:', err);
     }
   }, []);
 

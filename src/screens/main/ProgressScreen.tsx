@@ -14,6 +14,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
+import {useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
 import {useProgress} from '../../hooks/useApi';
@@ -46,20 +47,27 @@ export function ProgressScreen() {
   const border = useThemeColor({}, 'border');
 
   // Load overall progress
-  useEffect(() => {
-    const loadOverall = async () => {
-      if (!currentStudent) return;
-      try {
-        const response = await progressApi.getOverall(currentStudent.id);
-        if (response.success && response.data) {
-          setOverallData(response.data);
-        }
-      } catch (err) {
-        console.log('Load overall progress error:', err);
+  const loadOverall = useCallback(async () => {
+    if (!currentStudent) return;
+    try {
+      console.log('Loading overall progress for student:', currentStudent.id);
+      const response = await progressApi.getOverall(currentStudent.id);
+      if (response.success && response.data) {
+        setOverallData(response.data);
       }
-    };
-    loadOverall();
+    } catch (err) {
+      console.log('Load overall progress error:', err);
+    }
   }, [currentStudent]);
+
+  // Refresh when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      console.log('ProgressScreen focused - refreshing data');
+      refresh();
+      loadOverall();
+    }, [refresh, loadOverall])
+  );
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -70,21 +78,15 @@ export function ProgressScreen() {
   }, []);
 
   const handleRefresh = useCallback(async () => {
+    console.log('ProgressScreen pull-to-refresh triggered');
     setRefreshing(true);
-    await refresh();
-    // Reload overall
-    if (currentStudent) {
-      try {
-        const response = await progressApi.getOverall(currentStudent.id);
-        if (response.success && response.data) {
-          setOverallData(response.data);
-        }
-      } catch (err) {
-        console.log('Refresh overall error:', err);
-      }
+    try {
+      await Promise.all([refresh(), loadOverall()]);
+    } catch (err) {
+      console.log('Refresh error:', err);
     }
     setRefreshing(false);
-  }, [refresh, currentStudent]);
+  }, [refresh, loadOverall]);
 
   // Calculate weekly study data from dailyProgress
   const getWeeklyData = () => {

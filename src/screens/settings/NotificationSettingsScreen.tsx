@@ -1,9 +1,9 @@
 /**
  * Notification Settings Screen
- * Manage push notification preferences
+ * Manage push notification preferences with real API
  */
 
-import React, {useState, useEffect} from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import {
   View,
   Text,
@@ -12,64 +12,61 @@ import {
   TouchableOpacity,
   Switch,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useNotification} from '../../hooks/useNotification';
+import {settingsApi} from '../../services/api';
+import type {NotificationPreferences} from '../../services/api/settings';
 import {Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 
 interface NotificationSetting {
-  id: string;
+  id: keyof NotificationPreferences;
   title: string;
   description: string;
   topic: string;
-  enabled: boolean;
 }
 
-const DEFAULT_SETTINGS: NotificationSetting[] = [
+const NOTIFICATION_SETTINGS: NotificationSetting[] = [
   {
-    id: 'study_reminders',
+    id: 'studyReminders',
     title: 'Study Reminders',
     description: 'Get reminders for your daily study schedule',
     topic: 'study_reminders',
-    enabled: true,
   },
   {
-    id: 'quiz_alerts',
+    id: 'quizAlerts',
     title: 'Quiz Alerts',
     description: 'Notifications about new quizzes and results',
     topic: 'quiz_alerts',
-    enabled: true,
   },
   {
-    id: 'achievement_updates',
+    id: 'achievements',
     title: 'Achievement Updates',
     description: 'Know when you earn badges and rewards',
     topic: 'achievements',
-    enabled: true,
   },
   {
-    id: 'new_content',
+    id: 'newContent',
     title: 'New Content',
     description: 'Updates about new lessons and chapters',
     topic: 'new_content',
-    enabled: true,
   },
   {
-    id: 'tips_tricks',
+    id: 'tips',
     title: 'Tips & Tricks',
     description: 'Learning tips and study hacks',
     topic: 'tips',
-    enabled: false,
   },
   {
     id: 'promotions',
     title: 'Promotions & Offers',
     description: 'Special discounts and subscription offers',
     topic: 'promotions',
-    enabled: false,
   },
 ];
 
@@ -84,8 +81,18 @@ export function NotificationSettingsScreen() {
     openSettings,
   } = useNotification();
 
-  const [settings, setSettings] = useState<NotificationSetting[]>(DEFAULT_SETTINGS);
-  const [masterSwitch, setMasterSwitch] = useState(true);
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    masterEnabled: true,
+    studyReminders: true,
+    quizAlerts: true,
+    achievements: true,
+    newContent: true,
+    tips: false,
+    promotions: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
@@ -97,9 +104,42 @@ export function NotificationSettingsScreen() {
   const success = useThemeColor({}, 'success');
   const error = useThemeColor({}, 'error');
 
+  // Load preferences on mount
   useEffect(() => {
-    setMasterSwitch(hasPermission);
-  }, [hasPermission]);
+    loadPreferences();
+  }, []);
+
+  const loadPreferences = async () => {
+    try {
+      setLoading(true);
+      const response = await settingsApi.getNotificationPreferences();
+      if (response.success && response.data) {
+        setPreferences(response.data);
+      }
+    } catch (err) {
+      console.log('Load preferences error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadPreferences();
+    setRefreshing(false);
+  }, []);
+
+  const savePreferences = async (newPrefs: NotificationPreferences) => {
+    try {
+      setSaving(true);
+      await settingsApi.updateNotificationPreferences(newPrefs);
+    } catch (err) {
+      console.log('Save preferences error:', err);
+      Alert.alert('Error', 'Failed to save preferences');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleMasterToggle = async (value: boolean) => {
     if (value && !hasPermission) {
@@ -116,28 +156,51 @@ export function NotificationSettingsScreen() {
         return;
       }
     }
-    setMasterSwitch(value);
+    
+    const newPrefs = {...preferences, masterEnabled: value};
+    setPreferences(newPrefs);
+    await savePreferences(newPrefs);
   };
 
-  const handleSettingToggle = async (id: string, value: boolean) => {
-    const setting = settings.find(s => s.id === id);
+  const handleSettingToggle = async (id: keyof NotificationPreferences, value: boolean) => {
+    const setting = NOTIFICATION_SETTINGS.find(s => s.id === id);
     if (!setting) return;
 
     try {
+      // Update FCM topic subscription
       if (value) {
         await subscribeToTopic(setting.topic);
       } else {
         await unsubscribeFromTopic(setting.topic);
       }
 
-      setSettings(prev =>
-        prev.map(s => (s.id === id ? {...s, enabled: value} : s)),
-      );
+      // Update preferences
+      const newPrefs = {...preferences, [id]: value};
+      setPreferences(newPrefs);
+      await savePreferences(newPrefs);
     } catch (err) {
       console.error('Error toggling setting:', err);
       Alert.alert('Error', 'Failed to update notification setting');
     }
   };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+        <View style={[styles.header, {borderBottomColor: border}]}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+            <Icon name="chevron-left" size={24} color={text} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, {color: text}]}>Notifications</Text>
+          <View style={styles.headerRight} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={primary} />
+          <Text style={[styles.loadingText, {color: textSecondary}]}>Loading preferences...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
@@ -149,12 +212,17 @@ export function NotificationSettingsScreen() {
           <Icon name="chevron-left" size={24} color={text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, {color: text}]}>Notifications</Text>
-        <View style={styles.headerRight} />
+        <View style={styles.headerRight}>
+          {saving && <ActivityIndicator size="small" color={primary} />}
+        </View>
       </View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.content}>
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} colors={[primary]} />
+        }>
         
         {/* Permission Status Card */}
         <View style={[styles.statusCard, {
@@ -204,22 +272,22 @@ export function NotificationSettingsScreen() {
               </View>
             </View>
             <Switch
-              value={masterSwitch}
+              value={preferences.masterEnabled}
               onValueChange={handleMasterToggle}
               trackColor={{false: border, true: `${primary}50`}}
-              thumbColor={masterSwitch ? primary : '#f4f3f4'}
+              thumbColor={preferences.masterEnabled ? primary : '#f4f3f4'}
             />
           </View>
         </View>
 
         {/* Individual Settings */}
-        {masterSwitch && (
+        {preferences.masterEnabled && (
           <>
             <Text style={[styles.sectionTitle, {color: text}]}>
               Notification Types
             </Text>
             <View style={[styles.section, {backgroundColor: card}, Shadows.sm]}>
-              {settings.map((setting, index) => (
+              {NOTIFICATION_SETTINGS.map((setting, index) => (
                 <View key={setting.id}>
                   <View style={styles.settingRow}>
                     <View style={styles.settingInfo}>
@@ -233,13 +301,13 @@ export function NotificationSettingsScreen() {
                       </View>
                     </View>
                     <Switch
-                      value={setting.enabled}
+                      value={preferences[setting.id] as boolean}
                       onValueChange={(value) => handleSettingToggle(setting.id, value)}
                       trackColor={{false: border, true: `${primary}50`}}
-                      thumbColor={setting.enabled ? primary : '#f4f3f4'}
+                      thumbColor={preferences[setting.id] ? primary : '#f4f3f4'}
                     />
                   </View>
-                  {index < settings.length - 1 && (
+                  {index < NOTIFICATION_SETTINGS.length - 1 && (
                     <View style={[styles.divider, {backgroundColor: border}]} />
                   )}
                 </View>
@@ -297,6 +365,16 @@ const styles = StyleSheet.create({
   },
   headerRight: {
     width: 40,
+    alignItems: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.sm,
   },
   content: {
     padding: Spacing.lg,
