@@ -58,11 +58,16 @@ export const authApi = {
     );
     
     if (response.data.success && response.data.data) {
-      const {tokens, user, sessionId} = response.data.data;
+      const {tokens, user, sessionId, student} = response.data.data;
       await setAuthTokens(tokens.accessToken, tokens.refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       if (sessionId) {
         await AsyncStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+      }
+      // Store student if created during registration
+      if (student) {
+        console.log('[authApi] Storing student from registration:', student.id);
+        await AsyncStorage.setItem(STORAGE_KEYS.STUDENT, JSON.stringify(student));
       }
     }
     
@@ -86,11 +91,16 @@ export const authApi = {
     );
     
     if (response.data.success && response.data.data) {
-      const {tokens, user, sessionId} = response.data.data;
+      const {tokens, user, sessionId, student} = response.data.data;
       await setAuthTokens(tokens.accessToken, tokens.refreshToken);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
       if (sessionId) {
         await AsyncStorage.setItem(STORAGE_KEYS.SESSION_ID, sessionId);
+      }
+      // Store student if created during registration
+      if (student) {
+        console.log('[authApi] Storing student from registration:', student.id);
+        await AsyncStorage.setItem(STORAGE_KEYS.STUDENT, JSON.stringify(student));
       }
     }
     

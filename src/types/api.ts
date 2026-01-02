@@ -217,6 +217,7 @@ export interface LoginResponse {
   tokens: AuthTokens;
   sessionId?: string;
   previousSessionTerminated?: boolean;
+  student?: Student; // Student profile if created during registration
 }
 
 export interface RegisterData {
@@ -225,6 +226,17 @@ export interface RegisterData {
   email?: string;
   password?: string;
   fcmToken?: string;
+  // Student profile data
+  studentName?: string;
+  boardId?: string;
+  classId?: string;
+  medium?: string;
+  schoolName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  section?: string;
+  learningStyle?: string;
+  dailyStudyHours?: number;
 }
 
 // ==================== Student Types ====================

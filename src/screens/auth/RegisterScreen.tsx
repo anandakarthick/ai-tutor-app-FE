@@ -544,6 +544,17 @@ export function RegisterScreen() {
         phone,
         email: email || undefined,
         password: password || undefined,
+        // Student profile data
+        studentName,
+        boardId: selectedBoard?.id,
+        classId: selectedClass?.id,
+        medium: selectedMedium || undefined,
+        schoolName: schoolName || undefined,
+        dateOfBirth: dateOfBirth || undefined,
+        gender: gender || undefined,
+        section: section || undefined,
+        learningStyle: learningStyle || undefined,
+        dailyStudyHours: parseInt(dailyStudyHours, 10) || 2,
       });
 
       if (registerSuccess) {

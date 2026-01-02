@@ -265,6 +265,13 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       if (response.success && response.data) {
         setUser(response.data.user);
         setIsAuthenticated(true);
+        
+        // If student was created during registration, store it
+        if (response.data.student) {
+          console.log('[AuthContext] Student created during registration:', response.data.student.id);
+          await AsyncStorage.setItem(STORAGE_KEYS.STUDENT, JSON.stringify(response.data.student));
+        }
+        
         return true;
       }
       return false;
