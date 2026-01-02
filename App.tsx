@@ -1,6 +1,6 @@
 /**
  * AI Tutor App
- * Main entry point with Push Notifications and API integration
+ * Main entry point with Push Notifications, E2E Encryption, and API integration
  */
 
 import React, {useEffect} from 'react';
@@ -16,6 +16,8 @@ import {AppNavigator} from './src/navigation/AppNavigator';
 import {AuthProvider, StudentProvider} from './src/context';
 import {Colors} from './src/constants/theme';
 import NotificationService from './src/services/NotificationService';
+import {encryptionService} from './src/services/EncryptionService';
+import {encryptedApiClient} from './src/services/api';
 
 // Custom themes with vibrant colors
 const CustomLightTheme = {
@@ -47,6 +49,32 @@ const CustomDarkTheme = {
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Initialize E2E Encryption
+  useEffect(() => {
+    const initializeEncryption = async () => {
+      try {
+        console.log('🔐 Initializing E2E Encryption...');
+        
+        // Initialize encryption service
+        await encryptionService.initialize();
+        
+        // Perform handshake with server
+        const handshakeSuccess = await encryptedApiClient.performHandshake();
+        
+        if (handshakeSuccess) {
+          console.log('✅ E2E Encryption initialized successfully');
+        } else {
+          console.log('⚠️ E2E handshake failed, continuing without encryption');
+        }
+      } catch (error) {
+        console.error('❌ Error initializing encryption:', error);
+        // App continues to work without encryption
+      }
+    };
+
+    initializeEncryption();
+  }, []);
 
   // Initialize Push Notifications
   useEffect(() => {

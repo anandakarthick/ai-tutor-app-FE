@@ -27,7 +27,7 @@ import type {AuthStackScreenProps} from '../../types/navigation';
 export function VerifyOTPScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'VerifyOTP'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'VerifyOTP'>['route']>();
-  const {login, sendOtp} = useAuth();
+  const {login, verifyOtp, sendOtp} = useAuth();
   
   const {phone, isLogin, fromRegistration} = route.params as {
     phone: string; 
@@ -125,37 +125,67 @@ export function VerifyOTPScreen() {
     setError('');
     
     try {
-      // If login flow - authenticate with API
-      if (isLogin) {
-        const success = await login(phone, enteredOtp);
-        if (!success) {
+      // If coming from registration flow - go to plan selection
+      if (fromRegistration) {
+        // First verify the OTP
+        const isValid = await verifyOtp(phone, enteredOtp);
+        if (isValid) {
+          navigation.reset({
+            index: 0,
+            routes: [{name: 'SelectPlan', params: {userId: phone}}],
+          });
+        } else {
           setError('Invalid OTP. Please try again.');
           shakeError();
           setOtp(['', '', '', '', '', '']);
           inputRefs.current[0]?.focus();
         }
-        // If success, AuthContext will update and navigation will switch automatically
         return;
       }
       
-      // If coming from registration - go to plan selection
-      if (fromRegistration) {
-        navigation.reset({
-          index: 0,
-          routes: [{name: 'SelectPlan', params: {userId: phone}}],
-        });
-        return;
-      }
+      // For login flow - first verify OTP, then try to login
+      console.log('🔐 Verifying OTP...');
+      const isValid = await verifyOtp(phone, enteredOtp);
       
-      // Default - try login
-      const success = await login(phone, enteredOtp);
-      if (!success) {
+      if (!isValid) {
         setError('Invalid OTP. Please try again.');
         shakeError();
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();
+        return;
       }
+      
+      console.log('✅ OTP verified, attempting login...');
+      
+      // Try to login
+      const loginSuccess = await login(phone, enteredOtp);
+      
+      if (loginSuccess) {
+        console.log('✅ Login successful');
+        // AuthContext will update and navigation will switch automatically
+      }
+      // If login fails due to user not found, it will show alert from AuthContext
+      // Let's catch the specific error and redirect to registration
+      
     } catch (err: any) {
+      console.log('❌ Verify/Login error:', err);
+      
+      // Check if user not found - redirect to registration
+      if (err.message?.includes('not found') || err.response?.data?.code === 'USER_NOT_FOUND') {
+        Alert.alert(
+          'New User',
+          'This phone number is not registered. Would you like to create an account?',
+          [
+            {text: 'Cancel', style: 'cancel', onPress: () => navigation.goBack()},
+            {
+              text: 'Register',
+              onPress: () => navigation.navigate('Register', {phone, isDirectRegistration: false}),
+            },
+          ]
+        );
+        return;
+      }
+      
       setError(err.message || 'Verification failed. Please try again.');
       shakeError();
     } finally {

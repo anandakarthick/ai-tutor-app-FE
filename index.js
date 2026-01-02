@@ -2,6 +2,13 @@
  * @format
  */
 
+// Try to import crypto polyfill, but don't fail if native module not available
+try {
+  require('react-native-get-random-values');
+} catch (e) {
+  console.log('⚠️ react-native-get-random-values not available, using fallback');
+}
+
 import {AppRegistry} from 'react-native';
 import messaging from '@react-native-firebase/messaging';
 import App from './App';

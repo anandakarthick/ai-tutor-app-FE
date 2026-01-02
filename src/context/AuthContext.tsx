@@ -91,7 +91,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       return response.success && response.data?.verified;
     } catch (error: any) {
       console.log('Verify OTP error:', error);
-      Alert.alert('Error', error.response?.data?.message || 'Invalid OTP');
+      // Don't show alert here - let the screen handle it
       return false;
     }
   }, []);
@@ -107,7 +107,18 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
       return false;
     } catch (error: any) {
       console.log('Login error:', error);
-      Alert.alert('Login Failed', error.response?.data?.message || 'Invalid credentials');
+      
+      // Check if user not found - don't show alert, throw error instead
+      const errorCode = error.response?.data?.code;
+      const errorMessage = error.response?.data?.message || 'Login failed';
+      
+      if (errorCode === 'USER_NOT_FOUND') {
+        // Throw error so screen can handle registration redirect
+        throw new Error(errorMessage);
+      }
+      
+      // For other errors, show alert
+      Alert.alert('Login Failed', errorMessage);
       return false;
     }
   }, []);

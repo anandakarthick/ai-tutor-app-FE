@@ -9,6 +9,9 @@ export {API_CONFIG, ENDPOINTS} from './config';
 // Client
 export {default as apiClient, STORAGE_KEYS, setAuthTokens, clearAuthTokens, isAuthenticated} from './client';
 
+// Encrypted Client
+export {encryptedApiClient} from './encryptedClient';
+
 // Services
 export {authApi} from './auth';
 export {studentsApi} from './students';
