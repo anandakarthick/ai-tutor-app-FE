@@ -1,7 +1,7 @@
 /**
  * Lesson Screen - AI Teaching + Doubt Chat
- * Top: AI Teaching with animation
- * Bottom: Chat interface for asking doubts (text/voice)
+ * Top: AI Teaching with text animation
+ * Bottom: Chat with text input (voice via native keyboard)
  */
 
 import React, {useState, useRef, useEffect, useCallback} from 'react';
@@ -28,54 +28,21 @@ import {Icon, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
 import type {Topic, ContentBlock} from '../../types/api';
 
-// Try to import TTS (optional)
-let Tts: any = null;
-try {
-  Tts = require('react-native-tts').default;
-} catch (e) {
-  console.log('TTS not available');
-}
-
-// Try to import Audio Recorder (optional)
-let AudioRecorderPlayer: any = null;
-try {
-  AudioRecorderPlayer = require('react-native-audio-recorder-player').default;
-} catch (e) {
-  console.log('Audio recorder not available');
-}
-
-const safeTtsSpeak = async (text: string) => {
-  if (!Tts) return;
-  try {
-    await Tts.speak(text);
-  } catch (e) {
-    console.log('TTS error:', e);
-  }
-};
-
-const safeTtsStop = () => {
-  if (!Tts) return;
-  try {
-    Tts.stop();
-  } catch (e) {}
-};
-
 // Chat Message Type
 interface ChatMessage {
   id: string;
   role: 'user' | 'ai';
   content: string;
   timestamp: Date;
-  isVoice?: boolean;
 }
 
 // AI Avatar Component
-function AIAvatar({isActive, color}: {isActive: boolean; color: string}) {
+function AIAvatar({isActive, isSpeaking, color}: {isActive: boolean; isSpeaking: boolean; color: string}) {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (isActive) {
+    if (isActive || isSpeaking) {
       Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {toValue: 1.15, duration: 600, easing: Easing.ease, useNativeDriver: true}),
@@ -89,7 +56,7 @@ function AIAvatar({isActive, color}: {isActive: boolean; color: string}) {
       pulseAnim.setValue(1);
       rotateAnim.setValue(0);
     }
-  }, [isActive]);
+  }, [isActive, isSpeaking]);
 
   const rotate = rotateAnim.interpolate({inputRange: [0, 1], outputRange: ['0deg', '360deg']});
 
@@ -97,14 +64,52 @@ function AIAvatar({isActive, color}: {isActive: boolean; color: string}) {
     <View style={styles.avatarContainer}>
       <Animated.View style={[styles.avatarOuter, {backgroundColor: `${color}20`, transform: [{scale: pulseAnim}]}]}>
         <View style={[styles.avatarInner, {backgroundColor: color}]}>
-          <Text style={styles.avatarEmoji}>🤖</Text>
+          <Text style={styles.avatarEmoji}>{isSpeaking ? '🗣️' : '🤖'}</Text>
         </View>
       </Animated.View>
-      {isActive && (
+      {(isActive || isSpeaking) && (
         <Animated.View style={[styles.sparkle, {transform: [{rotate}]}]}>
           <Text style={styles.sparkleEmoji}>✨</Text>
         </Animated.View>
       )}
+    </View>
+  );
+}
+
+// Sound Wave Animation
+function SoundWave({color, isActive}: {color: string; isActive: boolean}) {
+  const bars = [
+    useRef(new Animated.Value(0.3)).current,
+    useRef(new Animated.Value(0.5)).current,
+    useRef(new Animated.Value(0.7)).current,
+    useRef(new Animated.Value(0.4)).current,
+  ];
+
+  useEffect(() => {
+    if (isActive) {
+      bars.forEach((bar, i) => {
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(bar, {toValue: 1, duration: 300 + i * 50, useNativeDriver: true}),
+            Animated.timing(bar, {toValue: 0.2, duration: 300 + i * 50, useNativeDriver: true}),
+          ])
+        ).start();
+      });
+    } else {
+      bars.forEach((bar, i) => bar.setValue(0.3 + i * 0.1));
+    }
+  }, [isActive]);
+
+  if (!isActive) return null;
+
+  return (
+    <View style={styles.soundWaveContainer}>
+      {bars.map((bar, i) => (
+        <Animated.View
+          key={i}
+          style={[styles.soundBar, {backgroundColor: color, transform: [{scaleY: bar}]}]}
+        />
+      ))}
     </View>
   );
 }
@@ -142,49 +147,6 @@ function TypingIndicator({color}: {color: string}) {
   );
 }
 
-// Voice Recording Button
-function VoiceRecordButton({
-  isRecording,
-  onPress,
-  color,
-  disabled,
-}: {
-  isRecording: boolean;
-  onPress: () => void;
-  color: string;
-  disabled: boolean;
-}) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (isRecording) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(scaleAnim, {toValue: 1.2, duration: 500, useNativeDriver: true}),
-          Animated.timing(scaleAnim, {toValue: 1, duration: 500, useNativeDriver: true}),
-        ])
-      ).start();
-    } else {
-      scaleAnim.setValue(1);
-    }
-  }, [isRecording]);
-
-  return (
-    <TouchableOpacity onPress={onPress} disabled={disabled}>
-      <Animated.View
-        style={[
-          styles.voiceBtn,
-          {
-            backgroundColor: isRecording ? '#EF4444' : `${color}15`,
-            transform: [{scale: scaleAnim}],
-          },
-        ]}>
-        <Icon name={isRecording ? 'square' : 'mic'} size={20} color={isRecording ? '#FFF' : color} />
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
 export function LessonScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
@@ -205,12 +167,13 @@ export function LessonScreen() {
   const [aiTeachingComplete, setAiTeachingComplete] = useState(false);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Chat states
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [isAiReplying, setIsAiReplying] = useState(false);
-  const [isRecording, setIsRecording] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const aiScrollRef = useRef<ScrollView>(null);
@@ -226,6 +189,22 @@ export function LessonScreen() {
   const border = useThemeColor({}, 'border');
   const success = useThemeColor({}, 'success');
   const primary = useThemeColor({}, 'primary');
+
+  // Handle keyboard
+  useEffect(() => {
+    const showSub = Keyboard.addListener('keyboardDidShow', (e) => {
+      setKeyboardHeight(e.endCoordinates.height);
+      setTimeout(() => chatScrollRef.current?.scrollToEnd({animated: true}), 100);
+    });
+    const hideSub = Keyboard.addListener('keyboardDidHide', () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   // Load topic and content
   const loadData = useCallback(async () => {
@@ -261,7 +240,6 @@ export function LessonScreen() {
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current);
       }
-      safeTtsStop();
     };
   }, [loadData]);
 
@@ -278,18 +256,27 @@ export function LessonScreen() {
     const showNextSentence = () => {
       if (currentIndex >= sentences.length) {
         setIsAiTyping(false);
+        setIsSpeaking(false);
         setAiTeachingComplete(true);
         return;
       }
+
       const sentence = sentences[currentIndex];
       displayedText += (currentIndex > 0 ? ' ' : '') + sentence;
       setAiText(displayedText);
+      setIsSpeaking(true);
+      
       setTimeout(() => aiScrollRef.current?.scrollToEnd({animated: true}), 100);
+
       currentIndex++;
+      
+      // Calculate delay based on sentence length
       const wordCount = sentence.split(/\s+/).length;
-      const delay = Math.max(1800, wordCount * 300);
+      const delay = Math.max(2000, wordCount * 350);
+      
       typingTimeoutRef.current = setTimeout(showNextSentence, delay);
     };
+
     showNextSentence();
   }, []);
 
@@ -311,6 +298,7 @@ export function LessonScreen() {
         typingTimeoutRef.current = null;
       }
       setIsAiTyping(false);
+      setIsSpeaking(false);
     }
   };
 
@@ -360,7 +348,7 @@ export function LessonScreen() {
   // Generate fallback teaching
   const generateFallbackTeaching = (topicTitle: string, subj: string, content: string) => {
     const studentName = currentStudent?.studentName || 'there';
-    const greetings = ['Hey', 'Hi', 'Hello', 'Namaste'];
+    const greetings = ['Hey', 'Hi', 'Hello'];
     const greeting = greetings[Math.floor(Math.random() * greetings.length)];
     const contentLines = content.split('\n').filter(line => line.trim().length > 10);
     const keyPoints = contentLines.slice(0, 3).map(line => line.trim().substring(0, 80));
@@ -369,25 +357,25 @@ export function LessonScreen() {
 
 Today we're learning about ${topicTitle}.
 
-${keyPoints.length > 0 ? `Here are the key points:\n\n${keyPoints.map((p, i) => `${i + 1}. ${p}`).join('\n\n')}\n\n` : ''}This topic is important in ${subj}.
+${keyPoints.length > 0 ? `Here are the key points. ${keyPoints.join('. ')}. ` : ''}This topic is important in ${subj}.
 
 Try to think of real-world examples as you learn.
 
-Feel free to ask me any questions below!
+Feel free to ask me any questions in the chat below!
 
 You're doing great, ${studentName}!`;
   };
 
   // Send chat message
-  const sendMessage = async (messageText: string, isVoice = false) => {
-    if (!messageText.trim() || !sessionId) return;
+  const sendMessage = async () => {
+    const messageText = inputText.trim();
+    if (!messageText || !sessionId) return;
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: messageText.trim(),
+      content: messageText,
       timestamp: new Date(),
-      isVoice,
     };
 
     setChatMessages(prev => [...prev, userMessage]);
@@ -398,7 +386,7 @@ You're doing great, ${studentName}!`;
     setTimeout(() => chatScrollRef.current?.scrollToEnd({animated: true}), 100);
 
     try {
-      const response = await learningApi.sendMessage(sessionId, messageText.trim());
+      const response = await learningApi.sendMessage(sessionId, messageText);
 
       if (response.success && response.data?.aiMessage?.content) {
         const aiMessage: ChatMessage = {
@@ -409,7 +397,6 @@ You're doing great, ${studentName}!`;
         };
         setChatMessages(prev => [...prev, aiMessage]);
       } else {
-        // Fallback response
         const aiMessage: ChatMessage = {
           id: (Date.now() + 1).toString(),
           role: 'ai',
@@ -433,32 +420,9 @@ You're doing great, ${studentName}!`;
     }
   };
 
-  // Toggle voice recording
-  const toggleRecording = async () => {
-    if (isRecording) {
-      // Stop recording - for now just show a message
-      setIsRecording(false);
-      // In a real implementation, you would:
-      // 1. Stop the audio recorder
-      // 2. Send audio to speech-to-text API
-      // 3. Get transcription and send as message
-      sendMessage("(Voice message - Speech to text coming soon!)", true);
-    } else {
-      // Start recording
-      setIsRecording(true);
-      // Auto-stop after 30 seconds
-      setTimeout(() => {
-        if (isRecording) {
-          setIsRecording(false);
-        }
-      }, 30000);
-    }
-  };
-
   // Handle complete
   const handleComplete = async () => {
     try {
-      safeTtsStop();
       if (sessionId) {
         await learningApi.endSession(sessionId, 20);
       }
@@ -486,163 +450,160 @@ You're doing great, ${studentName}!`;
 
   return (
     <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
-      <KeyboardAvoidingView style={{flex: 1}} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        {/* Header */}
-        <View style={[styles.header, {borderBottomColor: border}]}>
-          <TouchableOpacity style={styles.backButton} onPress={() => {safeTtsStop(); navigation.goBack();}}>
-            <Icon name="chevron-left" size={24} color={text} />
+      {/* Header */}
+      <View style={[styles.header, {borderBottomColor: border}]}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Icon name="chevron-left" size={24} color={text} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={[styles.headerChapter, {color: subjectColor}]} numberOfLines={1}>{chapter}</Text>
+          <Text style={[styles.headerLesson, {color: text}]} numberOfLines={1}>{topic?.topicTitle || lesson}</Text>
+        </View>
+        {aiTeachingComplete && !isCompleted && (
+          <TouchableOpacity style={[styles.completeBtn, {backgroundColor: success}]} onPress={handleComplete}>
+            <Icon name="check" size={16} color="#FFF" />
+            <Text style={styles.completeBtnText}>Done</Text>
           </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <Text style={[styles.headerChapter, {color: subjectColor}]} numberOfLines={1}>{chapter}</Text>
-            <Text style={[styles.headerLesson, {color: text}]} numberOfLines={1}>{topic?.topicTitle || lesson}</Text>
+        )}
+        {isCompleted && (
+          <View style={[styles.completedBadgeSmall, {backgroundColor: success}]}>
+            <Icon name="check-circle" size={16} color="#FFF" />
           </View>
-          {aiTeachingComplete && !isCompleted && (
-            <TouchableOpacity style={[styles.completeBtn, {backgroundColor: success}]} onPress={handleComplete}>
-              <Icon name="check" size={16} color="#FFF" />
-              <Text style={styles.completeBtnText}>Done</Text>
+        )}
+      </View>
+
+      {/* AI Teaching Section */}
+      <View style={[styles.aiSection, {backgroundColor: `${subjectColor}08`, borderBottomColor: border}]}>
+        <View style={styles.aiHeader}>
+          <AIAvatar isActive={isAiTyping || isLoadingAi} isSpeaking={isSpeaking} color={subjectColor} />
+          <View style={styles.aiHeaderText}>
+            <Text style={[styles.aiName, {color: text}]}>🎓 Buddy AI Tutor</Text>
+            <View style={styles.statusRow}>
+              <Text style={[styles.aiStatus, {color: isSpeaking || isAiTyping ? subjectColor : textMuted}]}>
+                {isLoadingAi ? '🧠 Thinking...' : isSpeaking ? '🗣️ Speaking...' : isAiTyping ? '✍️ Teaching...' : aiTeachingComplete ? '✅ Ready to help!' : '👋 Tap Start'}
+              </Text>
+              <SoundWave color={subjectColor} isActive={isSpeaking} />
+            </View>
+          </View>
+          {!aiTeachingStarted ? (
+            <TouchableOpacity style={[styles.startBtn, {backgroundColor: subjectColor}]} onPress={startAITeaching}>
+              <Icon name="play" size={16} color="#FFF" />
+              <Text style={styles.startBtnText}>Start</Text>
+            </TouchableOpacity>
+          ) : !aiTeachingComplete && (
+            <TouchableOpacity style={[styles.pauseBtn, {backgroundColor: isPaused ? success : `${subjectColor}20`}]} onPress={togglePause}>
+              <Icon name={isPaused ? 'play' : 'pause'} size={16} color={isPaused ? '#FFF' : subjectColor} />
             </TouchableOpacity>
           )}
-          {isCompleted && (
-            <View style={[styles.completedBadgeSmall, {backgroundColor: success}]}>
-              <Icon name="check-circle" size={16} color="#FFF" />
+        </View>
+
+        <ScrollView ref={aiScrollRef} style={styles.aiContent} showsVerticalScrollIndicator={false}>
+          {!aiTeachingStarted ? (
+            <View style={styles.aiPlaceholder}>
+              <Text style={styles.aiPlaceholderEmoji}>🎓</Text>
+              <Text style={[styles.aiPlaceholderText, {color: textSecondary}]}>Tap "Start" to begin your lesson!</Text>
+              <Text style={[styles.aiPlaceholderSubtext, {color: textMuted}]}>I'll explain step by step</Text>
+            </View>
+          ) : isLoadingAi ? (
+            <View style={styles.aiPlaceholder}>
+              <ActivityIndicator size="large" color={subjectColor} />
+              <Text style={[styles.aiPlaceholderText, {color: textSecondary, marginTop: 12}]}>Preparing lesson...</Text>
+            </View>
+          ) : (
+            <View style={styles.aiTextContainer}>
+              <Text style={[styles.aiText, {color: text}]}>{aiText}</Text>
+              {isAiTyping && !isPaused && <TypingIndicator color={subjectColor} />}
+              {isPaused && (
+                <View style={[styles.pausedBadge, {backgroundColor: `${textMuted}20`}]}>
+                  <Icon name="pause" size={12} color={textMuted} />
+                  <Text style={[styles.pausedText, {color: textMuted}]}>Paused</Text>
+                </View>
+              )}
+            </View>
+          )}
+        </ScrollView>
+      </View>
+
+      {/* Chat Section */}
+      <KeyboardAvoidingView 
+        style={styles.chatSection} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+        
+        <View style={[styles.chatHeader, {borderBottomColor: border}]}>
+          <Icon name="message-circle" size={18} color={subjectColor} />
+          <Text style={[styles.chatHeaderText, {color: text}]}>Ask Doubts</Text>
+          {chatMessages.length > 0 && (
+            <View style={[styles.messageBadge, {backgroundColor: subjectColor}]}>
+              <Text style={styles.messageBadgeText}>{chatMessages.length}</Text>
             </View>
           )}
         </View>
 
-        {/* AI Teaching Section */}
-        <View style={[styles.aiSection, {backgroundColor: `${subjectColor}08`, borderBottomColor: border}]}>
-          <View style={styles.aiHeader}>
-            <AIAvatar isActive={isAiTyping || isLoadingAi} color={subjectColor} />
-            <View style={styles.aiHeaderText}>
-              <Text style={[styles.aiName, {color: text}]}>🎓 Buddy AI Tutor</Text>
-              <Text style={[styles.aiStatus, {color: isAiTyping ? subjectColor : textMuted}]}>
-                {isLoadingAi ? '🧠 Thinking...' : isAiTyping ? '✍️ Teaching...' : aiTeachingComplete ? '✅ Lesson ready!' : '👋 Tap Start'}
-              </Text>
+        <ScrollView
+          ref={chatScrollRef}
+          style={styles.chatMessages}
+          contentContainerStyle={styles.chatMessagesContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled">
+          {chatMessages.length === 0 ? (
+            <View style={styles.chatEmptyState}>
+              <Text style={styles.chatEmptyEmoji}>💬</Text>
+              <Text style={[styles.chatEmptyText, {color: textSecondary}]}>Have a doubt? Ask me!</Text>
+              <Text style={[styles.chatEmptySubtext, {color: textMuted}]}>Type your question below</Text>
             </View>
-            {!aiTeachingStarted ? (
-              <TouchableOpacity style={[styles.startBtn, {backgroundColor: subjectColor}]} onPress={startAITeaching}>
-                <Icon name="play" size={16} color="#FFF" />
-                <Text style={styles.startBtnText}>Start</Text>
-              </TouchableOpacity>
-            ) : !aiTeachingComplete && (
-              <TouchableOpacity style={[styles.pauseBtn, {backgroundColor: isPaused ? success : `${subjectColor}20`}]} onPress={togglePause}>
-                <Icon name={isPaused ? 'play' : 'pause'} size={16} color={isPaused ? '#FFF' : subjectColor} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          <ScrollView ref={aiScrollRef} style={styles.aiContent} showsVerticalScrollIndicator={false}>
-            {!aiTeachingStarted ? (
-              <View style={styles.aiPlaceholder}>
-                <Text style={styles.aiPlaceholderEmoji}>🎓</Text>
-                <Text style={[styles.aiPlaceholderText, {color: textSecondary}]}>Tap "Start" to begin your lesson!</Text>
-              </View>
-            ) : isLoadingAi ? (
-              <View style={styles.aiPlaceholder}>
-                <ActivityIndicator size="large" color={subjectColor} />
-                <Text style={[styles.aiPlaceholderText, {color: textSecondary, marginTop: 12}]}>Preparing lesson...</Text>
-              </View>
-            ) : (
-              <View style={styles.aiTextContainer}>
-                <Text style={[styles.aiText, {color: text}]}>{aiText}</Text>
-                {isAiTyping && !isPaused && <TypingIndicator color={subjectColor} />}
-                {isPaused && (
-                  <View style={[styles.pausedBadge, {backgroundColor: `${textMuted}20`}]}>
-                    <Icon name="pause" size={12} color={textMuted} />
-                    <Text style={[styles.pausedText, {color: textMuted}]}>Paused</Text>
+          ) : (
+            chatMessages.map(msg => (
+              <View
+                key={msg.id}
+                style={[
+                  styles.chatBubble,
+                  msg.role === 'user' ? styles.userBubble : styles.aiBubble,
+                  {backgroundColor: msg.role === 'user' ? subjectColor : card},
+                ]}>
+                {msg.role === 'ai' && (
+                  <View style={styles.bubbleHeader}>
+                    <Text style={styles.bubbleAvatar}>🤖</Text>
+                    <Text style={[styles.bubbleName, {color: subjectColor}]}>Buddy</Text>
                   </View>
                 )}
+                <Text style={[styles.bubbleText, {color: msg.role === 'user' ? '#FFF' : text}]}>{msg.content}</Text>
               </View>
-            )}
-          </ScrollView>
-        </View>
+            ))
+          )}
+          {isAiReplying && (
+            <View style={[styles.chatBubble, styles.aiBubble, {backgroundColor: card}]}>
+              <View style={styles.bubbleHeader}>
+                <Text style={styles.bubbleAvatar}>🤖</Text>
+                <Text style={[styles.bubbleName, {color: subjectColor}]}>Buddy</Text>
+              </View>
+              <TypingIndicator color={subjectColor} />
+            </View>
+          )}
+        </ScrollView>
 
-        {/* Chat Section */}
-        <View style={[styles.chatSection, {backgroundColor: background}]}>
-          {/* Chat Header */}
-          <View style={[styles.chatHeader, {borderBottomColor: border}]}>
-            <Icon name="message-circle" size={18} color={subjectColor} />
-            <Text style={[styles.chatHeaderText, {color: text}]}>Ask Doubts</Text>
-            {chatMessages.length > 0 && (
-              <View style={[styles.messageBadge, {backgroundColor: subjectColor}]}>
-                <Text style={styles.messageBadgeText}>{chatMessages.length}</Text>
-              </View>
-            )}
-          </View>
-
-          {/* Chat Messages */}
-          <ScrollView
-            ref={chatScrollRef}
-            style={styles.chatMessages}
-            contentContainerStyle={styles.chatMessagesContent}
-            showsVerticalScrollIndicator={false}>
-            {chatMessages.length === 0 ? (
-              <View style={styles.chatEmptyState}>
-                <Text style={styles.chatEmptyEmoji}>💬</Text>
-                <Text style={[styles.chatEmptyText, {color: textSecondary}]}>Have a doubt? Ask me anything!</Text>
-                <Text style={[styles.chatEmptySubtext, {color: textMuted}]}>Type or use voice to ask questions</Text>
-              </View>
-            ) : (
-              chatMessages.map(msg => (
-                <View
-                  key={msg.id}
-                  style={[
-                    styles.chatBubble,
-                    msg.role === 'user' ? styles.userBubble : styles.aiBubble,
-                    {backgroundColor: msg.role === 'user' ? subjectColor : card},
-                  ]}>
-                  {msg.role === 'ai' && (
-                    <View style={styles.bubbleHeader}>
-                      <Text style={styles.bubbleAvatar}>🤖</Text>
-                      <Text style={[styles.bubbleName, {color: subjectColor}]}>Buddy</Text>
-                    </View>
-                  )}
-                  {msg.isVoice && (
-                    <View style={styles.voiceIndicator}>
-                      <Icon name="mic" size={12} color={msg.role === 'user' ? '#FFF' : textMuted} />
-                    </View>
-                  )}
-                  <Text style={[styles.bubbleText, {color: msg.role === 'user' ? '#FFF' : text}]}>{msg.content}</Text>
-                </View>
-              ))
-            )}
-            {isAiReplying && (
-              <View style={[styles.chatBubble, styles.aiBubble, {backgroundColor: card}]}>
-                <View style={styles.bubbleHeader}>
-                  <Text style={styles.bubbleAvatar}>🤖</Text>
-                  <Text style={[styles.bubbleName, {color: subjectColor}]}>Buddy</Text>
-                </View>
-                <TypingIndicator color={subjectColor} />
-              </View>
-            )}
-          </ScrollView>
-
-          {/* Chat Input */}
-          <View style={[styles.chatInputContainer, {backgroundColor: card, borderTopColor: border}]}>
-            <VoiceRecordButton
-              isRecording={isRecording}
-              onPress={toggleRecording}
-              color={subjectColor}
-              disabled={isAiReplying}
-            />
-            <TextInput
-              ref={inputRef}
-              style={[styles.chatInput, {backgroundColor: background, color: text, borderColor: border}]}
-              placeholder="Type your doubt here..."
-              placeholderTextColor={textMuted}
-              value={inputText}
-              onChangeText={setInputText}
-              multiline
-              maxLength={500}
-              editable={!isAiReplying && !isRecording}
-            />
-            <TouchableOpacity
-              style={[styles.sendBtn, {backgroundColor: inputText.trim() ? subjectColor : `${textMuted}30`}]}
-              onPress={() => sendMessage(inputText)}
-              disabled={!inputText.trim() || isAiReplying}>
-              <Icon name="send" size={18} color={inputText.trim() ? '#FFF' : textMuted} />
-            </TouchableOpacity>
-          </View>
+        {/* Chat Input */}
+        <View style={[styles.chatInputContainer, {backgroundColor: card, borderTopColor: border}]}>
+          <TextInput
+            ref={inputRef}
+            style={[styles.chatInput, {backgroundColor: background, color: text, borderColor: border}]}
+            placeholder="Type your doubt here..."
+            placeholderTextColor={textMuted}
+            value={inputText}
+            onChangeText={setInputText}
+            multiline
+            maxLength={500}
+            editable={!isAiReplying}
+            returnKeyType="send"
+            blurOnSubmit={false}
+            onSubmitEditing={sendMessage}
+          />
+          <TouchableOpacity
+            style={[styles.sendBtn, {backgroundColor: inputText.trim() ? subjectColor : `${textMuted}30`}]}
+            onPress={sendMessage}
+            disabled={!inputText.trim() || isAiReplying}>
+            <Icon name="send" size={20} color={inputText.trim() ? '#FFF' : textMuted} />
+          </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -662,7 +623,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
   },
-  backButton: {width: 36, height: 36, alignItems: 'center', justifyContent: 'center'},
+  backButton: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
   headerContent: {flex: 1, marginHorizontal: Spacing.sm},
   headerChapter: {fontSize: FontSizes.xs, fontWeight: '600', marginBottom: 2},
   headerLesson: {fontSize: FontSizes.sm, fontWeight: '700'},
@@ -670,50 +631,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     gap: 4,
   },
   completeBtnText: {color: '#FFF', fontSize: FontSizes.xs, fontWeight: '700'},
-  completedBadgeSmall: {width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center'},
+  completedBadgeSmall: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'},
 
   // AI Section
   aiSection: {height: '38%', borderBottomWidth: 1},
   aiHeader: {flexDirection: 'row', alignItems: 'center', padding: Spacing.sm, gap: Spacing.sm},
   avatarContainer: {position: 'relative'},
-  avatarOuter: {width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center'},
-  avatarInner: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'},
-  avatarEmoji: {fontSize: 20},
+  avatarOuter: {width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center'},
+  avatarInner: {width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
+  avatarEmoji: {fontSize: 22},
   sparkle: {position: 'absolute', top: -4, right: -4},
   sparkleEmoji: {fontSize: 14},
   aiHeaderText: {flex: 1},
   aiName: {fontSize: FontSizes.sm, fontWeight: '700'},
+  statusRow: {flexDirection: 'row', alignItems: 'center', gap: 8},
   aiStatus: {fontSize: FontSizes.xs, fontWeight: '500'},
+  soundWaveContainer: {flexDirection: 'row', alignItems: 'center', gap: 2, height: 16},
+  soundBar: {width: 3, height: 16, borderRadius: 2},
   startBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: 8,
+    paddingVertical: 10,
     borderRadius: BorderRadius.lg,
     gap: 6,
   },
   startBtnText: {color: '#FFF', fontSize: FontSizes.sm, fontWeight: '700'},
-  pauseBtn: {width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center'},
+  pauseBtn: {width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center'},
   aiContent: {flex: 1, paddingHorizontal: Spacing.md},
-  aiPlaceholder: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.lg},
-  aiPlaceholderEmoji: {fontSize: 40, marginBottom: Spacing.sm},
+  aiPlaceholder: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl},
+  aiPlaceholderEmoji: {fontSize: 48, marginBottom: Spacing.sm},
   aiPlaceholderText: {fontSize: FontSizes.sm, fontWeight: '600', textAlign: 'center'},
-  aiTextContainer: {paddingVertical: Spacing.xs},
-  aiText: {fontSize: FontSizes.sm, lineHeight: 24},
+  aiPlaceholderSubtext: {fontSize: FontSizes.xs, textAlign: 'center', marginTop: 6},
+  aiTextContainer: {paddingVertical: Spacing.sm, paddingBottom: Spacing.lg},
+  aiText: {fontSize: FontSizes.sm, lineHeight: 26},
   typingContainer: {flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm},
-  typingDot: {width: 6, height: 6, borderRadius: 3},
+  typingDot: {width: 8, height: 8, borderRadius: 4},
   pausedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
     marginTop: Spacing.sm,
     alignSelf: 'flex-start',
   },
@@ -725,30 +690,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     gap: 8,
   },
   chatHeaderText: {flex: 1, fontSize: FontSizes.sm, fontWeight: '700'},
   messageBadge: {
-    minWidth: 20,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
-  messageBadgeText: {color: '#FFF', fontSize: 10, fontWeight: '700'},
+  messageBadgeText: {color: '#FFF', fontSize: 11, fontWeight: '700'},
   chatMessages: {flex: 1},
-  chatMessagesContent: {padding: Spacing.md, paddingBottom: Spacing.sm},
+  chatMessagesContent: {padding: Spacing.md, paddingBottom: Spacing.sm, flexGrow: 1},
   chatEmptyState: {flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl},
-  chatEmptyEmoji: {fontSize: 36, marginBottom: Spacing.sm},
+  chatEmptyEmoji: {fontSize: 40, marginBottom: Spacing.sm},
   chatEmptyText: {fontSize: FontSizes.sm, fontWeight: '600', textAlign: 'center'},
   chatEmptySubtext: {fontSize: FontSizes.xs, textAlign: 'center', marginTop: 4},
   chatBubble: {
     maxWidth: '85%',
     padding: Spacing.sm,
-    borderRadius: BorderRadius.md,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.lg,
     marginBottom: Spacing.sm,
   },
   userBubble: {alignSelf: 'flex-end', borderBottomRightRadius: 4},
@@ -756,38 +722,33 @@ const styles = StyleSheet.create({
   bubbleHeader: {flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4},
   bubbleAvatar: {fontSize: 14},
   bubbleName: {fontSize: FontSizes.xs, fontWeight: '600'},
-  voiceIndicator: {position: 'absolute', top: 8, right: 8},
-  bubbleText: {fontSize: FontSizes.sm, lineHeight: 20},
+  bubbleText: {fontSize: FontSizes.sm, lineHeight: 22},
 
   // Chat Input
   chatInputContainer: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: Spacing.sm,
+    paddingHorizontal: Spacing.md,
     borderTopWidth: 1,
-    gap: 8,
-  },
-  voiceBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
+    gap: 10,
   },
   chatInput: {
     flex: 1,
-    minHeight: 44,
-    maxHeight: 100,
-    borderWidth: 1,
-    borderRadius: BorderRadius.lg,
+    minHeight: 46,
+    maxHeight: 120,
+    borderWidth: 1.5,
+    borderRadius: 23,
     paddingHorizontal: Spacing.md,
-    paddingVertical: 10,
+    paddingTop: 12,
+    paddingBottom: 12,
     fontSize: FontSizes.sm,
+    textAlignVertical: 'center',
   },
   sendBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
     justifyContent: 'center',
   },

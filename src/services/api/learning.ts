@@ -92,6 +92,51 @@ export const learningApi = {
   },
 
   /**
+   * Text to Speech - Convert text to audio
+   */
+  textToSpeech: async (text: string, language: string = 'en-IN') => {
+    const response = await apiClient.post<ApiResponse<{audio: string; format: string; language: string}>>(
+      ENDPOINTS.LEARNING.TTS,
+      {text, language}
+    );
+    return response.data;
+  },
+
+  /**
+   * Text to Speech Chunks - Convert long text to multiple audio chunks
+   */
+  textToSpeechChunks: async (text: string, language: string = 'en-IN') => {
+    const response = await apiClient.post<ApiResponse<{chunks: string[]; count: number; format: string}>>(
+      ENDPOINTS.LEARNING.TTS_CHUNKS,
+      {text, language}
+    );
+    return response.data;
+  },
+
+  /**
+   * Send voice message - sends transcription, gets AI response with audio
+   */
+  sendVoiceMessage: async (
+    sessionId: string,
+    transcription: string,
+    audioBase64?: string
+  ) => {
+    const response = await apiClient.post<
+      ApiResponse<{
+        userMessage: ChatMessage;
+        aiMessage: ChatMessage;
+        aiAudio: string;
+        audioFormat: string;
+      }>
+    >(ENDPOINTS.LEARNING.VOICE_MESSAGE, {
+      sessionId,
+      transcription,
+      audioBase64,
+    });
+    return response.data;
+  },
+
+  /**
    * Stream AI teaching content
    * Returns an async generator that yields text chunks
    */
