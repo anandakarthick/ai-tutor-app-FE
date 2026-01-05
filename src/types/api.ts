@@ -663,6 +663,7 @@ export interface DashboardStats {
     completedTopics: number;
     totalQuizzes: number;
     avgQuizScore: number;
+    bestQuizScore: number;
     quizzesPassed: number;
     achievements: number;
   };

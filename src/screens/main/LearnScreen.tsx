@@ -60,6 +60,15 @@ const SUBJECT_ICON: Record<string, string> = {
   default: 'book-open',
 };
 
+interface SubjectProgressData {
+  subjectId: string;
+  subjectName: string;
+  totalTopics: number;
+  completedTopics: number;
+  totalTimeMinutes: number;
+  avgProgress: number;
+}
+
 export function LearnScreen() {
   const navigation = useNavigation<any>();
   const colorScheme = useColorScheme() ?? 'light';
@@ -67,7 +76,8 @@ export function LearnScreen() {
 
   // Fetch subjects based on student's class
   const {subjects, loading, error, refresh} = useSubjects(currentStudent?.classId);
-  const [subjectProgress, setSubjectProgress] = useState<Record<string, number>>({});
+  const [subjectProgress, setSubjectProgress] = useState<Record<string, SubjectProgressData>>({});
+  const [progressLoading, setProgressLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const background = useThemeColor({}, 'background');
@@ -81,28 +91,49 @@ export function LearnScreen() {
 
   // Load progress for subjects
   const loadProgress = useCallback(async () => {
-    if (!currentStudent) return;
+    if (!currentStudent?.id) {
+      console.log('[LearnScreen] No student ID, skipping progress load');
+      return;
+    }
+    
+    setProgressLoading(true);
     try {
       console.log('[LearnScreen] Loading subject progress for student:', currentStudent.id);
-      const response = await progressApi.getOverall(currentStudent.id);
+      // Always skip cache to get fresh data
+      const response = await progressApi.getOverall(currentStudent.id, true);
+      console.log('[LearnScreen] Progress API response:', JSON.stringify(response, null, 2));
+      
       if (response.success && response.data?.subjectProgress) {
-        const progressMap: Record<string, number> = {};
-        response.data.subjectProgress.forEach(sp => {
-          progressMap[sp.subjectId] = sp.avgProgress || 0;
+        const progressMap: Record<string, SubjectProgressData> = {};
+        
+        response.data.subjectProgress.forEach((sp: SubjectProgressData) => {
+          // Store the full progress data
+          progressMap[sp.subjectId] = {
+            ...sp,
+            // Ensure avgProgress is a valid number between 0-100
+            avgProgress: Math.min(100, Math.max(0, Number(sp.avgProgress) || 0)),
+          };
+          console.log(`[LearnScreen] Subject ${sp.subjectName} (${sp.subjectId}): ${sp.completedTopics}/${sp.totalTopics} topics, avgProgress=${sp.avgProgress}%`);
         });
+        
         setSubjectProgress(progressMap);
+        console.log('[LearnScreen] Progress map set with', Object.keys(progressMap).length, 'subjects');
+      } else {
+        console.log('[LearnScreen] No progress data found in response');
+        setSubjectProgress({});
       }
-    } catch (err) {
-      console.log('[LearnScreen] Load progress error:', err);
+    } catch (err: any) {
+      console.log('[LearnScreen] Load progress error:', err.message || err);
+      setSubjectProgress({});
+    } finally {
+      setProgressLoading(false);
     }
-  }, [currentStudent]);
+  }, [currentStudent?.id]);
 
   // Refresh data when screen is focused
   useFocusEffect(
     useCallback(() => {
       console.log('[LearnScreen] Screen focused - refreshing data');
-      console.log('[LearnScreen] currentStudent:', currentStudent);
-      console.log('[LearnScreen] classId:', currentStudent?.classId);
       if (currentStudent?.classId) {
         refresh();
         loadProgress();
@@ -132,6 +163,13 @@ export function LearnScreen() {
 
   const getEmoji = (name: string) => SUBJECT_EMOJI[name] || SUBJECT_EMOJI.default;
   const getIcon = (name: string) => SUBJECT_ICON[name] || SUBJECT_ICON.default;
+
+  // Get progress percentage for a subject
+  const getSubjectProgressPercent = (subjectId: string): number => {
+    const progressData = subjectProgress[subjectId];
+    if (!progressData) return 0;
+    return Math.round(progressData.avgProgress);
+  };
 
   // No student profile - show setup prompt
   if (!currentStudent) {
@@ -209,7 +247,6 @@ export function LearnScreen() {
 
   // Loading state
   if (loading && subjects.length === 0) {
-    console.log('[LearnScreen] Showing LOADING state');
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
         <View style={styles.header}>
@@ -225,8 +262,6 @@ export function LearnScreen() {
       </SafeAreaView>
     );
   }
-
-  console.log('[LearnScreen] Rendering MAIN view with', subjects.length, 'subjects, error:', error, 'loading:', loading);
 
   return (
     <SafeAreaView
@@ -290,24 +325,27 @@ export function LearnScreen() {
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={[styles.subjectsGrid, {borderWidth: 2, borderColor: 'red', minHeight: 200}]}>
-            <Text style={{color: text, padding: 10, width: '100%'}}>Found {subjects.length} subjects:</Text>
+          <View style={styles.subjectsGrid}>
             {subjects.map((subject, index) => {
               const subjectTheme = getSubjectTheme(subject.displayName, colorScheme);
-              const progress = subjectProgress[subject.id] || 0;
+              const progress = getSubjectProgressPercent(subject.id);
+              const progressData = subjectProgress[subject.id];
+              
               return (
                 <SubjectGridCard
                   key={subject.id}
                   name={subject.displayName}
                   icon={getIcon(subject.displayName)}
                   emoji={getEmoji(subject.displayName)}
-                  progress={Math.round(progress)}
+                  progress={progress}
+                  completedTopics={progressData?.completedTopics || 0}
+                  totalTopics={progressData?.totalTopics || 0}
                   chapters={subject.totalChapters || 0}
                   theme={subjectTheme}
                   cardColor={card}
                   textColor={text}
                   textSecondary={textSecondary}
-                  delay={index * 50}
+                  isLoadingProgress={progressLoading}
                   onPress={() => handleSubjectPress(subject)}
                 />
               );
@@ -325,24 +363,28 @@ function SubjectGridCard({
   icon,
   emoji,
   progress,
+  completedTopics,
+  totalTopics,
   chapters,
   theme,
   cardColor,
   textColor,
   textSecondary,
-  delay,
+  isLoadingProgress,
   onPress,
 }: {
   name: string;
   icon: string;
   emoji: string;
   progress: number;
+  completedTopics: number;
+  totalTopics: number;
   chapters: number;
   theme: {primary: string; background: string; icon: string};
   cardColor: string;
   textColor: string;
   textSecondary: string;
-  delay: number;
+  isLoadingProgress?: boolean;
   onPress: () => void;
 }) {
   const isCompleted = progress >= 100;
@@ -384,15 +426,30 @@ function SubjectGridCard({
         {inProgress && (
           <View style={[styles.subjectStatusBadge, {backgroundColor: `${theme.primary}20`}]}>
             <Icon name="loader" size={10} color={theme.primary} />
-            <Text style={[styles.subjectStatusText, {color: theme.primary}]}>In Progress</Text>
+            <Text style={[styles.subjectStatusText, {color: theme.primary}]}>
+              {completedTopics}/{totalTopics} topics
+            </Text>
           </View>
         )}
         
         <View style={styles.progressContainer}>
-          <ProgressBar progress={progress} size="sm" showLabel={false} color={isCompleted ? successColor : theme.primary} />
-          <Text style={[styles.progressText, {color: isCompleted ? successColor : theme.primary}]}>
-            {progress}%
-          </Text>
+          {isLoadingProgress ? (
+            <View style={styles.progressLoadingContainer}>
+              <ActivityIndicator size="small" color={theme.primary} />
+            </View>
+          ) : (
+            <>
+              <ProgressBar 
+                progress={progress} 
+                size="sm" 
+                showLabel={false} 
+                color={isCompleted ? successColor : theme.primary} 
+              />
+              <Text style={[styles.progressText, {color: isCompleted ? successColor : theme.primary}]}>
+                {progress}%
+              </Text>
+            </>
+          )}
         </View>
       </TouchableOpacity>
     </View>
@@ -542,6 +599,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  progressLoadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 20,
   },
   progressText: {
     fontSize: FontSizes.xs,

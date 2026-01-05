@@ -14,8 +14,9 @@ import {
   ActivityIndicator,
   Alert,
   BackHandler,
+  Platform,
 } from 'react-native';
-import {SafeAreaView} from 'react-native-safe-area-context';
+import {SafeAreaView, useSafeAreaInsets} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
@@ -29,6 +30,7 @@ export function QuizTakingScreen() {
   const route = useRoute<any>();
   const {quizId} = route.params;
   const {currentStudent} = useStudent();
+  const insets = useSafeAreaInsets();
   
   const [quiz, setQuiz] = useState<Quiz | null>(null);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
@@ -58,6 +60,9 @@ export function QuizTakingScreen() {
   const error = useThemeColor({}, 'error');
   const warning = useThemeColor({}, 'warning');
   const primaryBg = useThemeColor({}, 'primaryBackground');
+
+  // Calculate safe bottom padding for footer
+  const bottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 16) : 16;
 
   // Load quiz and start attempt
   useEffect(() => {
@@ -237,7 +242,7 @@ export function QuizTakingScreen() {
 
   if (showResults && results) {
     return (
-      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
+      <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top', 'bottom']}>
         <ScrollView contentContainerStyle={styles.resultsContainer}>
           <View style={[styles.resultsCard, {backgroundColor: card}, Shadows.lg]}>
             <Text style={styles.resultsEmoji}>
@@ -299,25 +304,27 @@ export function QuizTakingScreen() {
   const currentQuestion = questions[currentIndex];
 
   return (
-    <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
-      {/* Header */}
-      <View style={[styles.header, {backgroundColor: primary}]}>
-        <TouchableOpacity style={styles.exitButton} onPress={handleExit}>
-          <Icon name="x" size={24} color="#FFF" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <Text style={styles.quizTitle} numberOfLines={1}>{quiz?.quizTitle}</Text>
-          <Text style={styles.questionCount}>
-            Question {currentIndex + 1} of {questions.length}
-          </Text>
-        </View>
-        {timeLeft > 0 && (
-          <View style={[styles.timerBadge, {backgroundColor: timeLeft < 60 ? error : 'rgba(255,255,255,0.2)'}]}>
-            <Icon name="clock" size={14} color="#FFF" />
-            <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
+    <View style={[styles.container, {backgroundColor: background}]}>
+      {/* Header with SafeArea for top only */}
+      <SafeAreaView edges={['top']} style={{backgroundColor: primary}}>
+        <View style={[styles.header, {backgroundColor: primary}]}>
+          <TouchableOpacity style={styles.exitButton} onPress={handleExit}>
+            <Icon name="x" size={24} color="#FFF" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <Text style={styles.quizTitle} numberOfLines={1}>{quiz?.quizTitle}</Text>
+            <Text style={styles.questionCount}>
+              Question {currentIndex + 1} of {questions.length}
+            </Text>
           </View>
-        )}
-      </View>
+          {timeLeft > 0 && (
+            <View style={[styles.timerBadge, {backgroundColor: timeLeft < 60 ? error : 'rgba(255,255,255,0.2)'}]}>
+              <Icon name="clock" size={14} color="#FFF" />
+              <Text style={styles.timerText}>{formatTime(timeLeft)}</Text>
+            </View>
+          )}
+        </View>
+      </SafeAreaView>
 
       {/* Progress Bar */}
       <View style={[styles.progressBar, {backgroundColor: border}]}>
@@ -329,8 +336,12 @@ export function QuizTakingScreen() {
         />
       </View>
 
-      {/* Question */}
-      <ScrollView contentContainerStyle={styles.questionContainer}>
+      {/* Question - ScrollView with bottom padding for footer */}
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={[styles.questionContainer, {paddingBottom: 100 + bottomPadding}]}
+        showsVerticalScrollIndicator={false}
+      >
         <Animated.View style={{opacity: fadeAnim, transform: [{translateY: slideAnim}]}}>
           <View style={[styles.questionCard, {backgroundColor: card}, Shadows.md]}>
             <View style={[styles.questionBadge, {backgroundColor: primaryBg}]}>
@@ -382,8 +393,15 @@ export function QuizTakingScreen() {
         </Animated.View>
       </ScrollView>
 
-      {/* Footer Navigation */}
-      <View style={[styles.footer, {backgroundColor: card, borderTopColor: border}]}>
+      {/* Footer Navigation - Fixed at bottom with safe area */}
+      <View style={[
+        styles.footer, 
+        {
+          backgroundColor: card, 
+          borderTopColor: border,
+          paddingBottom: bottomPadding,
+        }
+      ]}>
         <TouchableOpacity
           style={[styles.navButton, {opacity: currentIndex === 0 ? 0.5 : 1}]}
           onPress={handlePrevious}
@@ -439,24 +457,49 @@ export function QuizTakingScreen() {
           )}
         </TouchableOpacity>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {flex: 1},
-  loadingContainer: {flex: 1, justifyContent: 'center', alignItems: 'center'},
-  loadingText: {marginTop: Spacing.md, fontSize: FontSizes.sm},
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md, 
+    fontSize: FontSizes.sm,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
   },
-  exitButton: {width: 40, height: 40, alignItems: 'center', justifyContent: 'center'},
-  headerCenter: {flex: 1, alignItems: 'center'},
-  quizTitle: {fontSize: FontSizes.base, fontWeight: '600', color: '#FFF'},
-  questionCount: {fontSize: FontSizes.xs, color: 'rgba(255,255,255,0.8)', marginTop: 2},
+  exitButton: {
+    width: 40, 
+    height: 40, 
+    alignItems: 'center', 
+    justifyContent: 'center',
+  },
+  headerCenter: {
+    flex: 1, 
+    alignItems: 'center',
+  },
+  quizTitle: {
+    fontSize: FontSizes.base, 
+    fontWeight: '600', 
+    color: '#FFF',
+  },
+  questionCount: {
+    fontSize: FontSizes.xs, 
+    color: 'rgba(255,255,255,0.8)', 
+    marginTop: 2,
+  },
   timerBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -465,10 +508,23 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     gap: Spacing.xs,
   },
-  timerText: {fontSize: FontSizes.sm, fontWeight: '700', color: '#FFF'},
-  progressBar: {height: 4},
-  progressFill: {height: '100%'},
-  questionContainer: {padding: Spacing.lg, paddingBottom: Spacing.xl},
+  timerText: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '700', 
+    color: '#FFF',
+  },
+  progressBar: {
+    height: 4,
+  },
+  progressFill: {
+    height: '100%',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  questionContainer: {
+    padding: Spacing.lg,
+  },
   questionCard: {
     padding: Spacing.lg,
     borderRadius: BorderRadius.xl,
@@ -481,9 +537,18 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     marginBottom: Spacing.md,
   },
-  questionBadgeText: {fontSize: FontSizes.xs, fontWeight: '700'},
-  questionText: {fontSize: FontSizes.lg, fontWeight: '500', lineHeight: 28},
-  optionsContainer: {gap: Spacing.md},
+  questionBadgeText: {
+    fontSize: FontSizes.xs, 
+    fontWeight: '700',
+  },
+  questionText: {
+    fontSize: FontSizes.lg, 
+    fontWeight: '500', 
+    lineHeight: 28,
+  },
+  optionsContainer: {
+    gap: Spacing.md,
+  },
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -498,36 +563,75 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  optionLetterText: {fontSize: FontSizes.sm, fontWeight: '700'},
-  optionText: {flex: 1, fontSize: FontSizes.base},
+  optionLetterText: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '700',
+  },
+  optionText: {
+    flex: 1, 
+    fontSize: FontSizes.base,
+  },
   footer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
-    paddingVertical: Spacing.md,
+    paddingTop: Spacing.md,
     borderTopWidth: 1,
   },
-  navButton: {flexDirection: 'row', alignItems: 'center', gap: Spacing.xs},
-  navButtonText: {fontSize: FontSizes.sm, fontWeight: '600'},
+  navButton: {
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    gap: Spacing.xs,
+  },
+  navButtonText: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '600',
+  },
   nextButton: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: BorderRadius.lg,
   },
-  nextButtonText: {fontSize: FontSizes.sm, fontWeight: '600', color: '#FFF'},
-  questionDots: {flexDirection: 'row', gap: Spacing.xs},
-  dot: {width: 8, height: 8, borderRadius: 4},
+  nextButtonText: {
+    fontSize: FontSizes.sm, 
+    fontWeight: '600', 
+    color: '#FFF',
+  },
+  questionDots: {
+    flexDirection: 'row', 
+    gap: Spacing.xs,
+  },
+  dot: {
+    width: 8, 
+    height: 8, 
+    borderRadius: 4,
+  },
   // Results styles
-  resultsContainer: {flexGrow: 1, justifyContent: 'center', padding: Spacing.lg},
+  resultsContainer: {
+    flexGrow: 1, 
+    justifyContent: 'center', 
+    padding: Spacing.lg,
+  },
   resultsCard: {
     padding: Spacing.xl,
     borderRadius: BorderRadius['2xl'],
     alignItems: 'center',
   },
-  resultsEmoji: {fontSize: 64, marginBottom: Spacing.md},
-  resultsTitle: {fontSize: FontSizes['2xl'], fontWeight: '700', marginBottom: Spacing.xs},
-  resultsSubtitle: {fontSize: FontSizes.base, textAlign: 'center', marginBottom: Spacing.xl},
+  resultsEmoji: {
+    fontSize: 64, 
+    marginBottom: Spacing.md,
+  },
+  resultsTitle: {
+    fontSize: FontSizes['2xl'], 
+    fontWeight: '700', 
+    marginBottom: Spacing.xs,
+  },
+  resultsSubtitle: {
+    fontSize: FontSizes.base, 
+    textAlign: 'center', 
+    marginBottom: Spacing.xl,
+  },
   scoreCircle: {
     width: 120,
     height: 120,
@@ -537,16 +641,35 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: Spacing.xl,
   },
-  scorePercent: {fontSize: FontSizes['3xl'], fontWeight: '700'},
-  scoreLabel: {fontSize: FontSizes.sm},
-  statsGrid: {flexDirection: 'row', gap: Spacing.md, marginBottom: Spacing.xl},
+  scorePercent: {
+    fontSize: FontSizes['3xl'], 
+    fontWeight: '700',
+  },
+  scoreLabel: {
+    fontSize: FontSizes.sm,
+  },
+  statsGrid: {
+    flexDirection: 'row', 
+    gap: Spacing.md, 
+    marginBottom: Spacing.xl,
+  },
   statBox: {
     flex: 1,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     alignItems: 'center',
   },
-  statValue: {fontSize: FontSizes.xl, fontWeight: '700'},
-  statLabel: {fontSize: FontSizes.xs, marginTop: 2},
-  resultsActions: {flexDirection: 'row', gap: Spacing.md, width: '100%'},
+  statValue: {
+    fontSize: FontSizes.xl, 
+    fontWeight: '700',
+  },
+  statLabel: {
+    fontSize: FontSizes.xs, 
+    marginTop: 2,
+  },
+  resultsActions: {
+    flexDirection: 'row', 
+    gap: Spacing.md, 
+    width: '100%',
+  },
 });

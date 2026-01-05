@@ -17,22 +17,34 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
-import {useProgress} from '../../hooks/useApi';
-import {progressApi} from '../../services/api';
+import {progressApi, dashboardApi} from '../../services/api';
 import {Icon, ProgressBar, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
+import type {DailyProgress} from '../../types/api';
 
 interface SubjectProgress {
   subjectId: string;
   subjectName: string;
+  totalTopics: number;
+  completedTopics: number;
   avgProgress: number;
+}
+
+interface StreakData {
+  streakDays: number;
+  xp: number;
+  level: number;
 }
 
 export function ProgressScreen() {
   const navigation = useNavigation<any>();
   const {currentStudent} = useStudent();
-  const {dailyProgress, streak, loading, refresh} = useProgress();
+  
+  // Local state for all data
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [dailyProgress, setDailyProgress] = useState<DailyProgress[]>([]);
+  const [streak, setStreak] = useState<StreakData>({streakDays: 0, xp: 0, level: 1});
   const [overallData, setOverallData] = useState({
     totalTopics: 0,
     completedTopics: 0,
@@ -50,64 +62,112 @@ export function ProgressScreen() {
   const success = useThemeColor({}, 'success');
   const warning = useThemeColor({}, 'warning');
 
-  // Load overall progress
-  const loadOverall = useCallback(async () => {
-    if (!currentStudent) return;
-    try {
-      console.log('[ProgressScreen] Loading overall progress for student:', currentStudent.id);
-      const response = await progressApi.getOverall(currentStudent.id);
-      if (response.success && response.data) {
-        setOverallData(response.data);
-      }
-    } catch (err) {
-      console.log('[ProgressScreen] Load overall progress error:', err);
+  // Load all progress data
+  const loadAllData = useCallback(async () => {
+    if (!currentStudent?.id) {
+      console.log('[ProgressScreen] No student ID, skipping data load');
+      setLoading(false);
+      return;
     }
-  }, [currentStudent]);
+    
+    try {
+      console.log('[ProgressScreen] Loading all progress data for student:', currentStudent.id);
+      
+      // Load all data in parallel
+      const [overallRes, dailyRes, streakRes, statsRes] = await Promise.all([
+        progressApi.getOverall(currentStudent.id, true), // Skip cache
+        progressApi.getDaily(currentStudent.id, 30),
+        progressApi.getStreak(currentStudent.id),
+        dashboardApi.getStats(currentStudent.id),
+      ]);
+      
+      console.log('[ProgressScreen] Overall response:', JSON.stringify(overallRes.data, null, 2));
+      console.log('[ProgressScreen] Daily response:', dailyRes.data?.length || 0, 'entries');
+      console.log('[ProgressScreen] Streak response:', streakRes.data);
+      console.log('[ProgressScreen] Stats response:', statsRes.data);
+      
+      // Set overall data
+      if (overallRes.success && overallRes.data) {
+        setOverallData({
+          totalTopics: overallRes.data.totalTopics || 0,
+          completedTopics: overallRes.data.completedTopics || 0,
+          totalTimeMinutes: overallRes.data.totalTimeMinutes || 0,
+          subjectProgress: overallRes.data.subjectProgress || [],
+        });
+      }
+      
+      // Set daily progress
+      if (dailyRes.success && dailyRes.data) {
+        // Sort by date descending (most recent first)
+        const sortedDaily = [...dailyRes.data].sort((a, b) => 
+          new Date(b.date).getTime() - new Date(a.date).getTime()
+        );
+        setDailyProgress(sortedDaily);
+        console.log('[ProgressScreen] Daily progress set:', sortedDaily.length, 'entries');
+      }
+      
+      // Set streak data - prefer from stats if available
+      if (statsRes.success && statsRes.data?.student) {
+        setStreak({
+          streakDays: statsRes.data.student.streakDays || 0,
+          xp: statsRes.data.student.xp || 0,
+          level: statsRes.data.student.level || 1,
+        });
+      } else if (streakRes.success && streakRes.data) {
+        setStreak({
+          streakDays: streakRes.data.streakDays || 0,
+          xp: streakRes.data.xp || 0,
+          level: streakRes.data.level || 1,
+        });
+      }
+      
+    } catch (err: any) {
+      console.log('[ProgressScreen] Load data error:', err.message || err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentStudent?.id]);
 
-  // Refresh when screen is focused
+  // Load on mount and when screen is focused
   useFocusEffect(
     useCallback(() => {
-      console.log('[ProgressScreen] Screen focused - refreshing data');
-      if (currentStudent) {
-        refresh();
-        loadOverall();
-      }
-    }, [refresh, loadOverall, currentStudent])
+      console.log('[ProgressScreen] Screen focused - loading data');
+      loadAllData();
+    }, [loadAllData])
   );
 
   const handleRefresh = useCallback(async () => {
     console.log('[ProgressScreen] Pull-to-refresh triggered');
     setRefreshing(true);
-    try {
-      if (currentStudent) {
-        await Promise.all([refresh(), loadOverall()]);
-      }
-    } catch (err) {
-      console.log('[ProgressScreen] Refresh error:', err);
-    }
+    await loadAllData();
     setRefreshing(false);
-  }, [refresh, loadOverall, currentStudent]);
+  }, [loadAllData]);
 
   // Calculate weekly study data from dailyProgress
   const getWeeklyData = () => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const weekData = [];
     
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
+      date.setHours(0, 0, 0, 0);
       const dayName = days[date.getDay()];
       
       const progressEntry = dailyProgress.find(p => {
         const pDate = new Date(p.date);
-        return pDate.toDateString() === date.toDateString();
+        pDate.setHours(0, 0, 0, 0);
+        return pDate.getTime() === date.getTime();
       });
       
       weekData.push({
         day: dayName,
-        hours: progressEntry ? progressEntry.studyTimeMinutes / 60 : 0,
+        hours: progressEntry ? (progressEntry.totalStudyTimeMinutes || 0) / 60 : 0,
+        minutes: progressEntry ? (progressEntry.totalStudyTimeMinutes || 0) : 0,
         isToday: i === 0,
+        hasData: !!progressEntry,
       });
     }
     
@@ -115,18 +175,20 @@ export function ProgressScreen() {
   };
 
   const weeklyStudy = getWeeklyData();
-  const maxHours = Math.max(...weeklyStudy.map(d => d.hours), 1);
-  const totalWeeklyHours = weeklyStudy.reduce((sum, d) => sum + d.hours, 0);
+  const maxHours = Math.max(...weeklyStudy.map(d => d.hours), 0.5); // Minimum 0.5 to avoid division issues
+  const totalWeeklyMinutes = weeklyStudy.reduce((sum, d) => sum + d.minutes, 0);
+  const totalWeeklyHours = totalWeeklyMinutes / 60;
   
   const overallProgress = overallData.totalTopics > 0
     ? Math.round((overallData.completedTopics / overallData.totalTopics) * 100)
     : 0;
 
   const formatStudyTime = (minutes: number) => {
+    if (minutes === 0) return '0m';
     const hours = Math.floor(minutes / 60);
-    const mins = minutes % 60;
+    const mins = Math.round(minutes % 60);
     if (hours > 0) {
-      return `${hours}h ${mins}m`;
+      return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
     }
     return `${mins}m`;
   };
@@ -187,7 +249,7 @@ export function ProgressScreen() {
   }
 
   // Loading state
-  if (loading && dailyProgress.length === 0) {
+  if (loading) {
     return (
       <SafeAreaView style={[styles.container, {backgroundColor: background}]} edges={['top']}>
         <View style={styles.header}>
@@ -225,17 +287,17 @@ export function ProgressScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="flame" size={24} color="#EF4444" />
-            <Text style={[styles.statValue, {color: text}]}>{streak.streakDays || 0}</Text>
+            <Text style={[styles.statValue, {color: text}]}>{streak.streakDays}</Text>
             <Text style={[styles.statLabel, {color: textSecondary}]}>Day Streak</Text>
           </View>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="star" size={24} color="#F97316" />
-            <Text style={[styles.statValue, {color: text}]}>{streak.xp || 0}</Text>
+            <Text style={[styles.statValue, {color: text}]}>{streak.xp}</Text>
             <Text style={[styles.statLabel, {color: textSecondary}]}>XP Points</Text>
           </View>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="award" size={24} color="#FBBF24" />
-            <Text style={[styles.statValue, {color: text}]}>{streak.level || 1}</Text>
+            <Text style={[styles.statValue, {color: text}]}>{streak.level}</Text>
             <Text style={[styles.statLabel, {color: textSecondary}]}>Level</Text>
           </View>
         </View>
@@ -269,34 +331,51 @@ export function ProgressScreen() {
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, {color: text}]}>This Week</Text>
           <View style={[styles.chartCard, {backgroundColor: card}, Shadows.sm]}>
-            <View style={styles.chartContainer}>
-              {weeklyStudy.map((item) => (
-                <View key={item.day} style={styles.chartBar}>
-                  <View style={styles.barContainer}>
-                    <View
-                      style={[
-                        styles.bar,
-                        {
-                          height: `${Math.max((item.hours / maxHours) * 100, 8)}%`,
-                          backgroundColor: item.isToday ? primary : `${primary}50`,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.barLabel, {color: item.isToday ? primary : textSecondary}]}>
-                    {item.day}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View style={[styles.chartSummary, {borderTopColor: border}]}>
-              <View style={styles.chartSummaryItem}>
-                <Icon name="clock" size={16} color={primary} />
-                <Text style={[styles.chartSummaryText, {color: text}]}>
-                  {totalWeeklyHours.toFixed(1)} hours this week
+            {totalWeeklyMinutes === 0 ? (
+              <View style={styles.emptySection}>
+                <Text style={styles.emptySectionEmoji}>📅</Text>
+                <Text style={[styles.emptySectionText, {color: textSecondary}]}>
+                  No study time recorded this week yet.{'\n'}Start learning to see your progress!
                 </Text>
               </View>
-            </View>
+            ) : (
+              <>
+                <View style={styles.chartContainer}>
+                  {weeklyStudy.map((item) => (
+                    <View key={item.day} style={styles.chartBar}>
+                      <View style={styles.barContainer}>
+                        <View
+                          style={[
+                            styles.bar,
+                            {
+                              height: item.hours > 0 
+                                ? `${Math.max((item.hours / maxHours) * 100, 10)}%`
+                                : '4%',
+                              backgroundColor: item.isToday 
+                                ? primary 
+                                : item.hasData 
+                                  ? `${primary}70`
+                                  : `${border}`,
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.barLabel, {color: item.isToday ? primary : textSecondary}]}>
+                        {item.day}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+                <View style={[styles.chartSummary, {borderTopColor: border}]}>
+                  <View style={styles.chartSummaryItem}>
+                    <Icon name="clock" size={16} color={primary} />
+                    <Text style={[styles.chartSummaryText, {color: text}]}>
+                      {totalWeeklyHours.toFixed(1)} hours this week
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
@@ -325,7 +404,12 @@ export function ProgressScreen() {
                     }
                   ]}>
                   <View style={styles.subjectHeader}>
-                    <Text style={[styles.subjectName, {color: text}]}>{subject.subjectName}</Text>
+                    <View style={styles.subjectNameContainer}>
+                      <Text style={[styles.subjectName, {color: text}]}>{subject.subjectName}</Text>
+                      <Text style={[styles.subjectTopics, {color: textSecondary}]}>
+                        {subject.completedTopics || 0}/{subject.totalTopics || 0} topics
+                      </Text>
+                    </View>
                     <Text style={[styles.subjectPercent, {color: primary}]}>
                       {Math.round(subject.avgProgress || 0)}%
                     </Text>
@@ -345,7 +429,7 @@ export function ProgressScreen() {
               <View style={styles.emptySection}>
                 <Text style={styles.emptySectionEmoji}>🕐</Text>
                 <Text style={[styles.emptySectionText, {color: textSecondary}]}>
-                  Your recent activity will appear here
+                  Your recent activity will appear here once you start studying
                 </Text>
               </View>
             ) : (
@@ -371,7 +455,7 @@ export function ProgressScreen() {
                       })}
                     </Text>
                     <Text style={[styles.activityMeta, {color: textSecondary}]}>
-                      {activity.studyTimeMinutes} min • {activity.topicsCompleted || 0} topics • +{activity.xpEarned || 0} XP
+                      {formatStudyTime(activity.totalStudyTimeMinutes || 0)} • {activity.topicsCompleted || 0} topics • +{activity.xpEarned || 0} XP
                     </Text>
                   </View>
                 </View>
@@ -541,9 +625,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 8,
   },
+  subjectNameContainer: {
+    flex: 1,
+  },
   subjectName: {
     fontSize: 14,
     fontWeight: '600',
+  },
+  subjectTopics: {
+    fontSize: 11,
+    marginTop: 2,
   },
   subjectPercent: {
     fontSize: 14,
@@ -651,5 +742,6 @@ const styles = StyleSheet.create({
   emptySectionText: {
     fontSize: 13,
     textAlign: 'center',
+    lineHeight: 20,
   },
 });

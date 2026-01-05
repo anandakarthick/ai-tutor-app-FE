@@ -15,21 +15,35 @@ import {
   Alert,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
-import {useNavigation} from '@react-navigation/native';
+import {useNavigation, useFocusEffect} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {quizzesApi} from '../../services/api';
+import {useStudent} from '../../context';
+import {quizzesApi, dashboardApi} from '../../services/api';
 import {Icon, Badge} from '../../components/ui';
 import {BorderRadius, FontSizes, Shadows, Spacing} from '../../constants/theme';
-import type {Quiz} from '../../types/api';
+import type {Quiz, DashboardStats} from '../../types/api';
+
+interface QuizStats {
+  completed: number;
+  avgScore: number;
+  bestScore: number;
+}
 
 export function QuizzesScreen() {
   const navigation = useNavigation<any>();
+  const {currentStudent} = useStudent();
   
   // Local state
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<QuizStats>({
+    completed: 0,
+    avgScore: 0,
+    bestScore: 0,
+  });
 
   // Theme colors
   const background = useThemeColor({}, 'background');
@@ -42,13 +56,47 @@ export function QuizzesScreen() {
   const warning = useThemeColor({}, 'warning');
   const border = useThemeColor({}, 'border');
 
+  // Load quiz stats from dashboard
+  const loadStats = useCallback(async () => {
+    if (!currentStudent?.id) {
+      console.log('[QuizzesScreen] No student ID, skipping stats load');
+      setStatsLoading(false);
+      return;
+    }
+    
+    try {
+      setStatsLoading(true);
+      console.log('[QuizzesScreen] Loading quiz stats for student:', currentStudent.id);
+      const response = await dashboardApi.getStats(currentStudent.id);
+      
+      console.log('[QuizzesScreen] Dashboard stats response:', JSON.stringify(response, null, 2));
+      
+      if (response.success && response.data?.overall) {
+        const overall = response.data.overall;
+        const newStats = {
+          completed: overall.totalQuizzes || 0,
+          avgScore: Math.round(overall.avgQuizScore || 0),
+          bestScore: Math.round(overall.bestQuizScore || overall.avgQuizScore || 0),
+        };
+        setStats(newStats);
+        console.log('[QuizzesScreen] Quiz stats set:', newStats);
+      } else {
+        console.log('[QuizzesScreen] No overall data in response');
+      }
+    } catch (err: any) {
+      console.log('[QuizzesScreen] Error loading stats:', err.message || err);
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [currentStudent?.id]);
+
   // Load quizzes
   const loadQuizzes = useCallback(async () => {
     try {
       setError(null);
       console.log('[QuizzesScreen] Loading quizzes...');
       const response = await quizzesApi.getAll();
-      console.log('[QuizzesScreen] Response:', response);
+      console.log('[QuizzesScreen] Quizzes response:', response);
       
       if (response.success && response.data) {
         setQuizzes(response.data);
@@ -58,7 +106,7 @@ export function QuizzesScreen() {
         console.log('[QuizzesScreen] No quizzes found');
       }
     } catch (err: any) {
-      console.log('[QuizzesScreen] Error loading quizzes:', err);
+      console.log('[QuizzesScreen] Error loading quizzes:', err.message || err);
       setError(err.message || 'Failed to load quizzes');
       setQuizzes([]);
     } finally {
@@ -69,13 +117,22 @@ export function QuizzesScreen() {
   // Initial load
   useEffect(() => {
     loadQuizzes();
-  }, [loadQuizzes]);
+    loadStats();
+  }, [loadQuizzes, loadStats]);
+
+  // Refresh stats when screen is focused (e.g., after completing a quiz)
+  useFocusEffect(
+    useCallback(() => {
+      console.log('[QuizzesScreen] Screen focused - refreshing stats');
+      loadStats();
+    }, [loadStats])
+  );
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadQuizzes();
+    await Promise.all([loadQuizzes(), loadStats()]);
     setRefreshing(false);
-  }, [loadQuizzes]);
+  }, [loadQuizzes, loadStats]);
 
   const handleQuizPress = (quiz: Quiz) => {
     Alert.alert(
@@ -123,21 +180,33 @@ export function QuizzesScreen() {
           />
         }>
         
-        {/* Stats Cards */}
+        {/* Stats Cards - Now using real data */}
         <View style={styles.statsRow}>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="check-circle" size={24} color={success} />
-            <Text style={[styles.statValue, {color: text}]}>0</Text>
+            {statsLoading ? (
+              <ActivityIndicator size="small" color={success} style={{marginTop: 8}} />
+            ) : (
+              <Text style={[styles.statValue, {color: text}]}>{stats.completed}</Text>
+            )}
             <Text style={[styles.statLabel, {color: textSecondary}]}>Completed</Text>
           </View>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="percent" size={24} color={primary} />
-            <Text style={[styles.statValue, {color: text}]}>0%</Text>
+            {statsLoading ? (
+              <ActivityIndicator size="small" color={primary} style={{marginTop: 8}} />
+            ) : (
+              <Text style={[styles.statValue, {color: text}]}>{stats.avgScore}%</Text>
+            )}
             <Text style={[styles.statLabel, {color: textSecondary}]}>Avg. Score</Text>
           </View>
           <View style={[styles.statCard, {backgroundColor: card}, Shadows.sm]}>
             <Icon name="star" size={24} color={warning} />
-            <Text style={[styles.statValue, {color: text}]}>0%</Text>
+            {statsLoading ? (
+              <ActivityIndicator size="small" color={warning} style={{marginTop: 8}} />
+            ) : (
+              <Text style={[styles.statValue, {color: text}]}>{stats.bestScore}%</Text>
+            )}
             <Text style={[styles.statLabel, {color: textSecondary}]}>Best Score</Text>
           </View>
         </View>
@@ -278,6 +347,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',
+    minHeight: 90,
   },
   statValue: {
     fontSize: 20,

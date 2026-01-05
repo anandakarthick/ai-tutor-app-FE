@@ -6,18 +6,20 @@ import apiClient from './client';
 import {ENDPOINTS} from './config';
 import type {ApiResponse, DailyProgress} from '../../types/api';
 
+interface SubjectProgress {
+  subjectId: string;
+  subjectName: string;
+  totalTopics: number;
+  completedTopics: number;
+  totalTimeMinutes: number;
+  avgProgress: number;
+}
+
 interface OverallProgress {
   totalTopics: number;
   completedTopics: number;
   totalTimeMinutes: number;
-  subjectProgress: {
-    subjectId: string;
-    subjectName: string;
-    totalTopics: number;
-    completedTopics: number;
-    totalTimeMinutes: number;
-    avgProgress: number;
-  }[];
+  subjectProgress: SubjectProgress[];
 }
 
 interface StreakInfo {
@@ -31,10 +33,18 @@ interface StreakInfo {
 export const progressApi = {
   /**
    * Get student's overall progress
+   * @param studentId - Student ID
+   * @param skipCache - If true, skip server-side cache
    */
-  getOverall: async (studentId: string) => {
+  getOverall: async (studentId: string, skipCache: boolean = false) => {
+    const params: Record<string, string> = {};
+    if (skipCache) {
+      params.skipCache = 'true';
+    }
+    
     const response = await apiClient.get<ApiResponse<OverallProgress>>(
-      ENDPOINTS.PROGRESS.OVERALL(studentId)
+      ENDPOINTS.PROGRESS.OVERALL(studentId),
+      { params }
     );
     return response.data;
   },
@@ -77,6 +87,16 @@ export const progressApi = {
   getStreak: async (studentId: string) => {
     const response = await apiClient.get<ApiResponse<StreakInfo>>(
       ENDPOINTS.PROGRESS.STREAK(studentId)
+    );
+    return response.data;
+  },
+
+  /**
+   * Clear cache for student (for debugging)
+   */
+  clearCache: async (studentId: string) => {
+    const response = await apiClient.delete<ApiResponse<{message: string}>>(
+      `${ENDPOINTS.PROGRESS.OVERALL(studentId)}/cache`
     );
     return response.data;
   },
