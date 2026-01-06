@@ -14,6 +14,7 @@ import {DoubtScreen, StudyPlanScreen} from '../screens/main';
 import {SubjectDetailScreen, ChapterScreen, LessonScreen} from '../screens/learn';
 import {QuizTakingScreen} from '../screens/quiz';
 import {NotificationSettingsScreen} from '../screens/settings';
+import {SubscriptionScreen} from '../screens/subscription';
 import {useThemeColor} from '../hooks/useThemeColor';
 import type {RootStackParamList} from '../types/navigation';
 
@@ -94,6 +95,13 @@ export function AppNavigator() {
           <Stack.Screen
             name="NotificationSettings"
             component={NotificationSettingsScreen}
+            options={{
+              animation: 'slide_from_right',
+            }}
+          />
+          <Stack.Screen
+            name="Subscription"
+            component={SubscriptionScreen}
             options={{
               animation: 'slide_from_right',
             }}

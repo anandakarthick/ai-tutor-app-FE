@@ -392,6 +392,22 @@ export function ProfileScreen() {
           <StatCard icon="trophy" value={studentLevel} label="Level 🏆" color="#FBBF24" cardColor={card} textColor={text} textSecondary={textSecondary} />
         </Animated.View>
 
+        {/* Subscription Section */}
+        <Animated.View style={[styles.menuSection, {opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
+          <Text style={[styles.sectionTitle, {color: textSecondary}]}>SUBSCRIPTION</Text>
+          <Card padding="sm">
+            <MenuItem
+              icon="crown"
+              label="Manage Subscription"
+              emoji="👑"
+              primaryColor={primary}
+              textColor={text}
+              textMuted={textMuted}
+              onPress={() => navigation.navigate('Subscription')}
+            />
+          </Card>
+        </Animated.View>
+
         {/* Account Section */}
         <Animated.View style={[styles.menuSection, {opacity: fadeAnim, transform: [{translateY: slideAnim}]}]}>
           <Text style={[styles.sectionTitle, {color: textSecondary}]}>ACCOUNT</Text>

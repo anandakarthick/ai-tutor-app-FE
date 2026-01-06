@@ -120,6 +120,8 @@ const materialIconMap: Record<string, string> = {
   'cast-connected': 'cast-connected',
   'television': 'television',
   'remote-tv': 'remote-tv',
+  receipt: 'receipt',
+  gift: 'gift-outline',
 };
 
 export function Icon({name, size = 24, color = '#000', style}: IconProps) {

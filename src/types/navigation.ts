@@ -46,6 +46,7 @@ export type RootStackParamList = {
   Leaderboard: undefined;
   Achievements: undefined;
   NotificationSettings: undefined;
+  Subscription: undefined;
 };
 
 // Screen props types

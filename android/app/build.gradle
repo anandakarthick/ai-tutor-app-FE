@@ -121,6 +121,8 @@ dependencies {
     // Firebase
     implementation platform('com.google.firebase:firebase-bom:33.7.0')
     implementation 'com.google.firebase:firebase-messaging'
+    
+    // Razorpay is included via react-native-razorpay - no need to add manually
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")
