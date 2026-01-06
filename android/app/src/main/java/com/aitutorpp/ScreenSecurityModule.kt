@@ -7,7 +7,7 @@ import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.bridge.Promise
 
-class ScreenSecurityModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
+class ScreenSecurityModule(private val reactContext: ReactApplicationContext) : ReactContextBaseJavaModule(reactContext) {
 
     override fun getName(): String {
         return "ScreenSecurity"
@@ -15,7 +15,7 @@ class ScreenSecurityModule(reactContext: ReactApplicationContext) : ReactContext
 
     @ReactMethod
     fun enableSecureMode(promise: Promise) {
-        val activity: Activity? = currentActivity
+        val activity: Activity? = reactContext.currentActivity
         if (activity != null) {
             activity.runOnUiThread {
                 try {
@@ -32,7 +32,7 @@ class ScreenSecurityModule(reactContext: ReactApplicationContext) : ReactContext
 
     @ReactMethod
     fun disableSecureMode(promise: Promise) {
-        val activity: Activity? = currentActivity
+        val activity: Activity? = reactContext.currentActivity
         if (activity != null) {
             activity.runOnUiThread {
                 try {
@@ -49,7 +49,7 @@ class ScreenSecurityModule(reactContext: ReactApplicationContext) : ReactContext
 
     @ReactMethod
     fun isSecureModeEnabled(promise: Promise) {
-        val activity: Activity? = currentActivity
+        val activity: Activity? = reactContext.currentActivity
         if (activity != null) {
             activity.runOnUiThread {
                 try {
