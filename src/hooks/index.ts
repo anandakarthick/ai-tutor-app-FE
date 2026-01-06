@@ -4,6 +4,7 @@
 
 export {useThemeColor} from './useThemeColor';
 export {useNotification} from './useNotification';
+export {useScreenSecurity} from './useScreenSecurity';
 
 // API Hooks
 export {
