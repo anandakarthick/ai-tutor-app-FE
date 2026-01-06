@@ -1,6 +1,7 @@
 /**
  * Main Tab Navigator
  * Bottom tab navigation for main app screens
+ * Screens requiring subscription are wrapped with SubscriptionGuard
  */
 
 import React, {useEffect, useRef} from 'react';
@@ -14,6 +15,7 @@ import {QuizzesScreen} from '../screens/main/QuizzesScreen';
 import {ProgressScreen} from '../screens/main/ProgressScreen';
 import {ProfileScreen} from '../screens/main/ProfileScreen';
 import {Icon} from '../components/ui/Icon';
+import {SubscriptionGuard} from '../components/common';
 import {Shadows, BorderRadius} from '../constants/theme';
 import {useThemeColor} from '../hooks/useThemeColor';
 import type {MainTabParamList} from '../types/navigation';
@@ -66,6 +68,31 @@ function TabIcon({
   );
 }
 
+// Wrapped screens that require subscription
+function GuardedLearnScreen() {
+  return (
+    <SubscriptionGuard>
+      <LearnScreen />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedQuizzesScreen() {
+  return (
+    <SubscriptionGuard>
+      <QuizzesScreen />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedProgressScreen() {
+  return (
+    <SubscriptionGuard>
+      <ProgressScreen />
+    </SubscriptionGuard>
+  );
+}
+
 export function MainTabNavigator() {
   const insets = useSafeAreaInsets();
   const cardColor = useThemeColor({}, 'card');
@@ -112,7 +139,7 @@ export function MainTabNavigator() {
       />
       <Tab.Screen
         name="Learn"
-        component={LearnScreen}
+        component={GuardedLearnScreen}
         options={{
           tabBarIcon: ({color, focused}) => (
             <TabIcon name="book-open" color={color} focused={focused} />
@@ -122,7 +149,7 @@ export function MainTabNavigator() {
       />
       <Tab.Screen
         name="Quizzes"
-        component={QuizzesScreen}
+        component={GuardedQuizzesScreen}
         options={{
           tabBarIcon: ({color, focused}) => (
             <TabIcon
@@ -137,7 +164,7 @@ export function MainTabNavigator() {
       />
       <Tab.Screen
         name="Progress"
-        component={ProgressScreen}
+        component={GuardedProgressScreen}
         options={{
           tabBarIcon: ({color, focused}) => (
             <TabIcon name="bar-chart-2" color={color} focused={focused} />

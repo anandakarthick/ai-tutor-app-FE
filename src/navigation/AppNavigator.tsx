@@ -1,6 +1,7 @@
 /**
  * App Navigator
  * Root navigation container with auth state handling
+ * Includes subscription guards for premium screens
  */
 
 import React from 'react';
@@ -14,7 +15,7 @@ import {
 } from 'react-native';
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 
-import {useAuth} from '../context';
+import {useAuth, useSubscription} from '../context';
 import {AuthNavigator} from './AuthNavigator';
 import {MainTabNavigator} from './MainTabNavigator';
 import {DoubtScreen, StudyPlanScreen} from '../screens/main';
@@ -22,6 +23,7 @@ import {SubjectDetailScreen, ChapterScreen, LessonScreen} from '../screens/learn
 import {QuizTakingScreen} from '../screens/quiz';
 import {NotificationSettingsScreen} from '../screens/settings';
 import {SubscriptionScreen} from '../screens/subscription';
+import {SubscriptionGuard} from '../components/common';
 import {useThemeColor} from '../hooks/useThemeColor';
 import {Icon} from '../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../constants/theme';
@@ -41,8 +43,58 @@ function LoadingScreen() {
   );
 }
 
+// Guarded screens that require subscription
+function GuardedDoubtScreen() {
+  return (
+    <SubscriptionGuard>
+      <DoubtScreen />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedSubjectDetailScreen(props: any) {
+  return (
+    <SubscriptionGuard>
+      <SubjectDetailScreen {...props} />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedChapterScreen(props: any) {
+  return (
+    <SubscriptionGuard>
+      <ChapterScreen {...props} />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedLessonScreen(props: any) {
+  return (
+    <SubscriptionGuard>
+      <LessonScreen {...props} />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedStudyPlanScreen() {
+  return (
+    <SubscriptionGuard>
+      <StudyPlanScreen />
+    </SubscriptionGuard>
+  );
+}
+
+function GuardedQuizTakingScreen(props: any) {
+  return (
+    <SubscriptionGuard>
+      <QuizTakingScreen {...props} />
+    </SubscriptionGuard>
+  );
+}
+
 export function AppNavigator() {
   const {isAuthenticated, isLoading, sessionTerminated, clearSessionTerminated} = useAuth();
+  const {isLoading: subscriptionLoading} = useSubscription();
   
   const card = useThemeColor({}, 'card');
   const text = useThemeColor({}, 'text');
@@ -50,10 +102,23 @@ export function AppNavigator() {
   const textMuted = useThemeColor({}, 'textMuted');
   const primary = useThemeColor({}, 'primary');
   const warning = useThemeColor({}, 'warning');
+  const background = useThemeColor({}, 'background');
 
   // Show loading screen while checking auth state
   if (isLoading) {
     return <LoadingScreen />;
+  }
+
+  // Show loading while checking subscription for authenticated users
+  if (isAuthenticated && subscriptionLoading) {
+    return (
+      <View style={[styles.loadingContainer, {backgroundColor: background}]}>
+        <ActivityIndicator size="large" color={primary} />
+        <Text style={[styles.loadingText, {color: textSecondary}]}>
+          Loading your account...
+        </Text>
+      </View>
+    );
   }
 
   return (
@@ -67,7 +132,7 @@ export function AppNavigator() {
             <Stack.Screen name="Main" component={MainTabNavigator} />
             <Stack.Screen
               name="Doubt"
-              component={DoubtScreen}
+              component={GuardedDoubtScreen}
               options={{
                 animation: 'slide_from_bottom',
                 presentation: 'modal',
@@ -75,35 +140,35 @@ export function AppNavigator() {
             />
             <Stack.Screen
               name="SubjectDetail"
-              component={SubjectDetailScreen}
+              component={GuardedSubjectDetailScreen}
               options={{
                 animation: 'slide_from_right',
               }}
             />
             <Stack.Screen
               name="Chapter"
-              component={ChapterScreen}
+              component={GuardedChapterScreen}
               options={{
                 animation: 'slide_from_right',
               }}
             />
             <Stack.Screen
               name="Lesson"
-              component={LessonScreen}
+              component={GuardedLessonScreen}
               options={{
                 animation: 'slide_from_right',
               }}
             />
             <Stack.Screen
               name="StudyPlan"
-              component={StudyPlanScreen}
+              component={GuardedStudyPlanScreen}
               options={{
                 animation: 'slide_from_right',
               }}
             />
             <Stack.Screen
               name="QuizTaking"
-              component={QuizTakingScreen}
+              component={GuardedQuizTakingScreen}
               options={{
                 animation: 'slide_from_right',
                 gestureEnabled: false, // Prevent swipe back during quiz
@@ -181,6 +246,10 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: Spacing.md,
+    fontSize: FontSizes.sm,
   },
   // Session Terminated Modal
   modalOverlay: {

@@ -19,6 +19,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useSubscription} from '../../context';
 import {subscriptionsApi, paymentsApi} from '../../services/api';
 import {Icon, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
@@ -34,6 +35,7 @@ try {
 
 export function SubscriptionScreen() {
   const navigation = useNavigation<any>();
+  const {checkSubscription} = useSubscription();
 
   // Theme colors - must be before other hooks that depend on them
   const background = useThemeColor({}, 'background');
@@ -215,9 +217,11 @@ export function SubscriptionScreen() {
     }
   };
 
-  const handleSuccessModalClose = () => {
+  const handleSuccessModalClose = async () => {
     setShowSuccessModal(false);
     setPurchasedPlan(null);
+    // Refresh subscription status after successful payment
+    await checkSubscription();
   };
 
   const formatCurrency = (amount: number) => {
