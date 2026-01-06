@@ -24,13 +24,10 @@ class MainActivity : ReactActivity() {
       DefaultReactActivityDelegate(this, mainComponentName, fabricEnabled)
 
   override fun onCreate(savedInstanceState: Bundle?) {
-    super.onCreate(savedInstanceState)
+    // Set FLAG_SECURE BEFORE calling super.onCreate
+    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     
-    // Prevent screenshots and screen recording
-    window.setFlags(
-      WindowManager.LayoutParams.FLAG_SECURE,
-      WindowManager.LayoutParams.FLAG_SECURE
-    )
+    super.onCreate(savedInstanceState)
     
     // Initialize Cast context
     try {
@@ -38,6 +35,20 @@ class MainActivity : ReactActivity() {
     } catch (e: Exception) {
       // Cast not available on this device
       e.printStackTrace()
+    }
+  }
+  
+  override fun onResume() {
+    super.onResume()
+    // Ensure FLAG_SECURE is always set when app is resumed
+    window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+  }
+  
+  override fun onWindowFocusChanged(hasFocus: Boolean) {
+    super.onWindowFocusChanged(hasFocus)
+    // Re-apply FLAG_SECURE when window focus changes
+    if (hasFocus) {
+      window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
   }
 }

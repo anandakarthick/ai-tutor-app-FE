@@ -1,10 +1,10 @@
 /**
  * AI Tutor App
- * Main entry point with Push Notifications, API integration, and Network handling
+ * Main entry point with Push Notifications, API integration, Network handling, and Screen Security
  */
 
 import React, {useEffect} from 'react';
-import {StatusBar, useColorScheme, View, Text} from 'react-native';
+import {StatusBar, useColorScheme, Platform, NativeModules} from 'react-native';
 import {
   NavigationContainer,
   DefaultTheme,
@@ -17,6 +17,8 @@ import {AuthProvider, StudentProvider, SubscriptionProvider, NetworkProvider, us
 import {NoInternetScreen} from './src/components/common';
 import {Colors} from './src/constants/theme';
 import NotificationService from './src/services/NotificationService';
+
+const {ScreenSecurity} = NativeModules;
 
 // Custom themes with vibrant colors
 const CustomLightTheme = {
@@ -79,6 +81,22 @@ function AppContent() {
 function App(): React.JSX.Element {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === 'dark';
+
+  // Initialize Screen Security (prevent screenshots/recording)
+  useEffect(() => {
+    const enableScreenSecurity = async () => {
+      if (Platform.OS === 'android' && ScreenSecurity) {
+        try {
+          await ScreenSecurity.enableSecureMode();
+          console.log('🛡️ Screen security enabled - Screenshots blocked');
+        } catch (error) {
+          console.error('❌ Failed to enable screen security:', error);
+        }
+      }
+    };
+
+    enableScreenSecurity();
+  }, []);
 
   // Initialize Push Notifications
   useEffect(() => {
