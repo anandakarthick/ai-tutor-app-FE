@@ -3,7 +3,7 @@
  * View plans, manage subscription, and make payments with Razorpay
  */
 
-import React, {useState, useEffect, useCallback} from 'react';
+import React, {useState, useEffect, useCallback, useRef} from 'react';
 import {
   View,
   Text,
@@ -13,15 +13,14 @@ import {
   Alert,
   ActivityIndicator,
   RefreshControl,
-  Linking,
-  NativeModules,
-  Platform,
+  Modal,
+  Animated,
 } from 'react-native';
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {subscriptionsApi, paymentsApi} from '../../services/api';
-import {Icon} from '../../components/ui';
+import {Icon, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {SubscriptionPlan, UserSubscription, Payment} from '../../types/api';
 
@@ -36,14 +35,7 @@ try {
 export function SubscriptionScreen() {
   const navigation = useNavigation<any>();
 
-  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [activeSubscription, setActiveSubscription] = useState<UserSubscription | null>(null);
-  const [transactions, setTransactions] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'plans' | 'transactions'>('plans');
-
+  // Theme colors - must be before other hooks that depend on them
   const background = useThemeColor({}, 'background');
   const text = useThemeColor({}, 'text');
   const textSecondary = useThemeColor({}, 'textSecondary');
@@ -55,9 +47,68 @@ export function SubscriptionScreen() {
   const warning = useThemeColor({}, 'warning');
   const error = useThemeColor({}, 'error');
 
+  // State
+  const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
+  const [activeSubscription, setActiveSubscription] = useState<UserSubscription | null>(null);
+  const [transactions, setTransactions] = useState<Payment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [processingPlanId, setProcessingPlanId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'plans' | 'transactions'>('plans');
+  
+  // Success modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [purchasedPlan, setPurchasedPlan] = useState<SubscriptionPlan | null>(null);
+  
+  // Animation refs
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const bounceAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     loadData();
   }, []);
+
+  // Animate success modal
+  useEffect(() => {
+    if (showSuccessModal) {
+      // Reset animations
+      scaleAnim.setValue(0);
+      fadeAnim.setValue(0);
+      bounceAnim.setValue(0);
+      
+      // Run animations
+      Animated.parallel([
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Bounce animation for emoji
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(bounceAnim, {
+            toValue: -10,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bounceAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    }
+  }, [showSuccessModal]);
 
   const loadData = async () => {
     try {
@@ -113,7 +164,7 @@ export function SubscriptionScreen() {
       // Open Razorpay checkout
       const options = {
         description: `${plan.displayName} Subscription`,
-        image: 'https://your-logo-url.com/logo.png', // Replace with your logo
+        image: 'https://your-logo-url.com/logo.png',
         currency: 'INR',
         key: keyId,
         amount: amount,
@@ -137,11 +188,10 @@ export function SubscriptionScreen() {
       });
 
       if (verifyRes.success) {
-        Alert.alert(
-          'Payment Successful! 🎉',
-          'Your subscription is now active. Enjoy learning!',
-          [{text: 'OK', onPress: loadData}],
-        );
+        // Show success modal instead of Alert
+        setPurchasedPlan(plan);
+        setShowSuccessModal(true);
+        await loadData();
       } else {
         throw new Error('Payment verification failed');
       }
@@ -157,6 +207,11 @@ export function SubscriptionScreen() {
     } finally {
       setProcessingPlanId(null);
     }
+  };
+
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    setPurchasedPlan(null);
   };
 
   const formatCurrency = (amount: number) => {
@@ -483,6 +538,88 @@ export function SubscriptionScreen() {
         {/* Bottom Spacer - ensures content is not cut off */}
         <View style={{height: 100}} />
       </ScrollView>
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleSuccessModalClose}>
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.successModal,
+              {
+                backgroundColor: card,
+                transform: [{scale: scaleAnim}],
+                opacity: fadeAnim,
+              },
+            ]}>
+            {/* Success Icon */}
+            <Animated.View
+              style={[
+                styles.successIconContainer,
+                {
+                  backgroundColor: `${success}15`,
+                  transform: [{translateY: bounceAnim}],
+                },
+              ]}>
+              <Text style={styles.successEmoji}>🎉</Text>
+            </Animated.View>
+
+            {/* Success Text */}
+            <Text style={[styles.successTitle, {color: text}]}>
+              Payment Successful!
+            </Text>
+            <Text style={[styles.successSubtitle, {color: textSecondary}]}>
+              Welcome to {purchasedPlan?.displayName || 'Premium'}!
+            </Text>
+
+            {/* Plan Details */}
+            <View style={[styles.successPlanCard, {backgroundColor: `${primary}10`}]}>
+              <Icon name="crown" size={24} color={primary} />
+              <View style={styles.successPlanInfo}>
+                <Text style={[styles.successPlanName, {color: text}]}>
+                  {purchasedPlan?.displayName || 'Premium Plan'}
+                </Text>
+                <Text style={[styles.successPlanPrice, {color: primary}]}>
+                  {purchasedPlan ? formatCurrency(purchasedPlan.price) : ''} / {purchasedPlan?.durationMonths === 1 ? 'month' : `${purchasedPlan?.durationMonths} months`}
+                </Text>
+              </View>
+              <Icon name="check-circle" size={24} color={success} />
+            </View>
+
+            {/* Features */}
+            <View style={styles.successFeatures}>
+              <View style={styles.successFeatureItem}>
+                <Icon name="check" size={16} color={success} />
+                <Text style={[styles.successFeatureText, {color: textSecondary}]}>
+                  Unlimited access to all subjects
+                </Text>
+              </View>
+              <View style={styles.successFeatureItem}>
+                <Icon name="check" size={16} color={success} />
+                <Text style={[styles.successFeatureText, {color: textSecondary}]}>
+                  AI-powered personalized learning
+                </Text>
+              </View>
+              <View style={styles.successFeatureItem}>
+                <Icon name="check" size={16} color={success} />
+                <Text style={[styles.successFeatureText, {color: textSecondary}]}>
+                  Instant doubt resolution
+                </Text>
+              </View>
+            </View>
+
+            {/* CTA Button */}
+            <TouchableOpacity
+              style={[styles.successButton, {backgroundColor: primary}]}
+              onPress={handleSuccessModalClose}>
+              <Text style={styles.successButtonText}>Start Learning! 🚀</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -784,5 +921,84 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '600',
     textTransform: 'capitalize',
+  },
+  // Success Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  successModal: {
+    width: '100%',
+    borderRadius: BorderRadius['2xl'],
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  successIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+  },
+  successEmoji: {
+    fontSize: 48,
+  },
+  successTitle: {
+    fontSize: FontSizes['2xl'],
+    fontWeight: '700',
+    marginBottom: Spacing.xs,
+  },
+  successSubtitle: {
+    fontSize: FontSizes.base,
+    marginBottom: Spacing.lg,
+  },
+  successPlanCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    gap: Spacing.md,
+  },
+  successPlanInfo: {
+    flex: 1,
+  },
+  successPlanName: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  successPlanPrice: {
+    fontSize: FontSizes.sm,
+    fontWeight: '700',
+  },
+  successFeatures: {
+    width: '100%',
+    marginBottom: Spacing.lg,
+  },
+  successFeatureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  successFeatureText: {
+    fontSize: FontSizes.sm,
+  },
+  successButton: {
+    width: '100%',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+  },
+  successButtonText: {
+    color: '#FFF',
+    fontSize: FontSizes.base,
+    fontWeight: '700',
   },
 });
