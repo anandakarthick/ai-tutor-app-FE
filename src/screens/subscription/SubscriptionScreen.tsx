@@ -60,6 +60,9 @@ export function SubscriptionScreen() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [purchasedPlan, setPurchasedPlan] = useState<SubscriptionPlan | null>(null);
   
+  // Transaction detail modal state
+  const [selectedTransaction, setSelectedTransaction] = useState<Payment | null>(null);
+  
   // Animation refs
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -122,8 +125,11 @@ export function SubscriptionScreen() {
       if (plansRes.success) setPlans(plansRes.data || []);
       if (activeRes.success) setActiveSubscription(activeRes.data);
       if (paymentsRes.success) setTransactions(paymentsRes.data || []);
-    } catch (err) {
-      console.error('Failed to load subscription data:', err);
+    } catch (err: any) {
+      // Don't show error for 401 - session termination is handled by AuthContext
+      if (err?.response?.status !== 401) {
+        console.error('Failed to load subscription data:', err);
+      }
     } finally {
       setLoading(false);
     }
@@ -227,6 +233,16 @@ export function SubscriptionScreen() {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
+    });
+  };
+
+  const formatDateTime = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     });
   };
 
@@ -497,9 +513,11 @@ export function SubscriptionScreen() {
               </View>
             ) : (
               transactions.map((transaction) => (
-                <View
+                <TouchableOpacity
                   key={transaction.id}
-                  style={[styles.transactionItem, {backgroundColor: card}]}>
+                  style={[styles.transactionItem, {backgroundColor: card}]}
+                  onPress={() => setSelectedTransaction(transaction)}
+                  activeOpacity={0.7}>
                   <View style={[styles.transactionIcon, {backgroundColor: `${primary}15`}]}>
                     <Icon name="credit-card" size={20} color={primary} />
                   </View>
@@ -529,7 +547,8 @@ export function SubscriptionScreen() {
                       </Text>
                     </View>
                   </View>
-                </View>
+                  <Icon name="chevron-right" size={18} color={textMuted} />
+                </TouchableOpacity>
               ))
             )}
           </>
@@ -618,6 +637,112 @@ export function SubscriptionScreen() {
               <Text style={styles.successButtonText}>Start Learning! 🚀</Text>
             </TouchableOpacity>
           </Animated.View>
+        </View>
+      </Modal>
+
+      {/* Transaction Detail Modal */}
+      <Modal
+        visible={selectedTransaction !== null}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedTransaction(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.detailModal, {backgroundColor: card}]}>
+            {/* Modal Header */}
+            <View style={[styles.detailModalHeader, {borderBottomColor: border}]}>
+              <Text style={[styles.detailModalTitle, {color: text}]}>Transaction Details</Text>
+              <TouchableOpacity
+                style={[styles.detailModalClose, {backgroundColor: `${textMuted}15`}]}
+                onPress={() => setSelectedTransaction(null)}>
+                <Icon name="x" size={20} color={textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Amount & Status */}
+            {selectedTransaction && (
+              <View style={styles.detailModalBody}>
+                <View style={styles.detailAmountSection}>
+                  <View style={[styles.detailIconLarge, {backgroundColor: `${primary}15`}]}>
+                    <Icon name="credit-card" size={28} color={primary} />
+                  </View>
+                  <Text style={[styles.detailAmount, {color: text}]}>
+                    {formatCurrency(selectedTransaction.amount)}
+                  </Text>
+                  <View
+                    style={[
+                      styles.detailStatusBadge,
+                      {backgroundColor: `${getStatusColor(selectedTransaction.status)}20`},
+                    ]}>
+                    {selectedTransaction.status === 'success' && (
+                      <Icon name="check-circle" size={14} color={getStatusColor(selectedTransaction.status)} />
+                    )}
+                    {selectedTransaction.status === 'failed' && (
+                      <Icon name="x-circle" size={14} color={getStatusColor(selectedTransaction.status)} />
+                    )}
+                    {selectedTransaction.status === 'pending' && (
+                      <Icon name="clock" size={14} color={getStatusColor(selectedTransaction.status)} />
+                    )}
+                    <Text
+                      style={[
+                        styles.detailStatusText,
+                        {color: getStatusColor(selectedTransaction.status)},
+                      ]}>
+                      {selectedTransaction.status}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Detail Rows */}
+                <View style={styles.detailRows}>
+                  <View style={[styles.detailRow, {borderBottomColor: border}]}>
+                    <Text style={[styles.detailLabel, {color: textMuted}]}>Transaction ID</Text>
+                    <Text style={[styles.detailValue, {color: text}]} numberOfLines={1}>
+                      {selectedTransaction.id.substring(0, 18)}...
+                    </Text>
+                  </View>
+
+                  {selectedTransaction.gatewayPaymentId && (
+                    <View style={[styles.detailRow, {borderBottomColor: border}]}>
+                      <Text style={[styles.detailLabel, {color: textMuted}]}>Payment ID</Text>
+                      <Text style={[styles.detailValue, {color: text}]} numberOfLines={1}>
+                        {selectedTransaction.gatewayPaymentId}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={[styles.detailRow, {borderBottomColor: border}]}>
+                    <Text style={[styles.detailLabel, {color: textMuted}]}>Date & Time</Text>
+                    <Text style={[styles.detailValue, {color: text}]}>
+                      {formatDateTime(selectedTransaction.createdAt)}
+                    </Text>
+                  </View>
+
+                  <View style={[styles.detailRow, {borderBottomColor: border}]}>
+                    <Text style={[styles.detailLabel, {color: textMuted}]}>Payment Gateway</Text>
+                    <Text style={[styles.detailValue, {color: text}]}>
+                      {selectedTransaction.gateway || 'razorpay'}
+                    </Text>
+                  </View>
+
+                  {selectedTransaction.description && (
+                    <View style={[styles.detailRow, {borderBottomColor: border}]}>
+                      <Text style={[styles.detailLabel, {color: textMuted}]}>Description</Text>
+                      <Text style={[styles.detailValue, {color: text}]} numberOfLines={2}>
+                        {selectedTransaction.description}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Close Button */}
+                <TouchableOpacity
+                  style={[styles.detailCloseButton, {backgroundColor: `${textMuted}15`}]}
+                  onPress={() => setSelectedTransaction(null)}>
+                  <Text style={[styles.detailCloseButtonText, {color: text}]}>Close</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -1000,5 +1125,93 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: FontSizes.base,
     fontWeight: '700',
+  },
+  // Transaction Detail Modal
+  detailModal: {
+    width: '100%',
+    borderRadius: BorderRadius['2xl'],
+    overflow: 'hidden',
+  },
+  detailModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+  },
+  detailModalTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+  },
+  detailModalClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailModalBody: {
+    padding: Spacing.lg,
+  },
+  detailAmountSection: {
+    alignItems: 'center',
+    paddingBottom: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  detailIconLarge: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  detailAmount: {
+    fontSize: 32,
+    fontWeight: '700',
+    marginBottom: Spacing.sm,
+  },
+  detailStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  detailStatusText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  detailRows: {
+    marginBottom: Spacing.lg,
+  },
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+  },
+  detailLabel: {
+    fontSize: FontSizes.sm,
+    flex: 1,
+  },
+  detailValue: {
+    fontSize: FontSizes.sm,
+    fontWeight: '500',
+    flex: 1,
+    textAlign: 'right',
+  },
+  detailCloseButton: {
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+  },
+  detailCloseButtonText: {
+    fontSize: FontSizes.base,
+    fontWeight: '600',
   },
 });

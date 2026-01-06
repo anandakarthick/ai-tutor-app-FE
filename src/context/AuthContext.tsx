@@ -58,12 +58,7 @@ export function AuthProvider({children}: {children: React.ReactNode}) {
     setSessionTerminated(true);
     setUser(null);
     setIsAuthenticated(false);
-    
-    Alert.alert(
-      'Session Ended',
-      'You have been logged out because you signed in on another device. Only one device can be active at a time.',
-      [{text: 'OK', onPress: () => setSessionTerminated(false)}]
-    );
+    // Don't show Alert here - we'll show a Modal in AppNavigator
   }, []);
 
   // Set the callback for session terminated
