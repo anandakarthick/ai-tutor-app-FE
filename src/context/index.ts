@@ -7,3 +7,4 @@ export {StudentProvider, useStudent} from './StudentContext';
 export {SubscriptionProvider, useSubscription} from './SubscriptionContext';
 export {CastProvider, useCast} from './CastContext';
 export {NetworkProvider, useNetwork} from './NetworkContext';
+export {SettingsProvider, useSettings} from './SettingsContext';

@@ -13,7 +13,7 @@ import {
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {AppNavigator} from './src/navigation/AppNavigator';
-import {AuthProvider, StudentProvider, SubscriptionProvider, NetworkProvider, useNetwork} from './src/context';
+import {AuthProvider, StudentProvider, SubscriptionProvider, NetworkProvider, SettingsProvider, useNetwork} from './src/context';
 import {NoInternetScreen} from './src/components/common';
 import {Colors} from './src/constants/theme';
 import NotificationService from './src/services/NotificationService';
@@ -59,22 +59,24 @@ function AppContent() {
   }
 
   return (
-    <AuthProvider>
-      <StudentProvider>
-        <SubscriptionProvider>
-          <StatusBar
-            barStyle={isDark ? 'light-content' : 'dark-content'}
-            backgroundColor={
-              isDark ? Colors.dark.background : Colors.light.background
-            }
-            translucent={false}
-          />
-          <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
-            <AppNavigator />
-          </NavigationContainer>
-        </SubscriptionProvider>
-      </StudentProvider>
-    </AuthProvider>
+    <SettingsProvider>
+      <AuthProvider>
+        <StudentProvider>
+          <SubscriptionProvider>
+            <StatusBar
+              barStyle={isDark ? 'light-content' : 'dark-content'}
+              backgroundColor={
+                isDark ? Colors.dark.background : Colors.light.background
+              }
+              translucent={false}
+            />
+            <NavigationContainer theme={isDark ? CustomDarkTheme : CustomLightTheme}>
+              <AppNavigator />
+            </NavigationContainer>
+          </SubscriptionProvider>
+        </StudentProvider>
+      </AuthProvider>
+    </SettingsProvider>
   );
 }
 

@@ -16,7 +16,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {useAuth} from '../../context';
+import {useAuth, useSettings} from '../../context';
 import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
 import type {AuthStackScreenProps} from '../../types/navigation';
@@ -27,6 +27,7 @@ const Logo = require('../../assets/images/logo.png');
 export function LoginScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Login'>['navigation']>();
   const {sendOtp} = useAuth();
+  const {settings} = useSettings();
   
   const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
@@ -123,7 +124,7 @@ export function LoginScreen() {
               />
             </View>
             
-            <Text style={[styles.appName, {color: primary}]}>AI Tutor</Text>
+            <Text style={[styles.appName, {color: primary}]}>{settings.siteName}</Text>
             <Text style={[styles.title, {color: text}]}>Welcome Back!</Text>
             <Text style={[styles.subtitle, {color: textSecondary}]}>
               Enter your mobile number to continue
@@ -178,7 +179,7 @@ export function LoginScreen() {
           {/* Register Link */}
           <View style={styles.registerContainer}>
             <Text style={[styles.registerText, {color: textSecondary}]}>
-              New to AI Tutor?
+              New to {settings.siteName}?
             </Text>
             <TouchableOpacity 
               style={[styles.registerButton, {backgroundColor: primaryBg, borderColor: primary}]}
