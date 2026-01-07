@@ -24,7 +24,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {useAuth, useStudent} from '../../context';
+import {useAuth, useStudent, useSettings} from '../../context';
 import {useProgress} from '../../hooks';
 import {settingsApi, studentsApi, usersApi, contentApi} from '../../services/api';
 import type {FAQ, ContactInfo} from '../../services/api/settings';
@@ -36,6 +36,7 @@ export function ProfileScreen() {
   const navigation = useNavigation<any>();
   const {user, logout, refreshUser} = useAuth();
   const {currentStudent, createStudent, updateStudent, loadStudents} = useStudent();
+  const {settings} = useSettings();
   const {streak, refresh: refreshProgress} = useProgress();
   const systemColorScheme = useColorScheme();
   
@@ -297,7 +298,7 @@ export function ProfileScreen() {
   };
 
   const handleRateApp = () => {
-    Alert.alert('Rate AI Tutor ⭐', 'Enjoying the app? Please rate us!', [
+    Alert.alert(`Rate ${settings.siteName} ⭐`, 'Enjoying the app? Please rate us!', [
       {text: 'Maybe Later', style: 'cancel'},
       {text: 'Rate Now', onPress: () => Linking.openURL('https://play.google.com/store/apps/details?id=com.aitutorapp')},
     ]);
@@ -491,7 +492,7 @@ export function ProfileScreen() {
           </Card>
         </Animated.View>
 
-        <Text style={[styles.version, {color: textMuted}]}>Version 1.0.0 • AI Tutor App</Text>
+        <Text style={[styles.version, {color: textMuted}]}>Version 1.0.0 • {settings.siteName}</Text>
         <View style={{height: Spacing['2xl']}} />
       </ScrollView>
 

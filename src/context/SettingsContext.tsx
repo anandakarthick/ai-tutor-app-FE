@@ -5,7 +5,7 @@
 
 import React, {createContext, useContext, useState, useEffect, ReactNode} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import {API_URL} from '../constants/config';
+import {API_CONFIG} from '../services/api/config';
 
 interface SiteSettings {
   siteName: string;
@@ -95,7 +95,7 @@ export function SettingsProvider({children}: SettingsProviderProps) {
       }
 
       // Fetch from API
-      const response = await fetch(`${API_URL}/settings/public`);
+      const response = await fetch(`${API_CONFIG.BASE_URL}/settings/public`);
 
       if (response.ok) {
         const result = await response.json();

@@ -20,6 +20,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useSettings} from '../../context';
 import {useDoubts} from '../../hooks';
 import {Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
@@ -59,8 +60,17 @@ const SUBJECT_CHIPS = [
 export function DoubtScreen() {
   const navigation = useNavigation();
   const {createDoubt, creating} = useDoubts();
+  const {settings} = useSettings();
   
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  // Initial message uses settings
+  const getInitialMessages = (): Message[] => [{
+    id: '1',
+    message: `Hello! 👋 I'm your ${settings.siteName} assistant. Ask me anything about your studies - Math, Science, English, or any subject. I'm here to help you understand better!`,
+    sender: 'ai',
+    timestamp: 'Now',
+  }];
+  
+  const [messages, setMessages] = useState<Message[]>(getInitialMessages());
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<string | null>(null);
@@ -240,7 +250,7 @@ export function DoubtScreen() {
             <Icon name="chevron-left" size={24} color="#FFF" />
           </TouchableOpacity>
           <View style={styles.headerContent}>
-            <Text style={styles.headerTitle}>AI Tutor</Text>
+            <Text style={styles.headerTitle}>{settings.siteName}</Text>
             <View style={styles.onlineBadge}>
               <View style={styles.onlineDot} />
               <Text style={styles.onlineText}>Online</Text>

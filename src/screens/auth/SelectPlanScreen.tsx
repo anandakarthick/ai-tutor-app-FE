@@ -17,6 +17,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useSettings} from '../../context';
 import {subscriptionsApi} from '../../services/api';
 import {Button, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
@@ -37,6 +38,7 @@ export function SelectPlanScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'SelectPlan'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'SelectPlan'>['route']>();
   const {userId} = route.params;
+  const {settings} = useSettings();
 
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
@@ -292,7 +294,7 @@ export function SelectPlanScreen() {
             {backgroundColor: primaryBg, opacity: fadeAnim},
           ]}>
           <Text style={[styles.benefitsTitle, {color: primary}]}>
-            Why choose AI Tutor? 🧠
+            Why choose {settings.siteName}? 🧠
           </Text>
           <View style={styles.benefitsList}>
             <BenefitItem
