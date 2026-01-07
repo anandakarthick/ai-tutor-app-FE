@@ -28,17 +28,17 @@ interface SettingsContextType {
 }
 
 const defaultSettings: SiteSettings = {
-  siteName: 'AI Tutor',
+  siteName: 'Viha AI',
   tagline: 'Your Personal AI-Powered Learning Companion',
-  supportEmail: 'support@aitutor.com',
+  supportEmail: 'support@example.com',
   supportPhone: '+91 98765 43210',
   whatsappNumber: '919876543210',
   address: 'Chennai, Tamil Nadu, India',
-  facebookUrl: 'https://facebook.com/aitutor',
-  twitterUrl: 'https://twitter.com/aitutor',
-  instagramUrl: 'https://instagram.com/aitutor',
-  linkedinUrl: 'https://linkedin.com/company/aitutor',
-  youtubeUrl: 'https://youtube.com/@aitutor',
+  facebookUrl: '',
+  twitterUrl: '',
+  instagramUrl: '',
+  linkedinUrl: '',
+  youtubeUrl: '',
 };
 
 const SettingsContext = createContext<SettingsContextType>({

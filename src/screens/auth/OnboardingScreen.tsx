@@ -31,7 +31,7 @@ const ONBOARDING_STEPS = [
     icon: 'message-circle',
     emoji: '🤖',
     title: 'AI Doubt Solving',
-    description: 'Get instant answers to your questions 24/7 with our AI tutor.',
+    description: 'Get instant answers to your questions 24/7 with our AI assistant.',
     color: '#3B82F6',
   },
   {

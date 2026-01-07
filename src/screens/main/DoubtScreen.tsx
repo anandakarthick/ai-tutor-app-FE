@@ -20,7 +20,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
-import {useSettings} from '../../context';
+import {useSettings} from '../../context/SettingsContext';
 import {useDoubts} from '../../hooks';
 import {Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
@@ -33,15 +33,6 @@ type Message = {
   sender: 'user' | 'ai';
   timestamp: string;
 };
-
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: '1',
-    message: "Hello! 👋 I'm your AI tutor. Ask me anything about your studies - Math, Science, English, or any subject. I'm here to help you understand better!",
-    sender: 'ai',
-    timestamp: 'Now',
-  },
-];
 
 const QUICK_QUESTIONS = [
   {id: '1', text: 'Explain Pythagorean theorem', emoji: '📐'},

@@ -19,7 +19,7 @@ try {
  */
 export async function sendTestNotification(
   title: string = 'Test Notification',
-  body: string = 'This is a test notification from AI Tutor App',
+  body: string = 'This is a test notification from the app',
   data: Record<string, string> = {},
 ): Promise<void> {
   try {
@@ -30,8 +30,8 @@ export async function sendTestNotification(
 
     // Create channel for Android
     const channelId = await notifee.createChannel({
-      id: 'ai_tutor_channel',
-      name: 'AI Tutor Notifications',
+      id: 'app_notification_channel',
+      name: 'App Notifications',
       importance: 4, // HIGH
       vibration: true,
       sound: 'default',

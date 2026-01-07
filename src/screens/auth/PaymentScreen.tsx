@@ -19,6 +19,7 @@ import {
 import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
+import {useSettings} from '../../context/SettingsContext';
 import {paymentsApi, subscriptionsApi} from '../../services/api';
 import {Button, Input, Icon} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
@@ -47,6 +48,7 @@ export function PaymentScreen() {
   const navigation = useNavigation<AuthStackScreenProps<'Payment'>['navigation']>();
   const route = useRoute<AuthStackScreenProps<'Payment'>['route']>();
   const {planId, planName, price, userId} = route.params;
+  const {settings} = useSettings();
 
   const [selectedMethod, setSelectedMethod] = useState('razorpay');
   const [upiId, setUpiId] = useState('');
@@ -144,7 +146,7 @@ export function PaymentScreen() {
         currency: currency,
         key: razorpayKeyId,
         amount: amount, // in paise
-        name: 'AI Tutor',
+        name: settings.siteName,
         order_id: orderId,
         prefill: {
           email: '',
@@ -214,7 +216,7 @@ export function PaymentScreen() {
       }
 
       // Generate UPI deep link
-      const upiLink = `upi://pay?pa=merchant@upi&pn=AITutor&am=${finalPrice}&cu=INR&tn=${planName}Subscription`;
+      const upiLink = `upi://pay?pa=merchant@upi&pn=${encodeURIComponent(settings.siteName)}&am=${finalPrice}&cu=INR&tn=${planName}Subscription`;
       
       const canOpen = await Linking.canOpenURL(upiLink);
       if (canOpen) {
@@ -475,7 +477,7 @@ export function PaymentScreen() {
               Payment Successful! 🎉
             </Text>
             <Text style={[styles.successSubtitle, {color: textSecondary}]}>
-              Welcome to AI Tutor Premium
+              Welcome to {settings.siteName} Premium
             </Text>
             <Text style={[styles.successAmount, {color: success}]}>
               ₹{finalPrice} paid

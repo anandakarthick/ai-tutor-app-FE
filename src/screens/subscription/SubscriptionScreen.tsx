@@ -20,6 +20,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useSubscription} from '../../context';
+import {useSettings} from '../../context/SettingsContext';
 import {subscriptionsApi, paymentsApi} from '../../services/api';
 import {Icon, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing, Shadows} from '../../constants/theme';
@@ -36,6 +37,7 @@ try {
 export function SubscriptionScreen() {
   const navigation = useNavigation<any>();
   const {checkSubscription} = useSubscription();
+  const {settings} = useSettings();
 
   // Theme colors - must be before other hooks that depend on them
   const background = useThemeColor({}, 'background');
@@ -176,7 +178,7 @@ export function SubscriptionScreen() {
         currency: 'INR',
         key: keyId,
         amount: amount,
-        name: 'AI Tutor',
+        name: settings.siteName,
         order_id: orderId,
         prefill: {
           email: '',

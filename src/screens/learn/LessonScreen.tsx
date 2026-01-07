@@ -23,6 +23,7 @@ import {SafeAreaView} from 'react-native-safe-area-context';
 import {useNavigation, useRoute} from '@react-navigation/native';
 import {useThemeColor} from '../../hooks/useThemeColor';
 import {useStudent} from '../../context';
+import {useSettings} from '../../context/SettingsContext';
 import {contentApi, learningApi} from '../../services/api';
 import {Icon, Button} from '../../components/ui';
 import {BorderRadius, FontSizes, Spacing} from '../../constants/theme';
@@ -152,6 +153,7 @@ export function LessonScreen() {
   const route = useRoute<any>();
   const {subject, chapter, lesson, topicId, subjectColor, isAlreadyCompleted} = route.params;
   const {currentStudent} = useStudent();
+  const {settings} = useSettings();
 
   const [topic, setTopic] = useState<Topic | null>(null);
   const [contentBlocks, setContentBlocks] = useState<ContentBlock[]>([]);
@@ -353,7 +355,7 @@ export function LessonScreen() {
     const contentLines = content.split('\n').filter(line => line.trim().length > 10);
     const keyPoints = contentLines.slice(0, 3).map(line => line.trim().substring(0, 80));
 
-    return `${greeting} ${studentName}! I'm Buddy, your AI tutor.
+    return `${greeting} ${studentName}! I'm Buddy, your learning assistant from ${settings.siteName}.
 
 Today we're learning about ${topicTitle}.
 
@@ -477,7 +479,7 @@ You're doing great, ${studentName}!`;
         <View style={styles.aiHeader}>
           <AIAvatar isActive={isAiTyping || isLoadingAi} isSpeaking={isSpeaking} color={subjectColor} />
           <View style={styles.aiHeaderText}>
-            <Text style={[styles.aiName, {color: text}]}>🎓 Buddy AI Tutor</Text>
+            <Text style={[styles.aiName, {color: text}]}>🎓 Buddy - {settings.siteName}</Text>
             <View style={styles.statusRow}>
               <Text style={[styles.aiStatus, {color: isSpeaking || isAiTyping ? subjectColor : textMuted}]}>
                 {isLoadingAi ? '🧠 Thinking...' : isSpeaking ? '🗣️ Speaking...' : isAiTyping ? '✍️ Teaching...' : aiTeachingComplete ? '✅ Ready to help!' : '👋 Tap Start'}

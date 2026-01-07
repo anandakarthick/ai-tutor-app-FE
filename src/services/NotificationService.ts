@@ -316,8 +316,8 @@ class NotificationService {
         
         // Create a channel (required for Android)
         const channelId = await notifee.createChannel({
-          id: 'ai_tutor_channel',
-          name: 'AI Tutor Notifications',
+          id: 'app_notification_channel',
+          name: 'App Notifications',
           importance: 4, // HIGH
           vibration: true,
           sound: 'default',
@@ -325,7 +325,7 @@ class NotificationService {
 
         // Display notification
         await notifee.displayNotification({
-          title: notification.title || 'AI Tutor',
+          title: notification.title || 'New Notification',
           body: notification.body || '',
           android: {
             channelId,
@@ -341,7 +341,7 @@ class NotificationService {
       } catch (notifeeError) {
         // Fallback to Alert if Notifee is not available
         Alert.alert(
-          notification.title || 'AI Tutor',
+          notification.title || 'New Notification',
           notification.body || '',
           [
             {text: 'Dismiss', style: 'cancel'},
